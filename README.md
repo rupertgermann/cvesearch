@@ -16,9 +16,11 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 - **Keyword and CVE lookup** — Search by product keyword or jump directly to a CVE ID such as `CVE-2024-1234`
 - **Filterable result sets** — Filter by product, vendor/product pair, CWE, published-since date, and minimum severity
 - **Prioritization controls** — Sort by newest, oldest, highest CVSS, or lowest CVSS
+- **Vendor and product browse assist** — Filter inputs now offer vendor suggestions and vendor-scoped product suggestions
 - **Server-rendered homepage results** — Initial search results are resolved on the server for faster first paint
 - **Saved views** — Save reusable searches locally, inspired by OpenCVE views
 - **Local watchlist** — Bookmark CVEs or advisories and revisit them on a dedicated watchlist page
+- **Richer result cards** — See affected-product hints and copy deep links directly from search results
 - **Detailed CVE views** — Review CVSS scores, EPSS exploit probability when a CVE ID exists, affected products, references, and raw source data
 - **Severity indicators** — Color-coded CVSS severity badges
 - **Paginated results** — Navigate through large result sets
@@ -28,7 +30,6 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 ## Current Limitations
 
 - Vendor-only filtering is intentionally blocked. The current data flow only supports a trustworthy vendor filter when paired with a product.
-- Vendor and product autocomplete are not implemented yet.
 - Saved views and watchlist are browser-local only. They are not synced across devices or users.
 - CWE enrichment and linked-vulnerability rendering are still partial.
 - The proxy is functional but not yet fully hardened with allowlists, timeout policy, and response validation.

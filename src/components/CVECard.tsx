@@ -10,6 +10,7 @@ import {
 } from "@/lib/utils";
 import SeverityBadge from "./SeverityBadge";
 import BookmarkButton from "./BookmarkButton";
+import CopyLinkButton from "./CopyLinkButton";
 
 interface CVECardProps {
   cve: CVESummary;
@@ -21,11 +22,13 @@ export default function CVECard({ cve }: CVECardProps) {
   const published = extractPublishedDate(cve);
   const score = cve.cvss3 ?? cve.cvss;
   const severity = getSeverityFromScore(score);
+  const href = `/cve/${encodeURIComponent(cveId)}`;
+  const affectedProducts = (cve.vulnerable_product ?? []).slice(0, 3);
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/[0.12] hover:bg-white/[0.04]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <Link href={`/cve/${encodeURIComponent(cveId)}`} className="group min-w-0 flex-1">
+        <Link href={href} className="group min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-mono text-base font-semibold text-white group-hover:text-cyan-400 transition-colors">
               {cveId}
@@ -43,12 +46,28 @@ export default function CVECard({ cve }: CVECardProps) {
             {truncate(description, 250)}
           </p>
         </Link>
-        <div className="self-start">
+        <div className="flex items-center gap-2 self-start">
+          <CopyLinkButton href={href} size="sm" />
           <BookmarkButton cveId={cveId} size="sm" />
         </div>
       </div>
 
-      <Link href={`/cve/${encodeURIComponent(cveId)}`} className="mt-3 block">
+      {affectedProducts.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {affectedProducts.map((item) => (
+            <span key={item} className="rounded-md border border-cyan-500/15 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-300">
+              {item}
+            </span>
+          ))}
+          {(cve.vulnerable_product?.length ?? 0) > affectedProducts.length && (
+            <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-gray-400">
+              +{(cve.vulnerable_product?.length ?? 0) - affectedProducts.length} more
+            </span>
+          )}
+        </div>
+      )}
+
+      <Link href={href} className="mt-3 block">
         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
         {published && (
           <span className="flex items-center gap-1">

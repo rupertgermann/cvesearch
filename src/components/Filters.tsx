@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { getVendorProducts, getVendors } from "@/lib/api";
 import { SearchSeverityFilter, SearchSortOption } from "@/lib/types";
 
 interface FiltersProps {
@@ -38,6 +39,80 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
   const [since, setSince] = useState(initialFilters?.since || "");
   const [minSeverity, setMinSeverity] = useState<SearchSeverityFilter>(initialFilters?.minSeverity || "ANY");
   const [sort, setSort] = useState<SearchSortOption>(initialFilters?.sort || "published_desc");
+  const [vendors, setVendors] = useState<string[]>([]);
+  const [products, setProducts] = useState<string[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const deferredVendor = useDeferredValue(vendor.trim());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadVendors() {
+      if (!isOpen || vendors.length > 0) return;
+
+      setLoadingVendors(true);
+      try {
+        const result = await getVendors();
+        if (!cancelled) {
+          setVendors(result);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingVendors(false);
+        }
+      }
+    }
+
+    loadVendors();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, vendors.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProducts() {
+      if (!isOpen || !deferredVendor) {
+        setProducts([]);
+        return;
+      }
+
+      setLoadingProducts(true);
+      try {
+        const result = await getVendorProducts(deferredVendor);
+        if (!cancelled) {
+          setProducts(result);
+        }
+      } catch {
+        if (!cancelled) {
+          setProducts([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingProducts(false);
+        }
+      }
+    }
+
+    loadProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [deferredVendor, isOpen]);
+
+  const vendorSuggestions = useMemo(() => {
+    if (!vendor.trim()) return vendors.slice(0, 20);
+    const normalized = vendor.trim().toLowerCase();
+    return vendors.filter((item) => item.toLowerCase().includes(normalized)).slice(0, 20);
+  }, [vendor, vendors]);
+
+  const productSuggestions = useMemo(() => {
+    if (!product.trim()) return products.slice(0, 20);
+    const normalized = product.trim().toLowerCase();
+    return products.filter((item) => item.toLowerCase().includes(normalized)).slice(0, 20);
+  }, [product, products]);
 
   const handleApply = () => {
     onApply({ vendor, product, cwe, since, minSeverity, sort });
@@ -104,10 +179,22 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
               <input
                 type="text"
                 value={vendor}
-                onChange={(e) => setVendor(e.target.value)}
+                onChange={(e) => {
+                  setVendor(e.target.value);
+                  setProduct("");
+                }}
+                list="vendor-suggestions"
                 placeholder="e.g. microsoft"
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
               />
+              <datalist id="vendor-suggestions">
+                {vendorSuggestions.map((item) => (
+                  <option key={item} value={item} />
+                ))}
+              </datalist>
+              <p className="mt-1 text-[11px] text-gray-600">
+                {loadingVendors ? "Loading vendors..." : vendorSuggestions.length ? `${vendorSuggestions.length} vendor suggestions` : "Type to browse known vendors"}
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-400">Product</label>
@@ -115,9 +202,25 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
                 type="text"
                 value={product}
                 onChange={(e) => setProduct(e.target.value)}
+                list="product-suggestions"
                 placeholder="e.g. windows"
+                disabled={!vendor.trim()}
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
               />
+              <datalist id="product-suggestions">
+                {productSuggestions.map((item) => (
+                  <option key={item} value={item} />
+                ))}
+              </datalist>
+              <p className="mt-1 text-[11px] text-gray-600">
+                {!vendor.trim()
+                  ? "Choose a vendor first to browse products"
+                  : loadingProducts
+                    ? "Loading products..."
+                    : productSuggestions.length
+                      ? `${productSuggestions.length} product suggestions`
+                      : "No product suggestions for this vendor yet"}
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-400">CWE</label>
@@ -194,6 +297,11 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
               </button>
             )}
           </div>
+          {vendor && !product && (
+            <p className="mt-3 text-xs text-amber-300/80">
+              Vendor-only search is not enabled yet. Pick a product to run a vendor-scoped search.
+            </p>
+          )}
         </div>
       )}
     </div>
