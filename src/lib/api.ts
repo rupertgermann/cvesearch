@@ -87,6 +87,23 @@ export async function getEPSS(cveId: string): Promise<EPSSData | null> {
   }
 }
 
+export async function getEPSSQuietly(cveId: string): Promise<EPSSData | null> {
+  try {
+    const res = await fetch(`/api/proxy?path=${encodeURIComponent(`/epss/${cveId}`)}`, {
+      headers: { Accept: "application/json" },
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const response = await res.json().catch(() => null);
+    return parseEPSSResponse(response);
+  } catch {
+    return null;
+  }
+}
+
 export async function getCWE(cweId: string): Promise<CWEData | null> {
   try {
     const data = await fetchAPI<unknown>(`/cwe/${encodeURIComponent(cweId)}`);

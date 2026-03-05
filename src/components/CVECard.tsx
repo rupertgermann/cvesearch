@@ -8,6 +8,7 @@ import {
   extractDescription,
   extractPublishedDate,
   extractCVEId,
+  extractSourceId,
   truncate,
 } from "@/lib/utils";
 import SeverityBadge from "./SeverityBadge";
@@ -27,6 +28,7 @@ export default function CVECard({ cve }: CVECardProps) {
   const cveId = extractCVEId(cve);
   const description = extractDescription(cve);
   const published = extractPublishedDate(cve);
+  const sourceId = extractSourceId(cve);
   const score = cve.cvss3 ?? cve.cvss;
   const severity = getSeverityFromScore(score);
   const href = `/cve/${encodeURIComponent(cveId)}`;
@@ -47,6 +49,11 @@ export default function CVECard({ cve }: CVECardProps) {
             <h3 className="font-mono text-base font-semibold text-white group-hover:text-cyan-400 transition-colors">
               {cveId}
             </h3>
+            {sourceId && (
+              <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-gray-400">
+                Source: {sourceId}
+              </span>
+            )}
             {score !== undefined && score !== null && (
               <SeverityBadge severity={severity} score={score} size="sm" />
             )}

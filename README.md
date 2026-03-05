@@ -1,6 +1,6 @@
 # CVE Search
 
-A fast web interface for searching and exploring CVE (Common Vulnerabilities and Exposures) records. Built with Next.js and powered by the [CIRCL vulnerability-lookup API](https://vulnerability.circl.lu/).
+Fast, analyst-friendly CVE search and triage built with Next.js and powered by the [CIRCL vulnerability-lookup API](https://vulnerability.circl.lu/).
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-blue?logo=react)](https://react.dev/)
@@ -8,175 +8,148 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
+## Overview
+
+CVE Search turns raw vulnerability data into a workflow-oriented web app for research, prioritization, and lightweight tracking.
+
+It combines URL-driven search, rich CVE detail pages, saved views, watchlists, alerts, triage state, and project grouping in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
+
 ## Screenshots
 
 ### Search Interface
 ![CVE Search Interface](docs/images/screenshot-search.png)
-*Search and explore CVE vulnerability records with filters, saved views, and export options*
 
 ### CVE Detail View
 ![CVE Detail View](docs/images/screenshot-detail.png)
-*Detailed vulnerability information including CVSS score breakdown, affected products, and references*
 
-## Features
+## Highlights
 
-- **URL-driven search state** — Search query, filters, and pagination are encoded in the URL for shareable result pages
-- **Keyword and CVE lookup** — Search by product keyword or jump directly to a CVE ID such as `CVE-2024-1234`
-- **Filterable result sets** — Filter by product, vendor/product pair, CWE, published-since date, and minimum severity
-- **Prioritization controls** — Sort by newest, oldest, highest CVSS, or lowest CVSS
-- **Vendor and product browse assist** — Filter inputs now offer vendor suggestions and vendor-scoped product suggestions
-- **Server-rendered homepage results** — Initial search results are resolved on the server for faster first paint
-- **Saved views** — Save reusable searches locally, inspired by OpenCVE views
-- **Local watchlist** — Bookmark CVEs or advisories and revisit them on a dedicated watchlist page
-- **Local alerts** — Save alert rules from the current search and review matching CVEs in a notification center
-- **Local triage workflow** — Track CVE status, owner, tags, and notes from the detail page and watchlist
-- **Server-persisted projects** — Group CVEs into shared project buckets stored in the app workspace
-- **Analyst dashboard** — Start from curated views like latest critical, highest CVSS, and recent high-impact vulnerabilities
-- **Richer result cards** — See affected-product hints and copy deep links directly from search results
-- **Export actions** — Download the currently visible result set as CSV or JSON
-- **Detailed CVE views** — Review CVSS scores, EPSS exploit probability when a CVE ID exists, affected products, linked vulnerabilities, comments, CAPEC entries, references, and raw source data
-- **Severity indicators** — Color-coded CVSS severity badges
-- **Paginated results** — Navigate through large result sets
-- **Responsive dark UI** — Works on desktop and mobile
-- **Server-side API proxy** — Avoids browser CORS issues and caches upstream responses
+- URL-driven search state for shareable result pages
+- Direct CVE lookup plus keyword/product search
+- Vendor and product browse assist
+- Severity filters and result sorting
+- Server-rendered homepage results
+- Rich CVE detail pages with EPSS, CWE, CAPEC, references, comments, and linked vulnerabilities when available
+- Saved views, watchlist, alerts, and triage workflow
+- Server-persisted projects workspace
+- Export to CSV and JSON
+- Upstream response validation and hardened proxy behavior
 
-## Current Limitations
+## Feature Set
 
-- Vendor-only filtering is intentionally blocked. The current data flow only supports a trustworthy vendor filter when paired with a product.
-- Saved views, watchlist, alerts, and triage state are browser-local only. They are not synced across devices or users.
-- CWE enrichment and linked-vulnerability rendering are still partial.
-- The proxy now uses path allowlisting, timeout handling, and response validation, but it still does not include retries, rate limits, or richer observability.
-- OpenCVE-style email notifications, team assignments, and scheduled reports are not implemented yet.
+### Search and Prioritization
+
+- Search by CVE ID such as `CVE-2024-1234`
+- Search by keyword or product
+- Filter by vendor/product pair, CWE, published-since date, and minimum severity
+- Sort by newest, oldest, highest CVSS, or lowest CVSS
+- Copy deep links to exact search states
+
+### Analyst Workflow
+
+- Save reusable searches as local saved views
+- Bookmark CVEs and advisories in a local watchlist
+- Create local alert rules and review matches in an alerts center
+- Track local triage status, owner, tags, and notes
+- Group CVEs into server-persisted projects stored in the workspace
+
+### Vulnerability Detail
+
+- CVSS score breakdown and severity badges
+- EPSS lookup when a real CVE identifier is available
+- Structured affected product rendering
+- CWE enrichment when available
+- CAPEC entries, comments, linked vulnerabilities, and references when present upstream
+- Raw source payload for deeper inspection
+
+### Engineering Quality
+
+- Server-rendered initial result loading
+- URL-first state management
+- Server-side API proxy with allowlisting and timeout handling
+- Upstream response validation for key CIRCL payloads
+- Automated lint, test, and build checks in CI
+
+## Current Boundaries
+
+- Vendor-only filtering is intentionally blocked because the current upstream flow is only trustworthy when vendor is paired with product.
+- Saved views, watchlist, alerts, and triage state are browser-local, not synced across devices or users.
+- Projects are persisted in the app workspace via JSON storage, not a production database.
+- Team assignments, user accounts, email or Slack notifications, and scheduled reports are not implemented.
 
 ## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/cvesearch.git
+git clone https://github.com/rupertgermann/cvesearch.git
 cd cvesearch
-
-# Install dependencies
 npm install
-
-# Start the development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open `http://localhost:3000`.
 
 ## Scripts
 
 ```bash
-# Start the local dev server
 npm run dev
-
-# Lint the codebase
 npm run lint
-
-# Run unit tests
 npm test
-
-# Build for production
-npm run build
-
-# Start the production server
-npm start
-```
-
-### Production Build
-
-```bash
 npm run build
 npm start
 ```
 
 ## Testing
 
-The project includes lightweight TypeScript unit tests for:
+The project includes lightweight TypeScript tests for:
 
-- search-state parsing and URL param generation
-- CVE ID detection and search validation rules
-- core CVSS and description extraction helpers
-- upstream response validation for CVE, EPSS, CWE, and browse payloads
+- search-state parsing and URL generation
+- prioritization and local alert matching
+- triage helpers
+- upstream response validation
+- project helper logic
+- CVSS and description extraction
 
 GitHub Actions runs `lint`, `test`, and `build` on pushes and pull requests.
 
 ## Project Structure
 
-```
+```text
 src/
 ├── app/
-│   ├── api/proxy/route.ts    # API proxy to CIRCL backend
-│   ├── alerts/page.tsx       # Alert center route
-│   ├── cve/[id]/page.tsx     # CVE detail page
-│   ├── layout.tsx            # Root layout with dark theme
-│   ├── page.tsx              # Server-rendered home page entry
-│   ├── projects/page.tsx     # Projects route
-│   ├── watchlist/page.tsx    # Watchlist route
-│   └── globals.css           # Global styles
-├── components/
-│   ├── AlertRulesPanel.tsx   # Local alert rule creation UI
-│   ├── AlertsPageClient.tsx  # Alert center client UI
-│   ├── BookmarkButton.tsx    # Local watchlist toggle
-│   ├── DashboardPanel.tsx    # Homepage analyst dashboard sections
-│   ├── HomePageClient.tsx    # Client shell for URL-driven search interactions
-│   ├── Header.tsx            # Navigation header
-│   ├── ProjectPickerButton.tsx # Add CVEs to persisted projects
-│   ├── ProjectsPageClient.tsx # Projects page client UI
-│   ├── SavedViewsPanel.tsx   # Local saved views UI
-│   ├── SearchBar.tsx         # Search input
-│   ├── Filters.tsx           # Product/vendor/CWE/date filters
-│   ├── TriageBadge.tsx       # Local triage status badge
-│   ├── TriagePanel.tsx       # Detail-page triage workflow
-│   ├── CVEList.tsx           # CVE results list
-│   ├── CVECard.tsx           # Individual CVE summary card
-│   ├── SeverityBadge.tsx     # CVSS severity color badge
-│   ├── WatchlistPageClient.tsx # Watchlist page client UI
-│   └── Pagination.tsx        # Page navigation
-└── lib/
-    ├── api.ts                # API client functions
-    ├── alerts.ts             # Browser-local alert rules
-    ├── search.ts             # Canonical search state + URL param helpers
-    ├── server-api.ts         # Server-side data fetching helpers
-    ├── projects-api.ts       # Client-side project API calls
-    ├── projects-store.ts     # Server-side project persistence
-    ├── saved-views.ts        # Browser-local saved views
-    ├── triage.ts             # Browser-local triage state
-    ├── types.ts              # TypeScript type definitions
-    ├── utils.ts              # Utility functions
-    ├── validation.ts         # Upstream response validation
-    └── watchlist.ts          # Browser-local watchlist helpers
+│   ├── api/
+│   │   ├── projects/        # Workspace project APIs
+│   │   └── proxy/           # CIRCL proxy
+│   ├── alerts/              # Alerts route
+│   ├── cve/[id]/            # CVE detail route
+│   ├── projects/            # Projects route
+│   ├── watchlist/           # Watchlist route
+│   └── page.tsx             # Homepage
+├── components/              # Search, detail, workflow, and navigation UI
+└── lib/                     # Search logic, API clients, storage, validation, utilities
 
-tests/
-├── alerts.test.ts            # Alert/search normalization tests
-├── projects-store.test.ts    # Project helper tests
-├── search.test.ts            # Search-state and validation tests
-├── triage.test.ts            # Triage helper tests
-├── validation.test.ts        # Response validation tests
-└── utils.test.ts             # Utility function tests
+data/
+└── projects.json            # Workspace project persistence
+
+tests/                       # Node-based TypeScript test suite
 ```
 
-## API
+## API Usage
 
-This app uses a server-side proxy (`/api/proxy`) to communicate with the [CIRCL vulnerability-lookup API](https://vulnerability.circl.lu/). The proxy avoids CORS issues and adds 60-second response caching.
+The app talks to CIRCL through `/api/proxy`, which forwards to `https://vulnerability.circl.lu/api`.
 
-### Endpoints Used
+Primary upstream endpoints:
 
-| CIRCL Endpoint | Purpose |
-|---|---|
-| `GET /api/vulnerability/` | List/search vulnerabilities with filters |
-| `GET /api/vulnerability/{id}` | Get full CVE details |
-| `GET /api/vulnerability/search/{vendor}/{product}` | Search by vendor and product |
-| `GET /api/vulnerability/browse/` | List all vendors |
-| `GET /api/vulnerability/browse/{vendor}` | List products for a vendor |
-| `GET /api/epss/{cve_id}` | Get EPSS exploit probability score |
-| `GET /api/cwe/{cwe_id}` | Get CWE weakness details |
+- `GET /api/vulnerability/`
+- `GET /api/vulnerability/{id}`
+- `GET /api/vulnerability/search/{vendor}/{product}`
+- `GET /api/vulnerability/browse/`
+- `GET /api/vulnerability/browse/{vendor}`
+- `GET /api/epss/{cve_id}`
+- `GET /api/cwe/{cwe_id}`
 
-All requests go through `/api/proxy?path=<encoded_path>` which forwards to `https://vulnerability.circl.lu/api`.
+## Docs
 
-## Roadmap Docs
-
-Planning and backlog docs live in [`docs/`](./docs):
+Planning and benchmark docs live in [`docs/`](./docs):
 
 - `docs/review-findings.md`
 - `docs/improvement-plan.md`
@@ -185,11 +158,11 @@ Planning and backlog docs live in [`docs/`](./docs):
 
 ## Tech Stack
 
-- **Framework:** [Next.js 16](https://nextjs.org/) (App Router)
-- **UI:** [React 19](https://react.dev/)
-- **Language:** [TypeScript 5](https://www.typescriptlang.org/)
-- **Styling:** [Tailwind CSS 4](https://tailwindcss.com/)
-- **Data Source:** [CIRCL vulnerability-lookup](https://vulnerability.circl.lu/)
+- Next.js 16
+- React 19
+- TypeScript 5
+- Tailwind CSS 4
+- CIRCL vulnerability-lookup
 
 ## License
 

@@ -5,7 +5,8 @@ import {
   buildPresetHref,
   getSearchValidationError,
   hasActiveFilters,
-  isCveIdQuery,
+  isDirectVulnerabilityIdQuery,
+  matchesSearchState,
   wasPublishedWithinDays,
 } from "./search";
 import { parseCVEDetail, parseCVESummaryList } from "./validation";
@@ -93,7 +94,7 @@ export async function getHomePageResults(state: SearchState): Promise<{
   }
 
   try {
-    if (isCveIdQuery(state.query)) {
+    if (isDirectVulnerabilityIdQuery(state.query)) {
       const detail = await getCVEByIdServer(state.query.toUpperCase());
       return {
         cves: detail ? [detail as unknown as CVESummary] : [],
@@ -112,7 +113,7 @@ export async function getHomePageResults(state: SearchState): Promise<{
     }
 
     const hasSearch = Boolean(state.query || state.product || state.cwe || state.since);
-    const results = hasSearch
+    let results = hasSearch
       ? await searchCVEsServer({
           product: state.product || state.query,
           cwe: state.cwe,
@@ -122,10 +123,20 @@ export async function getHomePageResults(state: SearchState): Promise<{
         })
       : await getLatestCVEsServer(state.page, state.perPage);
 
+    let totalHint = `Page ${state.page}`;
+
+    if (state.query && !state.product && results.length === 0) {
+      const fallbackSample = await getLatestCVEsServer(1, 200);
+      results = fallbackSample.filter((cve) => matchesSearchState(cve, state)).slice(0, state.perPage);
+      if (results.length > 0) {
+        totalHint = "Fallback match from recent sample";
+      }
+    }
+
     return {
       cves: results,
       error: null,
-      totalHint: `Page ${state.page}`,
+      totalHint,
     };
   } catch (error) {
     return {

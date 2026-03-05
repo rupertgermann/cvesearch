@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractCVSSScore, extractDescription, getSeverityFromScore } from "../src/lib/utils";
+import { extractCVEId, extractCVSSScore, extractDescription, getSeverityFromScore } from "../src/lib/utils";
 import { CVEDetail } from "../src/lib/types";
 
 test("getSeverityFromScore maps score bands correctly", () => {
@@ -50,4 +50,14 @@ test("extractCVSSScore prefers CVSS v3.1 metrics when available", () => {
     version: "3.1",
     severity: "CRITICAL",
   });
+});
+
+test("extractCVEId prefers a CVE alias over a source-native advisory id", () => {
+  assert.equal(
+    extractCVEId({
+      id: "GHSA-xxxx-yyyy-zzzz",
+      aliases: ["CVE-2026-1111"],
+    }),
+    "CVE-2026-1111"
+  );
 });

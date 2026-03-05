@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { CVEDetail, CWEData, EPSSData } from "@/lib/types";
-import { getCVEById, getCWE, getEPSS } from "@/lib/api";
+import { getCVEById, getCWE, getEPSSQuietly } from "@/lib/api";
 import { isCveIdQuery } from "@/lib/search";
 import {
   extractDescription,
@@ -34,7 +34,7 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
         const epssTarget = getEPSSLookupId(cveData);
         const cweId = getPrimaryCweId(cveData);
         const [epssData, cweData] = await Promise.all([
-          epssTarget ? getEPSS(epssTarget) : Promise.resolve(null),
+          epssTarget ? getEPSSQuietly(epssTarget) : Promise.resolve(null),
           cweId ? getCWE(cweId) : Promise.resolve(null),
         ]);
         setCve(cveData);

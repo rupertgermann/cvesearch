@@ -69,6 +69,10 @@ export function isCveIdQuery(query: string): boolean {
   return /^CVE-\d{4}-\d+$/i.test(query.trim());
 }
 
+export function isDirectVulnerabilityIdQuery(query: string): boolean {
+  return /^(CVE-\d{4}-\d+|GHSA-[A-Za-z0-9-]+|GCVE-[A-Za-z0-9-]+)$/i.test(query.trim());
+}
+
 export function hasActiveFilters(state: SearchState): boolean {
   return Boolean(
     state.vendor ||

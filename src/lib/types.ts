@@ -1,5 +1,6 @@
 export interface CVESummary {
   id: string;
+  sourceId?: string;
   summary?: string;
   description?: string;
   aliases?: string[];
@@ -17,6 +18,7 @@ export interface CVESummary {
 
 export interface CVEDetail {
   id: string;
+  sourceId?: string;
   summary?: string;
   description?: string;
   aliases?: string[];

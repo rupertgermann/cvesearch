@@ -5,6 +5,7 @@ import {
   buildSearchParams,
   getSearchSummary,
   getSearchValidationError,
+  isDirectVulnerabilityIdQuery,
   isCveIdQuery,
   matchesSearchState,
   normalizeSearchState,
@@ -70,6 +71,12 @@ test("isCveIdQuery matches CVE identifiers case-insensitively", () => {
   assert.equal(isCveIdQuery("CVE-2024-1234"), true);
   assert.equal(isCveIdQuery("cve-2024-1234"), true);
   assert.equal(isCveIdQuery("openssl"), false);
+});
+
+test("isDirectVulnerabilityIdQuery matches CVE and advisory identifiers", () => {
+  assert.equal(isDirectVulnerabilityIdQuery("CVE-2024-1234"), true);
+  assert.equal(isDirectVulnerabilityIdQuery("GHSA-x9p5-w45c-7ffc"), true);
+  assert.equal(isDirectVulnerabilityIdQuery("openssl"), false);
 });
 
 test("vendor-only filtering returns a validation error instead of being silently ignored", () => {

@@ -121,7 +121,15 @@ export function extractCVEId(cve: CVEDetail | CVESummary): string {
   if ("cveMetadata" in cve && cve.cveMetadata?.cveId) {
     return cve.cveMetadata.cveId;
   }
+  const alias = cve.aliases?.find((item) => /^CVE-\d{4}-\d+$/i.test(item));
+  if (alias) {
+    return alias;
+  }
   return cve.id;
+}
+
+export function extractSourceId(cve: CVEDetail | CVESummary): string | undefined {
+  return cve.sourceId && cve.sourceId !== extractCVEId(cve) ? cve.sourceId : undefined;
 }
 
 export function truncate(str: string, maxLen: number): string {
