@@ -42,7 +42,7 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 - Vendor-only filtering is intentionally blocked. The current data flow only supports a trustworthy vendor filter when paired with a product.
 - Saved views and watchlist are browser-local only. They are not synced across devices or users.
 - CWE enrichment and linked-vulnerability rendering are still partial.
-- The proxy is functional but not yet fully hardened with allowlists, timeout policy, and response validation.
+- The proxy now uses path allowlisting, timeout handling, and response validation, but it still does not include retries, rate limits, or richer observability.
 - OpenCVE-style notifications, projects, tags, assignments, and reports are not implemented yet.
 
 ## Quick Start
@@ -94,6 +94,7 @@ The project includes lightweight TypeScript unit tests for:
 - search-state parsing and URL param generation
 - CVE ID detection and search validation rules
 - core CVSS and description extraction helpers
+- upstream response validation for CVE, EPSS, CWE, and browse payloads
 
 GitHub Actions runs `lint`, `test`, and `build` on pushes and pull requests.
 

@@ -8,6 +8,7 @@ import {
   isCveIdQuery,
   wasPublishedWithinDays,
 } from "./search";
+import { parseCVEDetail, parseCVESummaryList } from "./validation";
 
 const API_BASE = "https://vulnerability.circl.lu/api";
 type NextFetchOptions = RequestInit & { next?: { revalidate: number } };
@@ -30,9 +31,10 @@ async function fetchUpstream<T>(path: string): Promise<T> {
 }
 
 export async function getLatestCVEsServer(page: number, perPage: number): Promise<CVESummary[]> {
-  return fetchUpstream<CVESummary[]>(
+  const data = await fetchUpstream<unknown>(
     `/vulnerability/?per_page=${perPage}&page=${page}&sort_order=desc&date_sort=published`
   );
+  return parseCVESummaryList(data);
 }
 
 export async function searchCVEsServer(params: {
@@ -52,13 +54,15 @@ export async function searchCVEsServer(params: {
   searchParams.set("sort_order", "desc");
   searchParams.set("date_sort", "published");
 
-  return fetchUpstream<CVESummary[]>(`/vulnerability/?${searchParams.toString()}`);
+  const data = await fetchUpstream<unknown>(`/vulnerability/?${searchParams.toString()}`);
+  return parseCVESummaryList(data);
 }
 
 export async function getCVEByIdServer(id: string): Promise<CVEDetail> {
-  return fetchUpstream<CVEDetail>(
+  const data = await fetchUpstream<unknown>(
     `/vulnerability/${encodeURIComponent(id)}?with_meta=true&with_linked=true&with_comments=true`
   );
+  return parseCVEDetail(data);
 }
 
 export async function searchByVendorProductServer(
@@ -67,9 +71,10 @@ export async function searchByVendorProductServer(
   page: number,
   perPage: number
 ): Promise<CVESummary[]> {
-  return fetchUpstream<CVESummary[]>(
+  const data = await fetchUpstream<unknown>(
     `/vulnerability/search/${encodeURIComponent(vendor)}/${encodeURIComponent(product)}?page=${page}&per_page=${perPage}`
   );
+  return parseCVESummaryList(data);
 }
 
 export async function getHomePageResults(state: SearchState): Promise<{
