@@ -3,8 +3,8 @@
 @theme inline {
   --color-background: #0a0a0f;
   --color-foreground: #ededed;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 body {
