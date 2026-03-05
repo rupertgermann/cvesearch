@@ -176,6 +176,7 @@ Planning and benchmark docs live in [`docs/`](./docs):
 - `docs/improvement-plan.md`
 - `docs/execution-backlog.md`
 - `docs/opencve-benchmark.md`
+- [`CHANGELOG.md`](./CHANGELOG.md)
 
 ## Tech Stack
 
