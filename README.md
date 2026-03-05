@@ -28,6 +28,7 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 - **Server-rendered homepage results** — Initial search results are resolved on the server for faster first paint
 - **Saved views** — Save reusable searches locally, inspired by OpenCVE views
 - **Local watchlist** — Bookmark CVEs or advisories and revisit them on a dedicated watchlist page
+- **Analyst dashboard** — Start from curated views like latest critical, highest CVSS, and recent high-impact vulnerabilities
 - **Richer result cards** — See affected-product hints and copy deep links directly from search results
 - **Export actions** — Download the currently visible result set as CSV or JSON
 - **Detailed CVE views** — Review CVSS scores, EPSS exploit probability when a CVE ID exists, affected products, references, and raw source data
@@ -42,7 +43,7 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 - Saved views and watchlist are browser-local only. They are not synced across devices or users.
 - CWE enrichment and linked-vulnerability rendering are still partial.
 - The proxy is functional but not yet fully hardened with allowlists, timeout policy, and response validation.
-- OpenCVE-style notifications, projects, tags, dashboards, assignments, and reports are not implemented yet.
+- OpenCVE-style notifications, projects, tags, assignments, and reports are not implemented yet.
 
 ## Quick Start
 
@@ -109,6 +110,7 @@ src/
 │   └── globals.css           # Global styles
 ├── components/
 │   ├── BookmarkButton.tsx    # Local watchlist toggle
+│   ├── DashboardPanel.tsx    # Homepage analyst dashboard sections
 │   ├── HomePageClient.tsx    # Client shell for URL-driven search interactions
 │   ├── Header.tsx            # Navigation header
 │   ├── SavedViewsPanel.tsx   # Local saved views UI
