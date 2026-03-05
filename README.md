@@ -8,7 +8,15 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-<!-- Add a screenshot: ![CVE Search Screenshot](screenshot.png) -->
+## Screenshots
+
+### Search Interface
+![CVE Search Interface](docs/images/screenshot-search.png)
+*Search and explore CVE vulnerability records with filters, saved views, and export options*
+
+### CVE Detail View
+![CVE Detail View](docs/images/screenshot-detail.png)
+*Detailed vulnerability information including CVSS score breakdown, affected products, and references*
 
 ## Features
 
@@ -21,6 +29,7 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 - **Saved views** — Save reusable searches locally, inspired by OpenCVE views
 - **Local watchlist** — Bookmark CVEs or advisories and revisit them on a dedicated watchlist page
 - **Richer result cards** — See affected-product hints and copy deep links directly from search results
+- **Export actions** — Download the currently visible result set as CSV or JSON
 - **Detailed CVE views** — Review CVSS scores, EPSS exploit probability when a CVE ID exists, affected products, references, and raw source data
 - **Severity indicators** — Color-coded CVSS severity badges
 - **Paginated results** — Navigate through large result sets

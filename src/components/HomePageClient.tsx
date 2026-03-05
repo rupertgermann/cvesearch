@@ -18,6 +18,7 @@ import Filters from "@/components/Filters";
 import CVEList from "@/components/CVEList";
 import Pagination from "@/components/Pagination";
 import SavedViewsPanel from "@/components/SavedViewsPanel";
+import ExportResultsButtons from "@/components/ExportResultsButtons";
 
 interface HomePageClientProps {
   initialState: SearchState;
@@ -128,12 +129,13 @@ export default function HomePageClient({
         <SavedViewsPanel search={state} />
       </div>
 
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
           <span>{getSearchSummary(state)}</span>
           {totalHint && <span className="text-gray-600">&middot; {totalHint}</span>}
+          <span className="text-gray-600">&middot; {visibleCves.length} shown</span>
         </div>
-        <div className="text-sm text-gray-600">{visibleCves.length} shown</div>
+        <ExportResultsButtons cves={visibleCves} search={state} />
       </div>
 
       {hasActiveFilters(state) && (
