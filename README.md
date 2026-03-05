@@ -18,11 +18,23 @@ It also includes an optional AI layer for natural-language search, analyst-facin
 
 ## Screenshots
 
-### Search Interface
-![CVE Search Interface](docs/images/screenshot-search.png)
+### Search Workspace
+
+URL-driven search, saved views, alert rules, analyst dashboard presets, and AI-assisted search in one screen.
+
+![CVE Search Workspace](docs/images/screenshot-search.png)
 
 ### CVE Detail View
+
+Structured vulnerability detail with AI insight, triage state, CVSS context, affected products, and linked references.
+
 ![CVE Detail View](docs/images/screenshot-detail.png)
+
+### AI Settings
+
+Browser-local AI provider settings for choosing the provider, model, and API key used by AI workflows.
+
+![AI Settings](docs/images/screenshot-settings.png)
 
 ## Highlights
 
