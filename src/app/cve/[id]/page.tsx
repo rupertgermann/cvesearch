@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { CVEDetail, EPSSData } from "@/lib/types";
 import { getCVEById, getEPSS } from "@/lib/api";
+import { isCveIdQuery } from "@/lib/search";
 import {
   extractDescription,
   extractCVSSScore,
@@ -24,10 +25,9 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
       setLoading(true);
       try {
         const decodedId = decodeURIComponent(id);
-        const [cveData, epssData] = await Promise.all([
-          getCVEById(decodedId),
-          getEPSS(decodedId),
-        ]);
+        const cveData = await getCVEById(decodedId);
+        const epssTarget = getEPSSLookupId(cveData);
+        const epssData = epssTarget ? await getEPSS(epssTarget) : null;
         setCve(cveData);
         setEpss(epssData);
       } catch (err) {
@@ -75,7 +75,7 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
   const modified = cve.cveMetadata?.dateUpdated || cve.modified;
   const assigner = cve.cveMetadata?.assignerShortName || cve.assigner;
   const state = cve.cveMetadata?.state || cve.state;
-  const references: { url: string; tags?: string[] }[] = cve.containers?.cna?.references || (cve.references?.map((r) => ({ url: r })) ?? []);
+  const references = normalizeReferences(cve);
   const affected = cve.containers?.cna?.affected || [];
   const problemTypes = cve.containers?.cna?.problemTypes || [];
   const metrics = cve.containers?.cna?.metrics || [];
@@ -279,8 +279,8 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
           <Section title="References">
             <div className="space-y-2">
               {references.map((ref, i) => {
-                const url = typeof ref === "string" ? ref : ref.url;
-                const tags = typeof ref === "object" && ref.tags ? ref.tags : [];
+                const url = ref.url;
+                const tags = ref.tags ?? [];
                 return (
                   <div key={i} className="flex items-start gap-2 group">
                     <svg className="mt-1 h-3.5 w-3.5 shrink-0 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -321,6 +321,64 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
       </div>
     </div>
   );
+}
+
+function getEPSSLookupId(cve: CVEDetail): string | null {
+  const directId = extractCVEId(cve);
+  if (isCveIdQuery(directId)) {
+    return directId.toUpperCase();
+  }
+
+  const alias = cve.aliases?.find((item) => isCveIdQuery(item));
+  return alias ? alias.toUpperCase() : null;
+}
+
+function normalizeReferences(cve: CVEDetail): Array<{ url: string; tags?: string[] }> {
+  const rawReferences = cve.containers?.cna?.references;
+
+  if (rawReferences?.length) {
+    const normalized: Array<{ url: string; tags?: string[] }> = [];
+
+    for (const reference of rawReferences) {
+      const candidate = extractReferenceUrl(reference.url);
+      if (!candidate) continue;
+
+      normalized.push({
+        url: candidate,
+        tags: reference.tags,
+      });
+    }
+
+    return normalized;
+  }
+
+  const normalized: Array<{ url: string }> = [];
+
+  for (const reference of cve.references ?? []) {
+    const candidate = extractReferenceUrl(reference);
+    if (!candidate) continue;
+
+    normalized.push({ url: candidate });
+  }
+
+  return normalized;
+}
+
+function extractReferenceUrl(reference: unknown): string | null {
+  if (typeof reference === "string") {
+    return reference;
+  }
+
+  if (
+    reference &&
+    typeof reference === "object" &&
+    "url" in reference &&
+    typeof reference.url === "string"
+  ) {
+    return reference.url;
+  }
+
+  return null;
 }
 
 function Section({
