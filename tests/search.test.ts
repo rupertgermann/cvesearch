@@ -6,6 +6,7 @@ import {
   getSearchSummary,
   getSearchValidationError,
   isCveIdQuery,
+  matchesSearchState,
   normalizeSearchState,
   parseSearchState,
   wasPublishedWithinDays,
@@ -111,6 +112,46 @@ test("wasPublishedWithinDays matches recent publication windows", () => {
       },
       7,
       new Date("2026-03-05T00:00:00.000Z").getTime()
+    ),
+    false
+  );
+});
+
+test("matchesSearchState applies text, product, CWE, severity, and date filters locally", () => {
+  const state = normalizeSearchState({
+    query: "openssl",
+    product: "openssl",
+    cwe: "CWE-79",
+    since: "2026-03-01",
+    minSeverity: "HIGH",
+  });
+
+  assert.equal(
+    matchesSearchState(
+      {
+        id: "CVE-2026-1111",
+        summary: "OpenSSL issue",
+        cwe: "CWE-79",
+        cvss3: 8.4,
+        published: "2026-03-04T00:00:00.000Z",
+        vulnerable_product: ["openssl:openssl"],
+      },
+      state
+    ),
+    true
+  );
+
+  assert.equal(
+    matchesSearchState(
+      {
+        id: "CVE-2026-2222",
+        summary: "Old OpenSSL issue",
+        cwe: "CWE-79",
+        cvss3: 8.4,
+        published: "2026-02-01T00:00:00.000Z",
+        vulnerable_product: ["openssl:openssl"],
+      },
+      state
     ),
     false
   );

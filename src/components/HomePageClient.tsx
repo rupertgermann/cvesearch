@@ -20,6 +20,7 @@ import Pagination from "@/components/Pagination";
 import SavedViewsPanel from "@/components/SavedViewsPanel";
 import ExportResultsButtons from "@/components/ExportResultsButtons";
 import DashboardPanel from "@/components/DashboardPanel";
+import AlertRulesPanel from "@/components/AlertRulesPanel";
 
 interface HomePageClientProps {
   initialState: SearchState;
@@ -130,6 +131,7 @@ export default function HomePageClient({
           }}
         />
         <SavedViewsPanel search={state} />
+        <AlertRulesPanel search={state} />
       </div>
 
       {dashboard && !error && <DashboardPanel dashboard={dashboard} />}

@@ -28,10 +28,11 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 - **Server-rendered homepage results** — Initial search results are resolved on the server for faster first paint
 - **Saved views** — Save reusable searches locally, inspired by OpenCVE views
 - **Local watchlist** — Bookmark CVEs or advisories and revisit them on a dedicated watchlist page
+- **Local alerts** — Save alert rules from the current search and review matching CVEs in a notification center
 - **Analyst dashboard** — Start from curated views like latest critical, highest CVSS, and recent high-impact vulnerabilities
 - **Richer result cards** — See affected-product hints and copy deep links directly from search results
 - **Export actions** — Download the currently visible result set as CSV or JSON
-- **Detailed CVE views** — Review CVSS scores, EPSS exploit probability when a CVE ID exists, affected products, references, and raw source data
+- **Detailed CVE views** — Review CVSS scores, EPSS exploit probability when a CVE ID exists, affected products, linked vulnerabilities, comments, CAPEC entries, references, and raw source data
 - **Severity indicators** — Color-coded CVSS severity badges
 - **Paginated results** — Navigate through large result sets
 - **Responsive dark UI** — Works on desktop and mobile
@@ -40,10 +41,10 @@ A fast web interface for searching and exploring CVE (Common Vulnerabilities and
 ## Current Limitations
 
 - Vendor-only filtering is intentionally blocked. The current data flow only supports a trustworthy vendor filter when paired with a product.
-- Saved views and watchlist are browser-local only. They are not synced across devices or users.
+- Saved views, watchlist, and alerts are browser-local only. They are not synced across devices or users.
 - CWE enrichment and linked-vulnerability rendering are still partial.
 - The proxy now uses path allowlisting, timeout handling, and response validation, but it still does not include retries, rate limits, or richer observability.
-- OpenCVE-style notifications, projects, tags, assignments, and reports are not implemented yet.
+- OpenCVE-style email notifications, projects, tags, assignments, and reports are not implemented yet.
 
 ## Quick Start
 
@@ -104,12 +105,15 @@ GitHub Actions runs `lint`, `test`, and `build` on pushes and pull requests.
 src/
 ├── app/
 │   ├── api/proxy/route.ts    # API proxy to CIRCL backend
+│   ├── alerts/page.tsx       # Alert center route
 │   ├── cve/[id]/page.tsx     # CVE detail page
 │   ├── layout.tsx            # Root layout with dark theme
 │   ├── page.tsx              # Server-rendered home page entry
 │   ├── watchlist/page.tsx    # Watchlist route
 │   └── globals.css           # Global styles
 ├── components/
+│   ├── AlertRulesPanel.tsx   # Local alert rule creation UI
+│   ├── AlertsPageClient.tsx  # Alert center client UI
 │   ├── BookmarkButton.tsx    # Local watchlist toggle
 │   ├── DashboardPanel.tsx    # Homepage analyst dashboard sections
 │   ├── HomePageClient.tsx    # Client shell for URL-driven search interactions
@@ -124,15 +128,19 @@ src/
 │   └── Pagination.tsx        # Page navigation
 └── lib/
     ├── api.ts                # API client functions
+    ├── alerts.ts             # Browser-local alert rules
     ├── search.ts             # Canonical search state + URL param helpers
     ├── server-api.ts         # Server-side data fetching helpers
     ├── saved-views.ts        # Browser-local saved views
     ├── types.ts              # TypeScript type definitions
     ├── utils.ts              # Utility functions
+    ├── validation.ts         # Upstream response validation
     └── watchlist.ts          # Browser-local watchlist helpers
 
 tests/
+├── alerts.test.ts            # Alert/search normalization tests
 ├── search.test.ts            # Search-state and validation tests
+├── validation.test.ts        # Response validation tests
 └── utils.test.ts             # Utility function tests
 ```
 

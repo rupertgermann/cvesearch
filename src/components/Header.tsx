@@ -4,18 +4,28 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { readWatchlist, WATCHLIST_UPDATED_EVENT } from "@/lib/watchlist";
+import { ALERT_RULES_UPDATED_EVENT, readAlertRules } from "@/lib/alerts";
 
 export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
   const isWatchlist = pathname === "/watchlist";
+  const isAlerts = pathname === "/alerts";
   const [watchlistCount, setWatchlistCount] = useState(0);
+  const [alertRuleCount, setAlertRuleCount] = useState(0);
 
   useEffect(() => {
     const sync = () => setWatchlistCount(readWatchlist().length);
     sync();
     window.addEventListener(WATCHLIST_UPDATED_EVENT, sync);
     return () => window.removeEventListener(WATCHLIST_UPDATED_EVENT, sync);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setAlertRuleCount(readAlertRules().length);
+    sync();
+    window.addEventListener(ALERT_RULES_UPDATED_EVENT, sync);
+    return () => window.removeEventListener(ALERT_RULES_UPDATED_EVENT, sync);
   }, []);
 
   return (
@@ -70,6 +80,21 @@ export default function Header() {
             {watchlistCount > 0 && (
               <span className="ml-2 rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] text-amber-300">
                 {watchlistCount}
+              </span>
+            )}
+          </Link>
+          <Link
+            href="/alerts"
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isAlerts
+                ? "bg-white/[0.08] text-white"
+                : "text-gray-400 hover:bg-white/[0.04] hover:text-white"
+            }`}
+          >
+            Alerts
+            {alertRuleCount > 0 && (
+              <span className="ml-2 rounded-full bg-red-400/20 px-2 py-0.5 text-[11px] text-red-300">
+                {alertRuleCount}
               </span>
             )}
           </Link>

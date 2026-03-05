@@ -1,6 +1,6 @@
 import { SearchFilters } from "./types";
 import { CVESummary, SearchSeverityFilter } from "./types";
-import { extractModifiedDate, extractPublishedDate, getSeverityFromScore } from "./utils";
+import { extractDescription, extractModifiedDate, extractPublishedDate, getSeverityFromScore } from "./utils";
 
 export const DEFAULT_PAGE = 1;
 export const PER_PAGE = 20;
@@ -111,6 +111,17 @@ export function buildPresetHref(state: Partial<SearchState>): string {
   return params.toString() ? `/?${params.toString()}` : "/";
 }
 
+export function matchesSearchState(cve: CVESummary, state: SearchState): boolean {
+  if (!matchesSeverityFilter(cve, state.minSeverity)) return false;
+  if (!matchesSinceFilter(cve, state.since)) return false;
+  if (!matchesTextFilter(cve, state.query)) return false;
+  if (!matchesProductFilter(cve, state.product)) return false;
+  if (!matchesVendorFilter(cve, state.vendor, state.product)) return false;
+  if (!matchesCweFilter(cve, state.cwe)) return false;
+
+  return true;
+}
+
 export function wasPublishedWithinDays(cve: CVESummary, days: number, now = Date.now()): boolean {
   const published = publishedForSort(cve);
   if (!published) return false;
@@ -130,6 +141,59 @@ function matchesSeverityFilter(cve: CVESummary, minSeverity: SearchSeverityFilte
   const rank = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4, NONE: 0, UNKNOWN: 0 };
 
   return rank[severity] >= rank[minSeverity];
+}
+
+function matchesSinceFilter(cve: CVESummary, since: string): boolean {
+  if (!since) return true;
+
+  const published = publishedForSort(cve);
+  const sinceTs = Date.parse(since);
+  if (!published || Number.isNaN(sinceTs)) return false;
+
+  return published >= sinceTs;
+}
+
+function matchesTextFilter(cve: CVESummary, query: string): boolean {
+  if (!query) return true;
+
+  const haystack = [
+    cve.id,
+    extractDescription(cve),
+    cve.summary,
+    cve.description,
+    ...(cve.aliases ?? []),
+    ...(cve.vulnerable_product ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query.toLowerCase());
+}
+
+function matchesProductFilter(cve: CVESummary, product: string): boolean {
+  if (!product) return true;
+
+  return (cve.vulnerable_product ?? []).some((item) => item.toLowerCase().includes(product.toLowerCase()));
+}
+
+function matchesVendorFilter(cve: CVESummary, vendor: string, product: string): boolean {
+  if (!vendor) return true;
+
+  const products = cve.vulnerable_product ?? [];
+  const vendorLower = vendor.toLowerCase();
+  const productLower = product.toLowerCase();
+
+  return products.some((item) => {
+    const lower = item.toLowerCase();
+    if (!lower.includes(vendorLower)) return false;
+    return product ? lower.includes(productLower) : true;
+  });
+}
+
+function matchesCweFilter(cve: CVESummary, cwe: string): boolean {
+  if (!cwe) return true;
+  return (cve.cwe ?? "").toLowerCase() === cwe.toLowerCase();
 }
 
 function compareCVEs(left: CVESummary, right: CVESummary, sort: SearchState["sort"]): number {

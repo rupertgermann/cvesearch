@@ -88,6 +88,9 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
   const problemTypes = cve.containers?.cna?.problemTypes || [];
   const metrics = cve.containers?.cna?.metrics || [];
   const aliases = cve.aliases?.filter((alias) => alias !== cveId) ?? [];
+  const linkedVulnerabilities = getLinkedVulnerabilities(cve, cveId);
+  const comments = getComments(cve);
+  const capecEntries = cve.capec ?? [];
 
   // Extract CVSS details from metrics
   const cvssDetail = metrics.length > 0
@@ -343,6 +346,67 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
           </Section>
         )}
 
+        {linkedVulnerabilities.length > 0 && (
+          <Section title="Linked Vulnerabilities">
+            <div className="flex flex-wrap gap-2">
+              {linkedVulnerabilities.map((linkedId) => (
+                <Link
+                  key={linkedId}
+                  href={`/cve/${encodeURIComponent(linkedId)}`}
+                  className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 transition-colors hover:bg-cyan-500/15 hover:text-cyan-200"
+                >
+                  {linkedId}
+                </Link>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {capecEntries.length > 0 && (
+          <Section title="Attack Patterns (CAPEC)">
+            <div className="space-y-3">
+              {capecEntries.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300">
+                      {entry.id}
+                    </span>
+                    <span className="text-sm font-medium text-white">{entry.name}</span>
+                  </div>
+                  {entry.summary && (
+                    <p className="mt-2 text-sm leading-relaxed text-gray-400">{entry.summary}</p>
+                  )}
+                  {entry.related_weakness && entry.related_weakness.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {entry.related_weakness.map((weakness) => (
+                        <span key={weakness} className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[11px] text-gray-400">
+                          {weakness}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {comments.length > 0 && (
+          <Section title="Comments">
+            <div className="space-y-3">
+              {comments.map((comment, index) => (
+                <div key={`${comment.author}-${comment.timestamp}-${index}`} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                    {comment.author && <span>{comment.author}</span>}
+                    {comment.timestamp && <span>{formatDate(comment.timestamp)}</span>}
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-300">{comment.body}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
         {/* Raw JSON */}
         <Section title="Raw Data" collapsible>
           <pre className="max-h-96 overflow-auto rounded-lg bg-black/40 p-4 text-xs text-gray-400 font-mono leading-relaxed">
@@ -426,6 +490,81 @@ function extractReferenceUrl(reference: unknown): string | null {
   }
 
   return null;
+}
+
+function getLinkedVulnerabilities(cve: CVEDetail, currentId: string): string[] {
+  const record = cve as unknown as Record<string, unknown>;
+  const candidates = [
+    record.related_vulnerabilities,
+    record.linked_vulnerabilities,
+    record.vulnerabilities,
+    record.related,
+  ];
+
+  const values = candidates.flatMap((candidate) => normalizeLinkedValues(candidate));
+
+  return Array.from(new Set(values.filter((value) => value !== currentId)));
+}
+
+function normalizeLinkedValues(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const values: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string") {
+      values.push(item);
+      continue;
+    }
+
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      const candidate = [record.id, record.cve, record.vulnerability, record.title].find(
+        (entry): entry is string => typeof entry === "string" && entry.length > 0
+      );
+      if (candidate) {
+        values.push(candidate);
+      }
+    }
+  }
+
+  return values;
+}
+
+function getComments(cve: CVEDetail): Array<{ author: string; timestamp: string; body: string }> {
+  const record = cve as unknown as Record<string, unknown>;
+  const candidates = [record.comments, record.comment];
+  const values = candidates.flatMap((candidate) => normalizeCommentValues(candidate));
+
+  return values.filter((comment) => comment.body.length > 0);
+}
+
+function normalizeCommentValues(value: unknown): Array<{ author: string; timestamp: string; body: string }> {
+  if (!Array.isArray(value)) return [];
+
+  const comments: Array<{ author: string; timestamp: string; body: string }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const body = [record.comment, record.description, record.text, record.value].find(
+      (entry): entry is string => typeof entry === "string" && entry.trim().length > 0
+    );
+
+    if (!body) continue;
+
+    comments.push({
+      author:
+        [record.author, record.title, record.user].find(
+          (entry): entry is string => typeof entry === "string" && entry.length > 0
+        ) ?? "Community note",
+      timestamp:
+        [record.timestamp, record.creation_timestamp, record.created_at, record.updated_at].find(
+          (entry): entry is string => typeof entry === "string" && entry.length > 0
+        ) ?? "",
+      body,
+    });
+  }
+
+  return comments;
 }
 
 function Section({
