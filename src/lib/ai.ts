@@ -197,7 +197,7 @@ export function buildHeuristicDigest(input: DigestInput): AIDigest {
   };
 }
 
-async function callModel(prompt: string, settings: AISettings): Promise<string> {
+export async function callModel(prompt: string, settings: AISettings): Promise<string> {
   if (settings.provider === "anthropic") {
     return callAnthropic(prompt, settings);
   }
@@ -399,7 +399,7 @@ function isoDateDaysAgo(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function resolveAISettings(settings?: Partial<AISettings>): AISettings {
+export function resolveAISettings(settings?: Partial<AISettings>): AISettings {
   const provider = settings?.provider ?? (process.env.OPENAI_API_KEY ? "openai" : "heuristic");
   const apiKey =
     settings?.apiKey ??
