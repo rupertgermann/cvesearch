@@ -13,6 +13,7 @@ export default function Header() {
   const isWatchlist = pathname === "/watchlist";
   const isAlerts = pathname === "/alerts";
   const isProjects = pathname === "/projects";
+  const isRepos = pathname === "/repos";
   const isSettings = pathname === "/settings";
   const [watchlistCount, setWatchlistCount] = useState(0);
   const [alertRuleCount, setAlertRuleCount] = useState(0);
@@ -126,6 +127,16 @@ export default function Header() {
             }`}
           >
             Projects
+          </Link>
+          <Link
+            href="/repos"
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isRepos
+                ? "bg-white/[0.08] text-white"
+                : "text-gray-400 hover:bg-white/[0.04] hover:text-white"
+            }`}
+          >
+            Repos
           </Link>
           <Link
             href="/settings"
