@@ -14,12 +14,12 @@
 - add prompt and version management so changes to agent behavior are explicit and reversible
 - add evaluation datasets and regression tests for AI outputs so prompt or model changes do not silently degrade quality
 - add fallback behavior for tool failures, upstream CIRCL outages, and malformed model responses
-- upgrade the AI search assistant from single-shot prompt interpretation to an agent that can clarify intent, inspect available filters, and build multi-step searches
+- [x] upgrade the AI search assistant from single-shot prompt interpretation to an agent that can clarify intent, inspect available filters, and build multi-step searches
 - add an AI triage agent that uses CVE detail, severity, references, KEV and EPSS signals, and project context to recommend priority, ownership, and next actions
 - add an AI alert investigation agent that explains why a rule matched and proposes the next best analyst action
-- add search explanation output that shows exactly which fields, filters, and assumptions the AI applied
+- [x] add search explanation output that shows exactly which fields, filters, and assumptions the AI applied
 - improve data normalization for aliases, linked vulnerabilities, affected products, and reference metadata
-- add stronger schema validation around upstream CIRCL payloads and AI-generated JSON
+- [x] add stronger schema validation around upstream CIRCL payloads and AI-generated JSON
 
 ### Build Next
 
@@ -33,7 +33,7 @@
 - add an AI remediation agent that drafts remediation plans, compensating controls, validation steps, and rollout notes per vulnerability
 - add an AI watchlist analyst agent that reviews new matches, clusters related issues, and highlights what changed since the last review
 - add an AI project summary agent that turns project state into executive, analyst, and engineering summaries with different output formats
-- add an AI duplicate and cluster agent that groups aliases, related advisories, and linked vulnerabilities into a shared incident view
+- [x] add an AI duplicate and cluster agent that groups aliases, related advisories, and linked vulnerabilities into a shared incident view
 - add human approval checkpoints before any agent writes triage state, modifies projects, or sends notifications
 - add redaction rules so sensitive notes or project metadata are not sent to third-party model providers by default
 
@@ -103,13 +103,13 @@
 
 ## AI Features to Add
 
-- upgrade the AI search assistant from single-shot prompt interpretation to an agent that can clarify intent, inspect available filters, and build multi-step searches
+- [x] upgrade the AI search assistant from single-shot prompt interpretation to an agent that can clarify intent, inspect available filters, and build multi-step searches
 - add an AI triage agent that uses CVE detail, severity, references, KEV and EPSS signals, and project context to recommend priority, ownership, and next actions
 - add an AI remediation agent that drafts remediation plans, compensating controls, validation steps, and rollout notes per vulnerability
 - add an AI watchlist analyst agent that reviews new matches, clusters related issues, and highlights what changed since the last review
 - add an AI project summary agent that turns project state into executive, analyst, and engineering summaries with different output formats
 - add an AI alert investigation agent that explains why a rule matched and proposes the next best analyst action
-- add an AI duplicate and cluster agent that groups aliases, related advisories, and linked vulnerabilities into a shared incident view
+- [x] add an AI duplicate and cluster agent that groups aliases, related advisories, and linked vulnerabilities into a shared incident view
 - add an AI exposure agent that maps vulnerabilities against tracked vendors, products, and assets to estimate likely internal impact
 - add a conversational workspace where an agent can answer questions over the user’s watchlist, alerts, projects, and saved searches
 - add human approval checkpoints before any agent writes triage state, modifies projects, or sends notifications
@@ -126,6 +126,6 @@
 
 - expand natural-language search to understand CWE families, date ranges, product aliases, exploitability, and remediation intent
 - add saved prompt templates for common analyst tasks such as "show newly published critical CVEs affecting OpenSSL this week"
-- add search explanation output that shows exactly which fields, filters, and assumptions the AI applied
+- [x] add search explanation output that shows exactly which fields, filters, and assumptions the AI applied
 - improve data normalization for aliases, linked vulnerabilities, affected products, and reference metadata
-- add stronger schema validation around upstream CIRCL payloads and AI-generated JSON
+- [x] add stronger schema validation around upstream CIRCL payloads and AI-generated JSON
