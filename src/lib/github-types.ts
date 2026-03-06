@@ -74,6 +74,7 @@ export interface DependencyScanResult {
   repoFullName: string;
   scannedAt: string;
   dependencyCount: number;
+  locationCount: number;
   vulnerabilities: VulnerabilityMatch[];
 }
 

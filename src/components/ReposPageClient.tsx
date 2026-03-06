@@ -512,6 +512,9 @@ const ScanResults = ({ result, repoFullName }: ScanResultsProps) => {
       <div className="mb-3 flex items-center gap-3 text-sm">
         <span className="text-gray-400">
           {result.dependencyCount} dependencies scanned
+          {result.locationCount > 1 && (
+            <span className="text-gray-600"> across {result.locationCount} locations</span>
+          )}
         </span>
         <span className="text-gray-600">|</span>
         {result.vulnerabilities.length > 0 ? (

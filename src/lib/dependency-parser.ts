@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import { ParsedDependency, RepoFileContent, DependencyEcosystem } from "./github-types";
 
 interface PackageJson {
@@ -23,6 +24,17 @@ interface ComposerLockPackage {
 interface ComposerLockJson {
   packages?: ComposerLockPackage[];
   "packages-dev"?: ComposerLockPackage[];
+}
+
+interface PnpmLockPackageEntry {
+  resolution?: { integrity?: string };
+  dev?: boolean;
+}
+
+interface PnpmLockYaml {
+  lockfileVersion?: string | number;
+  packages?: Record<string, PnpmLockPackageEntry>;
+  snapshots?: Record<string, PnpmLockPackageEntry>;
 }
 
 const stripSemverPrefix = (version: string): string => {
@@ -184,26 +196,155 @@ const isPhpPlatformPackage = (name: string): boolean => {
   return name === "php" || name.startsWith("ext-") || name.startsWith("lib-");
 };
 
-export const parseDependencyFiles = (files: RepoFileContent[]): ParsedDependency[] => {
-  const fileMap = new Map(files.map((file) => [file.path, file.content]));
+const PNPM_V6_KEY_PATTERN = /^\/(.+)\/(.+)$/;
+const PNPM_V9_KEY_PATTERN = /^(.+)@(.+)$/;
+
+const parsePnpmPackageKey = (key: string): { name: string; version: string } | null => {
+  const v6Match = key.match(PNPM_V6_KEY_PATTERN);
+  if (v6Match) {
+    const rawVersion = v6Match[2].split("_")[0].split("(")[0];
+    return { name: v6Match[1], version: rawVersion };
+  }
+
+  const v9Match = key.match(PNPM_V9_KEY_PATTERN);
+  if (v9Match) {
+    const rawVersion = v9Match[2].split("_")[0].split("(")[0];
+    return { name: v9Match[1], version: rawVersion };
+  }
+
+  return null;
+};
+
+export const parsePnpmLockDependencies = (
+  pnpmLockRaw: string
+): ParsedDependency[] => {
+  let lockData: PnpmLockYaml;
+  try {
+    lockData = parseYaml(pnpmLockRaw) as PnpmLockYaml;
+  } catch {
+    return [];
+  }
+
+  if (!lockData) return [];
+
+  const packages = lockData.packages ?? lockData.snapshots ?? {};
+  const dependencies: ParsedDependency[] = [];
+  const seen = new Set<string>();
+
+  Object.entries(packages).forEach(([key, entry]) => {
+    const parsed = parsePnpmPackageKey(key);
+    if (!parsed) return;
+
+    const { name, version } = parsed;
+    if (!isConcreteVersion(version)) return;
+
+    const dedupeKey = `${name}@${version}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+
+    dependencies.push({
+      name,
+      version,
+      ecosystem: "npm",
+      isDev: entry?.dev === true,
+    });
+  });
+
+  return dependencies;
+};
+
+export interface ParseResult {
+  dependencies: ParsedDependency[];
+  locationCount: number;
+}
+
+const getParentDir = (filePath: string): string => {
+  const lastSlash = filePath.lastIndexOf("/");
+  return lastSlash === -1 ? "" : filePath.substring(0, lastSlash);
+};
+
+const getFileName = (filePath: string): string => {
+  const lastSlash = filePath.lastIndexOf("/");
+  return lastSlash === -1 ? filePath : filePath.substring(lastSlash + 1);
+};
+
+interface DirectoryGroup {
+  dir: string;
+  files: Map<string, string>;
+}
+
+const groupFilesByDirectory = (files: RepoFileContent[]): DirectoryGroup[] => {
+  const dirMap = new Map<string, Map<string, string>>();
+
+  files.forEach((file) => {
+    const dir = getParentDir(file.path);
+    const fileName = getFileName(file.path);
+
+    if (!dirMap.has(dir)) {
+      dirMap.set(dir, new Map());
+    }
+    dirMap.get(dir)!.set(fileName, file.content);
+  });
+
+  return Array.from(dirMap.entries()).map(([dir, fileMap]) => ({
+    dir,
+    files: fileMap,
+  }));
+};
+
+const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
+  const results: ParsedDependency[] = [];
+
+  const pnpmLock = group.files.get("pnpm-lock.yaml");
+  if (pnpmLock) {
+    results.push(...parsePnpmLockDependencies(pnpmLock));
+  }
+
+  const packageJson = group.files.get("package.json");
+  if (packageJson) {
+    const packageLock = group.files.get("package-lock.json");
+    results.push(...parseNpmDependencies(packageJson, packageLock));
+  }
+
+  const composerJson = group.files.get("composer.json");
+  if (composerJson) {
+    const composerLock = group.files.get("composer.lock");
+    results.push(...parseComposerDependencies(composerJson, composerLock));
+  }
+
+  return results;
+};
+
+export const parseDependencyFiles = (files: RepoFileContent[]): ParseResult => {
+  const groups = groupFilesByDirectory(files);
   const allDependencies: ParsedDependency[] = [];
 
-  const packageJson = fileMap.get("package.json");
-  if (packageJson) {
-    const lockJson = fileMap.get("package-lock.json");
-    allDependencies.push(...parseNpmDependencies(packageJson, lockJson ?? undefined));
-  }
+  groups.forEach((group) => {
+    allDependencies.push(...parseDirectoryGroup(group));
+  });
 
-  const composerJson = fileMap.get("composer.json");
-  if (composerJson) {
-    const lockJson = fileMap.get("composer.lock");
-    allDependencies.push(...parseComposerDependencies(composerJson, lockJson ?? undefined));
-  }
+  const deduplicated = deduplicateDependencies(allDependencies);
 
-  return allDependencies;
+  return {
+    dependencies: deduplicated,
+    locationCount: groups.length,
+  };
+};
+
+const deduplicateDependencies = (dependencies: ParsedDependency[]): ParsedDependency[] => {
+  const seen = new Map<string, ParsedDependency>();
+
+  dependencies.forEach((dep) => {
+    const key = `${dep.ecosystem}:${dep.name}@${dep.version}`;
+    if (!seen.has(key)) {
+      seen.set(key, dep);
+    }
+  });
+
+  return Array.from(seen.values());
 };
 
 export const SUPPORTED_ECOSYSTEMS: { ecosystem: DependencyEcosystem; label: string; files: string[] }[] = [
-  { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json"] },
+  { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml"] },
   { ecosystem: "Packagist", label: "Composer (PHP)", files: ["composer.json", "composer.lock"] },
 ];

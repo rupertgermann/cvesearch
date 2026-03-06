@@ -3,12 +3,29 @@ import { GitHubRepo, RepoFileContent } from "./github-types";
 const GITHUB_API_BASE = "https://api.github.com";
 const REQUEST_TIMEOUT_MS = 15_000;
 
-const DEPENDENCY_FILE_PATHS = [
+const DEPENDENCY_FILE_NAMES = new Set([
   "package.json",
   "package-lock.json",
+  "pnpm-lock.yaml",
   "composer.json",
   "composer.lock",
-] as const;
+]);
+
+const IGNORED_PATH_SEGMENTS = ["node_modules", "vendor", ".git", "dist", "build"];
+
+interface GitTreeEntry {
+  path: string;
+  mode: string;
+  type: string;
+  sha: string;
+  size?: number;
+}
+
+interface GitTree {
+  sha: string;
+  tree: GitTreeEntry[];
+  truncated: boolean;
+}
 
 const getGitHubToken = (): string => {
   const token = process.env.GITHUB_TOKEN;
@@ -145,21 +162,75 @@ export const fetchRepoFile = async (
   }
 };
 
-export const fetchRepoDependencyFiles = async (
+const FETCH_BATCH_SIZE = 10;
+
+const fetchInBatches = async (
   fullName: string,
+  paths: string[],
   branch?: string
 ): Promise<RepoFileContent[]> => {
   const results: RepoFileContent[] = [];
 
-  const filePromises = DEPENDENCY_FILE_PATHS.map(async (filePath) => {
-    const content = await fetchRepoFile(fullName, filePath, branch);
-    if (content) {
-      results.push({ path: filePath, content });
-    }
-  });
+  for (let offset = 0; offset < paths.length; offset += FETCH_BATCH_SIZE) {
+    const batch = paths.slice(offset, offset + FETCH_BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(async (filePath) => {
+        const content = await fetchRepoFile(fullName, filePath, branch);
+        if (!content) return null;
+        return { path: filePath, content };
+      })
+    );
+    results.push(...batchResults.filter((r): r is RepoFileContent => r !== null));
+  }
 
-  await Promise.all(filePromises);
   return results;
+};
+
+const isIgnoredPath = (filePath: string): boolean =>
+  IGNORED_PATH_SEGMENTS.some((segment) => filePath.includes(`${segment}/`));
+
+const isDependencyFile = (filePath: string): boolean => {
+  const fileName = filePath.split("/").pop() ?? "";
+  return DEPENDENCY_FILE_NAMES.has(fileName);
+};
+
+export const discoverDependencyFiles = async (
+  fullName: string,
+  treeSha: string
+): Promise<RepoFileContent[]> => {
+  const tree = await fetchGitHub<GitTree>(
+    `/repos/${fullName}/git/trees/${treeSha}?recursive=1`
+  );
+
+  const matchingPaths = tree.tree
+    .filter((entry) => entry.type === "blob" && isDependencyFile(entry.path) && !isIgnoredPath(entry.path))
+    .map((entry) => entry.path);
+
+  if (matchingPaths.length === 0) return [];
+
+  return fetchInBatches(fullName, matchingPaths);
+};
+
+export const fetchRepoDependencyFiles = async (
+  fullName: string,
+  branchOrSha?: string
+): Promise<RepoFileContent[]> => {
+  if (branchOrSha && /^[0-9a-f]{40}$/i.test(branchOrSha)) {
+    return discoverDependencyFiles(fullName, branchOrSha);
+  }
+
+  try {
+    const repoInfo = await fetchGitHub<{ default_branch: string }>(
+      `/repos/${fullName}`
+    );
+    const branch = branchOrSha ?? repoInfo.default_branch;
+    const branchInfo = await fetchGitHub<{ commit: { sha: string } }>(
+      `/repos/${fullName}/branches/${encodeURIComponent(branch)}`
+    );
+    return discoverDependencyFiles(fullName, branchInfo.commit.sha);
+  } catch {
+    return [];
+  }
 };
 
 export const isGitHubTokenConfigured = (): boolean => {

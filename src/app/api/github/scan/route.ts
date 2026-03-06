@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         repoFullName: fullName,
         scannedAt: new Date().toISOString(),
         dependencyCount: 0,
+        locationCount: 0,
         vulnerabilities: [],
       };
 
@@ -39,13 +40,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(emptyResult);
     }
 
-    const dependencies = parseDependencyFiles(files);
+    const { dependencies, locationCount } = parseDependencyFiles(files);
     const vulnerabilities = await queryOSVBatch(dependencies);
 
     const result: DependencyScanResult = {
       repoFullName: fullName,
       scannedAt: new Date().toISOString(),
       dependencyCount: dependencies.length,
+      locationCount,
       vulnerabilities,
     };
 
