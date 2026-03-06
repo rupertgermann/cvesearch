@@ -13,6 +13,16 @@ test("interpretSearchPromptHeuristically extracts severity and recent window", (
   assert.equal(result.sort, "cvss_desc");
   assert.match(result.query, /openssl/i);
   assert.notEqual(result.since, "");
+  assert.equal(result.appliedFilters.some((filter) => filter.field === "query"), true);
+  assert.equal(result.toolCalls.length > 0, true);
+  assert.equal(result.needsClarification, false);
+});
+
+test("interpretSearchPromptHeuristically requests clarification for underspecified prompts", () => {
+  const result = interpretSearchPromptHeuristically("recent");
+
+  assert.equal(result.needsClarification, true);
+  assert.match(result.clarificationQuestion, /product|vendor|severity|time window/i);
 });
 
 test("buildHeuristicCveInsight produces triage and remediation guidance", () => {

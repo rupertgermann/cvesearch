@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { AICveInsight } from "@/lib/types";
-import { readAISettings } from "@/lib/ai-settings";
 
 export default function AICveInsightPanel({ cveId }: { cveId: string }) {
   const [insight, setInsight] = useState<AICveInsight | null>(null);
@@ -20,7 +19,7 @@ export default function AICveInsightPanel({ cveId }: { cveId: string }) {
         const res = await fetch(`/api/ai/cve/${encodeURIComponent(cveId)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ settings: readAISettings() }),
+          body: JSON.stringify({}),
         });
         const data = await res.json().catch(() => null);
         if (!res.ok) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SearchState } from "@/lib/search";
-import { readAISettings } from "@/lib/ai-settings";
+import { AISearchInterpretation } from "@/lib/types";
 
 interface AISearchAssistantPanelProps {
   onApply: (next: Partial<SearchState>) => void;
@@ -12,17 +12,19 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [result, setResult] = useState<AISearchInterpretation | null>(null);
 
   async function handleInterpret() {
     if (!prompt.trim()) return;
 
     setLoading(true);
     setMessage("");
+    setResult(null);
     try {
       const res = await fetch("/api/ai/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, settings: readAISettings() }),
+        body: JSON.stringify({ prompt }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -31,6 +33,7 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
 
       onApply(data);
       setMessage(data.explanation || "Applied AI-generated filters.");
+      setResult(data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to interpret search");
     } finally {
@@ -66,6 +69,56 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
           </div>
         </div>
       </div>
+
+      {result && (
+        <div className="mt-4 space-y-4 rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-4">
+          {result.needsClarification && result.clarificationQuestion ? (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              {result.clarificationQuestion}
+            </div>
+          ) : null}
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Applied Filters</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {result.appliedFilters.length > 0 ? (
+                result.appliedFilters.map((filter) => (
+                  <span key={`${filter.field}-${filter.value}`} className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-xs text-gray-300">
+                    {filter.field}: {filter.value}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-gray-500">No additional filters were applied.</span>
+              )}
+            </div>
+          </div>
+
+          {result.assumptions.length > 0 ? (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Assumptions</h3>
+              <ul className="mt-3 space-y-2 text-sm text-gray-300">
+                {result.assumptions.map((assumption) => (
+                  <li key={assumption} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                    {assumption}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Agent Trace</h3>
+            <ul className="mt-3 space-y-2 text-sm text-gray-300">
+              {result.toolCalls.map((call) => (
+                <li key={call.tool} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                  <span className="font-medium text-white">{call.tool}</span>
+                  <span className="text-gray-400"> — {call.summary}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

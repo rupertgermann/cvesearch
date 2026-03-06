@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateDigest } from "@/lib/ai";
+import { generateDigest } from "@/lib/ai-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
       watchlist: Array.isArray(body?.watchlist) ? body.watchlist : [],
       alerts: Array.isArray(body?.alerts) ? body.alerts : [],
       projects: Array.isArray(body?.projects) ? body.projects : [],
-    }, body?.settings);
+    });
 
     return NextResponse.json(digest);
   } catch (error) {

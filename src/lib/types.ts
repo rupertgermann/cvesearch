@@ -203,6 +203,19 @@ export interface AICveInsight {
   cluster: AIContextCluster;
 }
 
+export type AISearchFilterField = "query" | "vendor" | "product" | "cwe" | "since" | "minSeverity" | "sort";
+
+export interface AISearchAppliedFilter {
+  field: AISearchFilterField;
+  value: string;
+  reason: string;
+}
+
+export interface AISearchToolTrace {
+  tool: string;
+  summary: string;
+}
+
 export interface AISearchInterpretation {
   query: string;
   vendor: string;
@@ -212,6 +225,11 @@ export interface AISearchInterpretation {
   minSeverity: SearchSeverityFilter;
   sort: SearchSortOption;
   explanation: string;
+  assumptions: string[];
+  appliedFilters: AISearchAppliedFilter[];
+  toolCalls: AISearchToolTrace[];
+  needsClarification: boolean;
+  clarificationQuestion: string;
 }
 
 export interface AIDigestSection {
@@ -226,6 +244,8 @@ export interface AIDigest {
 }
 
 export type AIProvider = "heuristic" | "openai" | "anthropic";
+
+export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest";
 
 export interface AISettings {
   provider: AIProvider;

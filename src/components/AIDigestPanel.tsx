@@ -7,7 +7,6 @@ import { readAlertRules } from "@/lib/alerts";
 import { listProjectsAPI } from "@/lib/projects-api";
 import { getLatestCVEs } from "@/lib/api";
 import { applySearchResultPreferences, matchesSearchState } from "@/lib/search";
-import { readAISettings } from "@/lib/ai-settings";
 
 export default function AIDigestPanel() {
   const [digest, setDigest] = useState<AIDigest | null>(null);
@@ -43,7 +42,6 @@ export default function AIDigestPanel() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            settings: readAISettings(),
             watchlist: readWatchlist().map((id) => ({ id })),
             alerts: alertPayload,
             projects: projects.map((project) => ({

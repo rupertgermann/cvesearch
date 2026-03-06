@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateSearchInterpretation } from "@/lib/ai";
+import { generateSearchInterpretation } from "@/lib/ai-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
-    const interpretation = await generateSearchInterpretation(prompt, body?.settings);
+    const interpretation = await generateSearchInterpretation(prompt);
     return NextResponse.json(interpretation);
   } catch (error) {
     return NextResponse.json(
