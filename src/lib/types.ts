@@ -268,6 +268,23 @@ export interface AIDigest {
   sections: AIDigestSection[];
 }
 
+export type AIRunStatus = "success" | "fallback" | "error";
+
+export interface AIRunRecord {
+  id: string;
+  feature: AIFeature;
+  provider: AIProvider;
+  model: string;
+  mode: "heuristic" | "configured";
+  status: AIRunStatus;
+  prompt: string;
+  output: string;
+  toolCalls: AISearchToolTrace[];
+  error: string;
+  durationMs: number;
+  createdAt: string;
+}
+
 export type AIProvider = "heuristic" | "openai" | "anthropic";
 
 export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest";

@@ -1,8 +1,9 @@
 import AISettingsPageClient from "@/components/AISettingsPageClient";
-import { getServerAIConfigurationSummary } from "@/lib/ai-service";
+import { getRecentAIRuns, getServerAIConfigurationSummary } from "@/lib/ai-service";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
   const summary = getServerAIConfigurationSummary();
+  const recentRuns = await getRecentAIRuns(12);
 
-  return <AISettingsPageClient summary={summary} />;
+  return <AISettingsPageClient summary={summary} recentRuns={recentRuns} />;
 }

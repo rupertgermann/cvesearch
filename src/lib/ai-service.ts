@@ -2,6 +2,7 @@ import {
   AICveInsight,
   AIDigest,
   AIFeature,
+  AIRunRecord,
   AITriageContextSnapshot,
   AITriageSignal,
   AIProvider,
@@ -15,6 +16,7 @@ import {
   SearchSeverityFilter,
   SearchSortOption,
 } from "./types";
+import { appendAIRun, listRecentAIRuns } from "./ai-runs-store";
 import { SearchState, normalizeSearchState } from "./search";
 import { extractCVEId, extractDescription, getSeverityFromScore } from "./utils";
 
@@ -58,6 +60,7 @@ interface StructuredTask<T> {
   prompt: string;
   fallback: () => T;
   sanitize: (value: unknown) => T;
+  toolCalls?: AISearchToolTrace[];
 }
 
 interface SearchToolContext {
@@ -122,6 +125,10 @@ export function getServerAIConfigurationSummary(): ServerAIConfigurationSummary 
   };
 }
 
+export async function getRecentAIRuns(limit = 25): Promise<AIRunRecord[]> {
+  return listRecentAIRuns(limit);
+}
+
 export async function generateCveInsight(input: CveInsightInput): Promise<AICveInsight> {
   return executeStructuredTask({
     feature: "cve_insight",
@@ -141,8 +148,19 @@ export async function generateSearchInterpretation(prompt: string): Promise<AISe
   const plan = runSearchPlanning(prompt);
   const heuristic = buildSearchInterpretationFromPlan(prompt, plan);
   const runtime = resolveAIRuntime();
+  const startedAt = Date.now();
 
   if (runtime.mode === "heuristic") {
+    await persistAIRun({
+      feature: "search_assistant",
+      runtime,
+      status: "fallback",
+      prompt,
+      output: JSON.stringify(heuristic),
+      toolCalls: plan.toolCalls,
+      durationMs: Date.now() - startedAt,
+      error: "",
+    });
     return heuristic;
   }
 
@@ -162,11 +180,32 @@ export async function generateSearchInterpretation(prompt: string): Promise<AISe
     );
 
     const parsed = sanitizeSearchInterpretation(JSON.parse(response), heuristic);
-    return {
+    const result = {
       ...parsed,
       toolCalls: plan.toolCalls,
     };
+    await persistAIRun({
+      feature: "search_assistant",
+      runtime,
+      status: "success",
+      prompt,
+      output: JSON.stringify(result),
+      toolCalls: plan.toolCalls,
+      durationMs: Date.now() - startedAt,
+      error: "",
+    });
+    return result;
   } catch {
+    await persistAIRun({
+      feature: "search_assistant",
+      runtime,
+      status: "fallback",
+      prompt,
+      output: JSON.stringify(heuristic),
+      toolCalls: plan.toolCalls,
+      durationMs: Date.now() - startedAt,
+      error: "model_generation_failed",
+    });
     return heuristic;
   }
 }
@@ -459,17 +498,51 @@ export function buildHeuristicDigest(input: DigestInput): AIDigest {
   };
 }
 
-async function executeStructuredTask<T>({ feature, prompt, fallback, sanitize }: StructuredTask<T>): Promise<T> {
+async function executeStructuredTask<T>({ feature, prompt, fallback, sanitize, toolCalls = [] }: StructuredTask<T>): Promise<T> {
   const runtime = resolveAIRuntime();
+  const startedAt = Date.now();
   if (runtime.mode === "heuristic") {
-    return fallback();
+    const result = fallback();
+    await persistAIRun({
+      feature,
+      runtime,
+      status: "fallback",
+      prompt,
+      output: safeSerialize(result),
+      toolCalls,
+      durationMs: Date.now() - startedAt,
+      error: "",
+    });
+    return result;
   }
 
   try {
     const response = await callModel(prompt, runtime, feature);
-    return sanitize(JSON.parse(response));
-  } catch {
-    return fallback();
+    const result = sanitize(JSON.parse(response));
+    await persistAIRun({
+      feature,
+      runtime,
+      status: "success",
+      prompt,
+      output: safeSerialize(result),
+      toolCalls,
+      durationMs: Date.now() - startedAt,
+      error: "",
+    });
+    return result;
+  } catch (error) {
+    const result = fallback();
+    await persistAIRun({
+      feature,
+      runtime,
+      status: "fallback",
+      prompt,
+      output: safeSerialize(result),
+      toolCalls,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    return result;
   }
 }
 
@@ -479,7 +552,7 @@ function runSearchPlanning(prompt: string): SearchPlanningResult {
     lower: prompt.toLowerCase(),
   };
 
-  const catalog = inspectAvailableFilters(context);
+  const catalog = inspectAvailableFilters();
   const extracted = extractPromptSignals(context);
   const time = resolveRelativeTime(context);
   const clarification = detectClarificationNeed(context, extracted);
@@ -511,7 +584,7 @@ function runSearchPlanning(prompt: string): SearchPlanningResult {
   };
 }
 
-function inspectAvailableFilters(_context: SearchToolContext): SearchFilterCatalog {
+function inspectAvailableFilters(): SearchFilterCatalog {
   return {
     fields: ["query", "vendor", "product", "cwe", "since", "minSeverity", "sort"],
     minSeverity: ["ANY", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
@@ -673,6 +746,47 @@ async function callModel(prompt: string, settings: AIRuntimeSettings, feature: A
   }
 
   return callOpenAI(prompt, settings, feature);
+}
+
+async function persistAIRun(input: {
+  feature: AIFeature;
+  runtime: AIRuntimeSettings;
+  status: AIRunRecord["status"];
+  prompt: string;
+  output: string;
+  toolCalls: AISearchToolTrace[];
+  durationMs: number;
+  error: string;
+}): Promise<void> {
+  try {
+    await appendAIRun({
+      id: crypto.randomUUID(),
+      feature: input.feature,
+      provider: input.runtime.provider,
+      model: input.runtime.model,
+      mode: input.runtime.mode,
+      status: input.status,
+      prompt: truncateValue(input.prompt, 12000),
+      output: truncateValue(input.output, 12000),
+      toolCalls: input.toolCalls,
+      error: truncateValue(input.error, 2000),
+      durationMs: Math.max(0, Math.round(input.durationMs)),
+      createdAt: new Date().toISOString(),
+    });
+  } catch {
+  }
+}
+
+function safeSerialize(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "{\"error\":\"serialization_failed\"}";
+  }
+}
+
+function truncateValue(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength).trimEnd()}...`;
 }
 
 async function callOpenAI(prompt: string, settings: AIRuntimeSettings, feature: AIFeature): Promise<string> {

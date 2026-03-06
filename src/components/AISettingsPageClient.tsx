@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ServerAIConfigurationSummary } from "@/lib/ai-service";
+import { AIRunRecord } from "@/lib/types";
 
-export default function AISettingsPageClient({ summary }: { summary: ServerAIConfigurationSummary }) {
+export default function AISettingsPageClient({ summary, recentRuns }: { summary: ServerAIConfigurationSummary; recentRuns: AIRunRecord[] }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -46,6 +47,65 @@ export default function AISettingsPageClient({ summary }: { summary: ServerAICon
               ? `Available providers: ${summary.availableProviders.join(", ")}`
               : "No model provider credentials detected on the server."}
           </span>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Recent AI Runs</h2>
+              <p className="mt-1 text-sm text-gray-500">Read-only history of recent prompts, outcomes, tool traces, and failures.</p>
+            </div>
+          </div>
+
+          {recentRuns.length > 0 ? (
+            <div className="space-y-3">
+              {recentRuns.map((run) => (
+                <div key={run.id} className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-300">{run.feature}</span>
+                    <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-gray-300">{run.status}</span>
+                    <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-gray-400">{run.provider}{run.model ? ` • ${run.model}` : ""}</span>
+                    <span className="text-xs text-gray-500">{new Date(run.createdAt).toLocaleString("en-US")}</span>
+                    <span className="text-xs text-gray-500">{run.durationMs}ms</span>
+                  </div>
+
+                  <div className="mt-3 grid gap-3">
+                    <div>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Prompt</h3>
+                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-300">{run.prompt}</pre>
+                    </div>
+
+                    <div>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Output</h3>
+                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-300">{run.output}</pre>
+                    </div>
+
+                    {run.toolCalls.length > 0 ? (
+                      <div>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Tool Calls</h3>
+                        <ul className="mt-2 space-y-2 text-xs text-gray-300">
+                          {run.toolCalls.map((call) => (
+                            <li key={`${run.id}-${call.tool}`} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                              <span className="font-medium text-white">{call.tool}</span>
+                              <span className="text-gray-400"> — {call.summary}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {run.error ? (
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                        {run.error}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No AI runs have been recorded yet.</p>
+          )}
         </div>
       </div>
     </div>
