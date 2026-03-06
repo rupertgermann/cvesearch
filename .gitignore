@@ -47,6 +47,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/*
-/.idea/.gitignore
-/.idea/misc.xml
-/.idea/vcs.xml
+/.idea/
+/.idea
+
