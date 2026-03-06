@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 
 const API_BASE = "https://vulnerability.circl.lu/api";
 const REQUEST_TIMEOUT_MS = 10_000;
+type ProxyFetchOptions = RequestInit & { next?: { revalidate: number } };
 const ALLOWED_PATH_PATTERNS = [
   /^\/vulnerability\/\?(.*)$/u,
   /^\/vulnerability\/[A-Za-z0-9._:-]+(\?.*)?$/u,
@@ -12,7 +14,7 @@ const ALLOWED_PATH_PATTERNS = [
   /^\/cwe\/[A-Za-z0-9._:-]+$/u,
 ];
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteProtection(async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const path = searchParams.get("path");
 
@@ -30,14 +32,15 @@ export async function GET(request: NextRequest) {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const res = await fetch(targetUrl, {
+    const options: ProxyFetchOptions = {
       headers: {
         Accept: "application/json",
         "User-Agent": "CVESearch-WebApp/1.0",
       },
       next: { revalidate: 60 },
       signal: controller.signal,
-    });
+    };
+    const res = await fetch(targetUrl, options);
 
     if (!res.ok) {
       return NextResponse.json(
@@ -63,7 +66,11 @@ export async function GET(request: NextRequest) {
   } finally {
     clearTimeout(timeout);
   }
-}
+}, {
+  route: "/api/proxy",
+  errorMessage: "Proxy error",
+  rateLimit: API_RATE_LIMITS.proxy,
+});
 
 function isAllowedPath(path: string): boolean {
   return ALLOWED_PATH_PATTERNS.some((pattern) => pattern.test(path));

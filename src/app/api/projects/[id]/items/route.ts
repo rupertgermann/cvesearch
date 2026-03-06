@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addProjectItem, removeProjectItem } from "@/lib/projects-store";
+import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 
-export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export const POST = withRouteProtection(async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const body = await request.json().catch(() => null);
   const cveId = typeof body?.cveId === "string" ? body.cveId.trim() : "";
@@ -17,9 +18,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 
   return NextResponse.json(project);
-}
+}, {
+  route: "/api/projects/[id]/items",
+  errorMessage: "Failed to add project item",
+  rateLimit: API_RATE_LIMITS.projectMutations,
+});
 
-export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export const DELETE = withRouteProtection(async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const body = await request.json().catch(() => null);
   const cveId = typeof body?.cveId === "string" ? body.cveId.trim() : "";
@@ -34,4 +39,8 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   }
 
   return NextResponse.json(project);
-}
+}, {
+  route: "/api/projects/[id]/items",
+  errorMessage: "Failed to remove project item",
+  rateLimit: API_RATE_LIMITS.projectMutations,
+});
