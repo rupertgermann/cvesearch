@@ -33,6 +33,27 @@ test("interpretSearchPromptHeuristically requests clarification for underspecifi
   assert.match(result.clarificationQuestion, /product|vendor|severity|time window/i);
 });
 
+test("interpretSearchPromptHeuristically maps aliases, CWE families, and exploit intent", () => {
+  const result = interpretSearchPromptHeuristically("show me xss vulns in k8s with proof of concept exploits from this week");
+
+  assert.equal(result.vendor, "Kubernetes");
+  assert.equal(result.product, "Kubernetes");
+  assert.equal(result.cwe, "CWE-79");
+  assert.equal(result.sort, "risk_desc");
+  assert.notEqual(result.since, "");
+  assert.equal(result.appliedFilters.some((filter) => filter.field === "product" && /Kubernetes/.test(filter.value)), true);
+});
+
+test("interpretSearchPromptHeuristically understands explicit date windows and remediation intent", () => {
+  const result = interpretSearchPromptHeuristically("what should we patch first for microsoft exchange since 2026-01-15");
+
+  assert.equal(result.vendor, "Microsoft");
+  assert.equal(result.product, "Exchange");
+  assert.equal(result.since, "2026-01-15");
+  assert.equal(result.sort, "risk_desc");
+  assert.equal(result.needsClarification, false);
+});
+
 test("buildHeuristicCveInsight produces triage and remediation guidance", () => {
   const result = buildHeuristicCveInsight({
     id: "CVE-2026-1111",

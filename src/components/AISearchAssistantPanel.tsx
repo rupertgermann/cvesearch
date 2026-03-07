@@ -46,14 +46,14 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">AI Search Assistant</h2>
-          <p className="mt-1 text-sm text-gray-500">Use natural language like “show me critical OpenSSL vulns from this month”.</p>
+          <p className="mt-1 text-sm text-gray-500">Use natural language for aliases, CWE families, date windows, and remediation intent like “show me xss vulns in k8s with proof of concept exploits from this week”.</p>
         </div>
         <div className="flex w-full flex-col gap-2 lg:w-2/3">
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={2}
-            placeholder="Show me recent critical vulnerabilities affecting OpenSSL"
+            placeholder="What should we patch first for Microsoft Exchange since 2026-01-15?"
             className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <div className="flex items-center justify-between gap-3">

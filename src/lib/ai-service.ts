@@ -57,6 +57,24 @@ const AI_FEATURE_ENV_SEGMENTS: Record<AIFeature, string> = {
   alert_investigation: "ALERT_INVESTIGATION",
   exposure_agent: "EXPOSURE_AGENT",
 };
+const SEARCH_VENDOR_PRODUCT_ALIASES: Array<{ vendor: string; product: string; aliases: string[] }> = [
+  { vendor: "OpenSSL", product: "OpenSSL", aliases: ["openssl", "libssl"] },
+  { vendor: "Microsoft", product: "Exchange", aliases: ["microsoft exchange", "exchange server", "exchange"] },
+  { vendor: "Apache", product: "HTTP Server", aliases: ["apache http server", "apache httpd", "httpd"] },
+  { vendor: "VMware", product: "vCenter Server", aliases: ["vmware vcenter", "vcenter"] },
+  { vendor: "Palo Alto Networks", product: "PAN-OS", aliases: ["pan-os", "palo alto pan-os", "panos"] },
+  { vendor: "F5", product: "BIG-IP", aliases: ["big-ip", "f5 big-ip", "bigip"] },
+  { vendor: "Kubernetes", product: "Kubernetes", aliases: ["kubernetes", "k8s"] },
+];
+const SEARCH_CWE_FAMILY_ALIASES: Array<{ cwe: string; aliases: string[] }> = [
+  { cwe: "CWE-79", aliases: ["cross-site scripting", "xss"] },
+  { cwe: "CWE-89", aliases: ["sql injection", "sqli"] },
+  { cwe: "CWE-78", aliases: ["command injection", "shell injection", "os command injection"] },
+  { cwe: "CWE-22", aliases: ["path traversal", "directory traversal"] },
+  { cwe: "CWE-287", aliases: ["authentication bypass", "auth bypass"] },
+  { cwe: "CWE-918", aliases: ["server-side request forgery", "ssrf"] },
+  { cwe: "CWE-502", aliases: ["deserialization", "insecure deserialization"] },
+];
 
 export interface DigestInput {
   watchlist: Array<{ id: string; summary?: string; severity?: string }>;
@@ -198,6 +216,8 @@ interface SearchFilterCatalog {
 
 interface ExtractedPromptSignals {
   query: string;
+  vendor: string;
+  product: string;
   cwe: string;
   minSeverity: SearchSeverityFilter;
   sort: SearchSortOption;
@@ -1368,7 +1388,11 @@ function inspectAvailableFilters(): SearchFilterCatalog {
 function extractPromptSignals(context: SearchToolContext): ExtractedPromptSignals {
   const cveMatch = context.prompt.match(/CVE-\d{4}-\d+/i);
   const cweMatch = context.prompt.match(/CWE-\d+/i);
-  const prefersRiskSort = /exploit|exploited|kev|ransomware|epss/i.test(context.lower);
+  const cweFamily = resolveCweFamilyAlias(context.lower);
+  const vendorProduct = resolveVendorProductAlias(context.lower);
+  const explicitVendor = extractLabeledSearchTarget(context.prompt, "vendor");
+  const explicitProduct = extractLabeledSearchTarget(context.prompt, "product");
+  const prefersRiskSort = /exploit|exploited|kev|ransomware|epss|patch first|fix first|remediate|remediation|urgent|internet-facing/i.test(context.lower);
   const minSeverity = context.lower.includes("critical")
     ? "CRITICAL"
     : context.lower.includes("high")
@@ -1379,19 +1403,31 @@ function extractPromptSignals(context: SearchToolContext): ExtractedPromptSignal
           ? "LOW"
           : "ANY";
 
+  const vendor = (explicitProduct || vendorProduct.product) ? (explicitVendor || vendorProduct.vendor) : "";
+  const product = explicitProduct || vendorProduct.product;
   const query = cveMatch
     ? cveMatch[0].toUpperCase()
-    : context.prompt
-        .replace(/show me|find|search for|look for|give me|vulns?|vulnerabilities|cves?|that are|affecting|from this week|from this month|this week|this month|today|recent|latest|newly published|published|critical|high|medium|low/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+    : buildSearchQuery(context.prompt, {
+        vendor,
+        product,
+        cwe: cweMatch?.[0].toUpperCase() ?? cweFamily,
+      });
 
   const assumptions: string[] = [];
   if (minSeverity === "ANY") {
     assumptions.push("No severity term was stated, so the search keeps the default severity filter.");
   }
-  if (!cweMatch) {
+  if (!cweMatch && !cweFamily) {
     assumptions.push("No explicit CWE identifier was found in the prompt.");
+  }
+  if (cweFamily) {
+    assumptions.push(`Mapped the CWE family phrase to ${cweFamily} for a narrower search.`);
+  }
+  if (vendorProduct.product && !explicitProduct) {
+    assumptions.push(`Matched the product alias to ${vendorProduct.vendor} ${vendorProduct.product}.`);
+  }
+  if (explicitVendor && !explicitProduct) {
+    assumptions.push("Vendor-only filtering is not applied because product filtering is required, so the vendor signal stays in the keyword query.");
   }
   if (!query) {
     assumptions.push("No product or keyword was extracted, so the search relies on filters only.");
@@ -1399,7 +1435,9 @@ function extractPromptSignals(context: SearchToolContext): ExtractedPromptSignal
 
   return {
     query,
-    cwe: cweMatch?.[0].toUpperCase() ?? "",
+    vendor,
+    product,
+    cwe: cweMatch?.[0].toUpperCase() ?? cweFamily,
     minSeverity,
     sort: prefersRiskSort ? "risk_desc" : minSeverity === "ANY" ? SEARCH_DEFAULT_SORT : "cvss_desc",
     assumptions,
@@ -1407,6 +1445,36 @@ function extractPromptSignals(context: SearchToolContext): ExtractedPromptSignal
 }
 
 function resolveRelativeTime(context: SearchToolContext): RelativeTimeSignal {
+  const explicitSince = context.lower.match(/since\s+(\d{4}-\d{2}-\d{2})/i);
+  if (explicitSince) {
+    return { since: explicitSince[1], label: `since ${explicitSince[1]}` };
+  }
+
+  const relativeWindow = context.lower.match(/(?:last|past)\s+(\d+)\s+(day|days|week|weeks|month|months)/i);
+  if (relativeWindow) {
+    const count = Number.parseInt(relativeWindow[1] || "0", 10);
+    const unit = relativeWindow[2] || "days";
+    const multiplier = unit.startsWith("week") ? 7 : unit.startsWith("month") ? 30 : 1;
+    if (count > 0) {
+      return {
+        since: isoDateDaysAgo(count * multiplier),
+        label: `${count} ${unit}`,
+      };
+    }
+  }
+
+  const yearMatch = context.lower.match(/(?:in|from)\s+(20\d{2})\b/);
+  if (yearMatch) {
+    return {
+      since: `${yearMatch[1]}-01-01`,
+      label: `year ${yearMatch[1]}`,
+    };
+  }
+
+  if (context.lower.includes("yesterday")) {
+    return { since: isoDateDaysAgo(2), label: "yesterday" };
+  }
+
   if (context.lower.includes("today")) {
     return { since: isoDateDaysAgo(1), label: "today" };
   }
@@ -1450,8 +1518,8 @@ function detectClarificationNeed(context: SearchToolContext, extracted: Extracte
 function buildSearchInterpretationFromPlan(prompt: string, plan: SearchPlanningResult): AISearchInterpretation {
   const normalized = normalizeSearchState({
     query: plan.outputs.extracted.query,
-    vendor: "",
-    product: "",
+    vendor: plan.outputs.extracted.vendor,
+    product: plan.outputs.extracted.product,
     cwe: plan.outputs.extracted.cwe,
     since: plan.outputs.time.since,
     minSeverity: plan.outputs.extracted.minSeverity,
@@ -1512,6 +1580,40 @@ function buildAppliedFilters(state: SearchState): AISearchAppliedFilter[] {
         ]
       : []
   );
+}
+
+function resolveVendorProductAlias(lowerPrompt: string): { vendor: string; product: string } {
+  const match = SEARCH_VENDOR_PRODUCT_ALIASES.find((candidate) =>
+    candidate.aliases.some((alias) => lowerPrompt.includes(alias))
+  );
+
+  return match ? { vendor: match.vendor, product: match.product } : { vendor: "", product: "" };
+}
+
+function resolveCweFamilyAlias(lowerPrompt: string): string {
+  return SEARCH_CWE_FAMILY_ALIASES.find((candidate) =>
+    candidate.aliases.some((alias) => lowerPrompt.includes(alias))
+  )?.cwe ?? "";
+}
+
+function extractLabeledSearchTarget(prompt: string, label: "vendor" | "product"): string {
+  const match = prompt.match(new RegExp(`${label}\\s+([A-Za-z0-9._-]+(?:\\s+[A-Za-z0-9._-]+){0,2})`, "i"));
+  return match?.[1]?.trim() ?? "";
+}
+
+function buildSearchQuery(prompt: string, extracted: { vendor: string; product: string; cwe: string }): string {
+  const stripped = prompt
+    .replace(/show me|find|search for|look for|give me|help me|need|want|vulns?|vulnerabilities|cves?|that are|affecting|for|about|with|from this week|from this month|this week|this month|today|yesterday|recent|latest|newly published|published|critical|high|medium|low|known exploited|kev|proof of concept|poc|patch first|fix first|remediate|remediation|last \d+ days?|past \d+ days?|last \d+ weeks?|past \d+ weeks?|last \d+ months?|past \d+ months?|since \d{4}-\d{2}-\d{2}|in \d{4}|from \d{4}/gi, " ")
+    .replace(/vendor\s+[A-Za-z0-9._-]+(?:\s+[A-Za-z0-9._-]+){0,2}/gi, " ")
+    .replace(/product\s+[A-Za-z0-9._-]+(?:\s+[A-Za-z0-9._-]+){0,2}/gi, " ")
+    .replace(/cross-site scripting|xss|sql injection|sqli|command injection|shell injection|os command injection|path traversal|directory traversal|authentication bypass|auth bypass|server-side request forgery|ssrf|insecure deserialization|deserialization/gi, " ");
+
+  const candidate = stripped.replace(/\s+/g, " ").trim();
+  if (candidate) {
+    return candidate;
+  }
+
+  return extracted.product || extracted.vendor || extracted.cwe;
 }
 
 async function callModel(prompt: string, settings: AIRuntimeSettings, feature: AIFeature): Promise<string> {

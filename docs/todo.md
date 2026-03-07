@@ -59,7 +59,7 @@
 - [x] add asset or product inventory mapping so CVEs can be linked to affected internal systems
 - add team-facing notifications and scheduled digest delivery
 - [x] add usage tracking, latency metrics, and cost visibility for each AI feature
-- expand natural-language search to understand CWE families, date ranges, product aliases, exploitability, and remediation intent
+- [x] expand natural-language search to understand CWE families, date ranges, product aliases, exploitability, and remediation intent
 - add saved prompt templates for common analyst tasks such as "show newly published critical CVEs affecting OpenSSL this week"
 - [x] add an AI exposure agent that maps vulnerabilities against tracked vendors, products, and assets to estimate likely internal impact
 - add a conversational workspace where an agent can answer questions over the user’s watchlist, alerts, projects, and saved searches
@@ -136,7 +136,7 @@
 
 ## Search and Data Quality
 
-- expand natural-language search to understand CWE families, date ranges, product aliases, exploitability, and remediation intent
+- [x] expand natural-language search to understand CWE families, date ranges, product aliases, exploitability, and remediation intent
 - add saved prompt templates for common analyst tasks such as "show newly published critical CVEs affecting OpenSSL this week"
 - [x] preserve dependency manifest location through scan and fix flows so monorepo remediation targets the correct workspace
 - [x] add regression tests for dependency parsing and GitHub scan edge cases
