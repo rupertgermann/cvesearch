@@ -9,6 +9,14 @@ export interface SavedView {
   createdAt: string;
 }
 
+export interface PromptTemplateRecord {
+  id: string;
+  name: string;
+  prompt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AlertRule {
   id: string;
   name: string;
@@ -35,6 +43,7 @@ export interface WorkspaceExportSnapshot {
   exportedAt: string;
   watchlist: string[];
   savedViews: SavedView[];
+  promptTemplates: PromptTemplateRecord[];
   alertRules: AlertRule[];
   inventoryAssets: InventoryAssetRecord[];
   triageRecords: TriageRecord[];

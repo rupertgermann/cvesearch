@@ -5,6 +5,7 @@ import { listProjects } from "@/lib/projects-store";
 import {
   listAlertRulesForUser,
   listInventoryAssetsForUser,
+  listPromptTemplatesForUser,
   listSavedViewsForUser,
   listWatchlist,
   readTriageMapForUser,
@@ -13,9 +14,10 @@ import { WorkspaceExportSnapshot } from "@/lib/workspace-types";
 
 export const GET = withRouteProtection(async function GET(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
-  const [watchlist, savedViews, alertRules, inventoryAssets, triageMap, projects] = await Promise.all([
+  const [watchlist, savedViews, promptTemplates, alertRules, inventoryAssets, triageMap, projects] = await Promise.all([
     listWatchlist(session.userId),
     listSavedViewsForUser(session.userId),
+    listPromptTemplatesForUser(session.userId),
     listAlertRulesForUser(session.userId),
     listInventoryAssetsForUser(session.userId),
     readTriageMapForUser(session.userId),
@@ -27,6 +29,7 @@ export const GET = withRouteProtection(async function GET(request: NextRequest) 
     exportedAt: new Date().toISOString(),
     watchlist,
     savedViews,
+    promptTemplates,
     alertRules,
     inventoryAssets,
     triageRecords: Object.values(triageMap),

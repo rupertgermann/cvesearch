@@ -6,7 +6,7 @@ import {
   normalizeTriageRecord,
   TriageRecord,
 } from "./triage-shared";
-import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
+import { AlertRule, InventoryAssetRecord, PromptTemplateRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
 
 export async function listWatchlist(userId: string): Promise<string[]> {
   const rows = getDb().prepare(`
@@ -102,6 +102,40 @@ export async function createSavedViewForUser(userId: string, name: string, searc
 
 export async function deleteSavedViewForUser(userId: string, id: string): Promise<boolean> {
   const result = getDb().prepare("DELETE FROM user_saved_views WHERE user_id = ? AND id = ?").run(userId, id);
+  return result.changes > 0;
+}
+
+export async function listPromptTemplatesForUser(userId: string): Promise<PromptTemplateRecord[]> {
+  const rows = getDb().prepare(`
+    SELECT id, name, prompt, created_at as createdAt, updated_at as updatedAt
+    FROM user_prompt_templates
+    WHERE user_id = ?
+    ORDER BY updated_at DESC, created_at DESC
+  `).all(userId) as Array<Record<string, string>>;
+
+  return rows.map((row) => normalizePromptTemplateRow(row));
+}
+
+export async function createPromptTemplateForUser(userId: string, name: string, prompt: string): Promise<PromptTemplateRecord> {
+  const now = new Date().toISOString();
+  const record = normalizePromptTemplate({
+    id: crypto.randomUUID(),
+    name,
+    prompt,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  getDb().prepare(`
+    INSERT INTO user_prompt_templates (id, user_id, name, prompt, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(record.id, userId, record.name, record.prompt, record.createdAt, record.updatedAt);
+
+  return record;
+}
+
+export async function deletePromptTemplateForUser(userId: string, id: string): Promise<boolean> {
+  const result = getDb().prepare("DELETE FROM user_prompt_templates WHERE user_id = ? AND id = ?").run(userId, id);
   return result.changes > 0;
 }
 
@@ -367,6 +401,7 @@ export async function importWorkspaceStateForUser(
   input: {
     watchlist: string[];
     savedViews: SavedView[];
+    promptTemplates: PromptTemplateRecord[];
     alertRules: AlertRule[];
     inventoryAssets: InventoryAssetRecord[];
     triageRecords: TriageRecord[];
@@ -377,6 +412,7 @@ export async function importWorkspaceStateForUser(
     if (mode === "replace") {
       db.prepare("DELETE FROM user_watchlist WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_saved_views WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM user_prompt_templates WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_alert_rules WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_inventory_assets WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_triage_records WHERE user_id = ?").run(userId);
@@ -389,6 +425,10 @@ export async function importWorkspaceStateForUser(
     const insertSavedView = db.prepare(`
       INSERT OR REPLACE INTO user_saved_views (id, user_id, name, search_json, created_at)
       VALUES (?, ?, ?, ?, ?)
+    `);
+    const insertPromptTemplate = db.prepare(`
+      INSERT OR REPLACE INTO user_prompt_templates (id, user_id, name, prompt, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
     const insertAlertRule = db.prepare(`
       INSERT OR REPLACE INTO user_alert_rules (id, user_id, name, search_json, created_at, last_checked_at)
@@ -416,6 +456,17 @@ export async function importWorkspaceStateForUser(
         view.name.trim() || "Imported view",
         JSON.stringify(normalizeSearchState(view.search)),
         view.createdAt || new Date().toISOString()
+      );
+    }
+
+    for (const template of input.promptTemplates.map(normalizePromptTemplate)) {
+      insertPromptTemplate.run(
+        template.id || crypto.randomUUID(),
+        userId,
+        template.name,
+        template.prompt,
+        template.createdAt,
+        template.updatedAt
       );
     }
 
@@ -512,6 +563,26 @@ function normalizeInventoryAssetRow(row: Record<string, string>): InventoryAsset
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
+}
+
+function normalizePromptTemplateRow(row: Record<string, string>): PromptTemplateRecord {
+  return normalizePromptTemplate({
+    id: row.id,
+    name: row.name,
+    prompt: row.prompt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  });
+}
+
+function normalizePromptTemplate(template: PromptTemplateRecord): PromptTemplateRecord {
+  return {
+    id: template.id,
+    name: template.name.trim() || "Prompt template",
+    prompt: template.prompt.trim(),
+    createdAt: template.createdAt || new Date().toISOString(),
+    updatedAt: template.updatedAt || new Date().toISOString(),
+  };
 }
 
 function normalizeInventoryAsset(asset: InventoryAssetRecord): InventoryAssetRecord {

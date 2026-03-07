@@ -6,11 +6,13 @@ import test from "node:test";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
 import {
   createInventoryAssetForUser,
+  createPromptTemplateForUser,
   createAlertRuleForUser,
   createSavedViewForUser,
   importWorkspaceStateForUser,
   listInventoryAssetsForUser,
   listAlertRulesForUser,
+  listPromptTemplatesForUser,
   listSavedViewsForUser,
   listWatchlist,
   readTriageRecordForUser,
@@ -69,15 +71,18 @@ test("workspace stores are isolated per session user", async () => {
       criticality: "critical",
       notes: "Public traffic terminates here",
     });
+    await createPromptTemplateForUser(sessionA.userId, "OpenSSL Weekly", "show newly published critical CVEs affecting OpenSSL this week");
 
     assert.deepEqual(await listWatchlist(sessionA.userId), ["CVE-2026-1111"]);
     assert.equal((await listSavedViewsForUser(sessionA.userId)).length, 1);
+    assert.equal((await listPromptTemplatesForUser(sessionA.userId)).length, 1);
     assert.equal((await listAlertRulesForUser(sessionA.userId)).length, 1);
     assert.equal((await listInventoryAssetsForUser(sessionA.userId)).length, 1);
     assert.equal((await readTriageRecordForUser(sessionA.userId, "CVE-2026-1111")).status, "investigating");
 
     assert.deepEqual(await listWatchlist(sessionB.userId), []);
     assert.equal((await listSavedViewsForUser(sessionB.userId)).length, 0);
+    assert.equal((await listPromptTemplatesForUser(sessionB.userId)).length, 0);
     assert.equal((await listAlertRulesForUser(sessionB.userId)).length, 0);
     assert.equal((await listInventoryAssetsForUser(sessionB.userId)).length, 0);
     assert.equal((await readTriageRecordForUser(sessionB.userId, "CVE-2026-1111")).status, "new");
@@ -108,6 +113,13 @@ test("workspace import supports replace mode for user data and projects", async 
         name: "Critical",
         search: { query: "openssl", vendor: "", product: "", cwe: "", since: "", minSeverity: "CRITICAL", sort: "risk_desc", page: 1, perPage: 20 },
         createdAt: new Date().toISOString(),
+      }],
+      promptTemplates: [{
+        id: "template-1",
+        name: "OpenSSL Weekly",
+        prompt: "show newly published critical CVEs affecting OpenSSL this week",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       }],
       alertRules: [{
         id: "alert-1",
@@ -147,6 +159,7 @@ test("workspace import supports replace mode for user data and projects", async 
 
     assert.deepEqual(await listWatchlist(session.userId), ["CVE-2026-1234"]);
     assert.equal((await listSavedViewsForUser(session.userId))[0]?.name, "Critical");
+    assert.equal((await listPromptTemplatesForUser(session.userId))[0]?.name, "OpenSSL Weekly");
     assert.equal((await listAlertRulesForUser(session.userId))[0]?.name, "Critical Alert");
     assert.equal((await listInventoryAssetsForUser(session.userId))[0]?.name, "Gateway");
     assert.equal((await readTriageRecordForUser(session.userId, "CVE-2026-1234")).status, "mitigated");

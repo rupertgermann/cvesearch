@@ -5,7 +5,7 @@ import { importProjects } from "@/lib/projects-store";
 import { createDefaultTriageRecord, normalizeTriageRecord, TriageRecord } from "@/lib/triage-shared";
 import { ProjectRecord } from "@/lib/types";
 import { importWorkspaceStateForUser } from "@/lib/workspace-store";
-import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "@/lib/workspace-types";
+import { AlertRule, InventoryAssetRecord, PromptTemplateRecord, SavedView, WorkspaceImportMode } from "@/lib/workspace-types";
 
 export const POST = withRouteProtection(async function POST(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
@@ -22,6 +22,9 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     : [];
   const savedViews = Array.isArray(snapshot.savedViews)
     ? snapshot.savedViews.flatMap((value: unknown) => (isSavedView(value) ? [value] : []))
+    : [];
+  const promptTemplates = Array.isArray(snapshot.promptTemplates)
+    ? snapshot.promptTemplates.flatMap((value: unknown) => (isPromptTemplate(value) ? [value] : []))
     : [];
   const alertRules = Array.isArray(snapshot.alertRules)
     ? snapshot.alertRules.flatMap((value: unknown) => (isAlertRule(value) ? [value] : []))
@@ -41,6 +44,7 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     {
       watchlist,
       savedViews,
+      promptTemplates,
       alertRules,
       inventoryAssets,
       triageRecords,
@@ -55,6 +59,7 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     imported: {
       watchlist: watchlist.length,
       savedViews: savedViews.length,
+      promptTemplates: promptTemplates.length,
       alertRules: alertRules.length,
       inventoryAssets: inventoryAssets.length,
       triageRecords: triageRecords.length,
@@ -81,6 +86,19 @@ function isAlertRule(value: unknown): value is AlertRule {
     && typeof (value as Record<string, unknown>).id === "string"
     && typeof (value as Record<string, unknown>).name === "string"
     && typeof (value as Record<string, unknown>).search === "object";
+}
+
+function isPromptTemplate(value: unknown): value is PromptTemplateRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "string"
+    && typeof record.name === "string"
+    && typeof record.prompt === "string"
+    && typeof record.createdAt === "string"
+    && typeof record.updatedAt === "string";
 }
 
 function isInventoryAsset(value: unknown): value is InventoryAssetRecord {

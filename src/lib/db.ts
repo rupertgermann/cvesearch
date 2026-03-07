@@ -168,6 +168,18 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_saved_views_user_id ON user_saved_views(user_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS user_prompt_templates (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_prompt_templates_user_id ON user_prompt_templates(user_id, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS user_alert_rules (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
