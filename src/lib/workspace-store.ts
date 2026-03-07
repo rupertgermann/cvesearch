@@ -121,6 +121,11 @@ export async function listAlertRulesForUser(userId: string): Promise<AlertRule[]
   });
 }
 
+export async function getAlertRuleForUser(userId: string, id: string): Promise<AlertRule | null> {
+  const rules = await listAlertRulesForUser(userId);
+  return rules.find((rule) => rule.id === id) ?? null;
+}
+
 export async function createAlertRuleForUser(userId: string, name: string, search: SearchState): Promise<AlertRule> {
   const record: AlertRule = {
     id: crypto.randomUUID(),

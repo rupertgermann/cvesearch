@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildHeuristicAlertInvestigation,
   buildHeuristicCveInsight,
   buildHeuristicDigest,
   buildHeuristicProjectSummary,
@@ -289,6 +290,52 @@ test("buildHeuristicProjectSummary returns executive analyst and engineering vie
   assert.equal(result.engineering.bullets.length >= 1, true);
 });
 
+test("buildHeuristicAlertInvestigation explains matches and recommends follow-up", () => {
+  const result = buildHeuristicAlertInvestigation({
+    rule: {
+      id: "rule-1",
+      name: "Critical Edge Alerts",
+      lastCheckedAt: "2026-03-07T10:00:00.000Z",
+      search: {
+        query: "edge",
+        vendor: "",
+        product: "gateway",
+        cwe: "",
+        since: "",
+        minSeverity: "HIGH",
+        sort: "risk_desc",
+        page: 1,
+        perPage: 20,
+      },
+    },
+    matches: [
+      {
+        id: "CVE-2026-8001",
+        summary: "Critical gateway issue",
+        severity: "CRITICAL",
+        kev: true,
+        published: "2026-03-07T09:00:00.000Z",
+        modified: "2026-03-07T11:00:00.000Z",
+        unread: true,
+      },
+      {
+        id: "CVE-2026-8002",
+        summary: "High gateway issue",
+        severity: "HIGH",
+        kev: false,
+        published: "2026-03-07T08:00:00.000Z",
+        modified: "2026-03-07T09:00:00.000Z",
+        unread: false,
+      },
+    ],
+  });
+
+  assert.equal(result.ruleName, "Critical Edge Alerts");
+  assert.equal(result.whyMatched.length >= 2, true);
+  assert.equal(result.topMatches.length, 2);
+  assert.match(result.recommendedAction, /unread|review/i);
+});
+
 test("preparePromptInputForFeature redacts sensitive notes and project metadata for external providers", () => {
   const previous = {
     AI_PROVIDER: process.env.AI_PROVIDER,
@@ -356,6 +403,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     AI_WATCHLIST_ANALYST_MODEL: process.env.AI_WATCHLIST_ANALYST_MODEL,
     AI_PROJECT_SUMMARY_PROVIDER: process.env.AI_PROJECT_SUMMARY_PROVIDER,
     AI_PROJECT_SUMMARY_MODEL: process.env.AI_PROJECT_SUMMARY_MODEL,
+    AI_ALERT_INVESTIGATION_PROVIDER: process.env.AI_ALERT_INVESTIGATION_PROVIDER,
+    AI_ALERT_INVESTIGATION_MODEL: process.env.AI_ALERT_INVESTIGATION_MODEL,
     AI_ALLOW_SENSITIVE_MODEL_DATA: process.env.AI_ALLOW_SENSITIVE_MODEL_DATA,
   };
 
@@ -378,6 +427,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
   process.env.AI_WATCHLIST_ANALYST_MODEL = "claude-watchlist";
   process.env.AI_PROJECT_SUMMARY_PROVIDER = "openai";
   process.env.AI_PROJECT_SUMMARY_MODEL = "gpt-project";
+  process.env.AI_ALERT_INVESTIGATION_PROVIDER = "anthropic";
+  process.env.AI_ALERT_INVESTIGATION_MODEL = "claude-alerts";
   delete process.env.AI_ALLOW_SENSITIVE_MODEL_DATA;
 
   try {
@@ -389,6 +440,7 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     const remediationAgent = summary.featureConfigurations.find((item) => item.feature === "remediation_agent");
     const watchlistAnalyst = summary.featureConfigurations.find((item) => item.feature === "watchlist_analyst");
     const projectSummary = summary.featureConfigurations.find((item) => item.feature === "project_summary");
+    const alertInvestigation = summary.featureConfigurations.find((item) => item.feature === "alert_investigation");
 
     assert.equal(summary.provider, "openai");
     assert.equal(summary.model, "gpt-global");
@@ -409,6 +461,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     assert.equal(watchlistAnalyst?.model, "claude-watchlist");
     assert.equal(projectSummary?.provider, "openai");
     assert.equal(projectSummary?.model, "gpt-project");
+    assert.equal(alertInvestigation?.provider, "anthropic");
+    assert.equal(alertInvestigation?.model, "claude-alerts");
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {

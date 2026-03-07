@@ -330,6 +330,22 @@ export interface AIProjectSummary {
   };
 }
 
+export interface AIAlertInvestigationMatch {
+  id: string;
+  summary: string;
+  rationale: string;
+  unread: boolean;
+}
+
+export interface AIAlertInvestigation {
+  ruleName: string;
+  summary: string;
+  whyMatched: string[];
+  topMatches: AIAlertInvestigationMatch[];
+  recommendedAction: string;
+  nextSteps: string[];
+}
+
 export type AISearchFilterField = "query" | "vendor" | "product" | "cwe" | "since" | "minSeverity" | "sort";
 
 export interface AISearchAppliedFilter {
@@ -389,7 +405,7 @@ export interface AIRunRecord {
 
 export type AIProvider = "heuristic" | "openai" | "anthropic";
 
-export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent" | "watchlist_analyst" | "project_summary";
+export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent" | "watchlist_analyst" | "project_summary" | "alert_investigation";
 
 export interface AISettings {
   provider: AIProvider;

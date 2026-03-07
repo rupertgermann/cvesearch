@@ -1,12 +1,14 @@
 import { AISettings } from "./types";
 
 export {
+  buildHeuristicAlertInvestigation,
   buildHeuristicCveInsight,
   buildHeuristicDigest,
   buildHeuristicProjectSummary,
   buildHeuristicRemediationPlan,
   buildHeuristicTriageSuggestion,
   buildHeuristicWatchlistReview,
+  generateAlertInvestigation,
   generateCveInsight,
   generateDigest,
   generateProjectSummary,
@@ -21,6 +23,7 @@ export {
 } from "./ai-service";
 
 export type {
+  AlertInvestigationInput,
   CveInsightInput,
   DigestInput,
   ProjectSummaryInput,

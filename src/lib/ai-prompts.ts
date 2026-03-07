@@ -76,6 +76,18 @@ export const AI_PROMPT_TEMPLATES = {
       JSON.stringify(input),
     ].join("\n"),
   } satisfies PromptTemplate<unknown>,
+  alert_investigation: {
+    feature: "alert_investigation",
+    version: "2026-03-07.alert-investigation.v1",
+    description: "Explain why an alert rule matched and propose the next analyst action.",
+    build: (input: unknown) => [
+      "You are an alert investigation assistant for vulnerability analysts.",
+      "Return only valid JSON matching this shape:",
+      '{"ruleName":"string","summary":"string","whyMatched":["string"],"topMatches":[{"id":"string","summary":"string","rationale":"string","unread":true}],"recommendedAction":"string","nextSteps":["string"]}',
+      "Base your answer only on this input JSON:",
+      JSON.stringify(input),
+    ].join("\n"),
+  } satisfies PromptTemplate<unknown>,
   triage_agent: {
     feature: "triage_agent",
     version: "2026-03-07.triage.v1",
@@ -128,6 +140,10 @@ export function getWatchlistAnalystPromptTemplate() {
 
 export function getProjectSummaryPromptTemplate() {
   return AI_PROMPT_TEMPLATES.project_summary;
+}
+
+export function getAlertInvestigationPromptTemplate() {
+  return AI_PROMPT_TEMPLATES.alert_investigation;
 }
 
 export function getTriageAgentPromptTemplate() {

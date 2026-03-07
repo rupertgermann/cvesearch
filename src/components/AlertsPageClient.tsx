@@ -14,6 +14,7 @@ import {
 import { applySearchResultPreferences, matchesSearchState } from "@/lib/search";
 import { CVESummary } from "@/lib/types";
 import CVEList from "@/components/CVEList";
+import AIAlertInvestigationPanel from "@/components/AIAlertInvestigationPanel";
 
 const ALERT_SAMPLE_SIZE = 80;
 
@@ -193,6 +194,8 @@ export default function AlertsPageClient() {
                   </button>
                 </div>
               </div>
+
+              <AIAlertInvestigationPanel ruleId={rule.id} />
 
               <CVEList cves={matching.slice(0, 8)} loading={loading} />
             </section>

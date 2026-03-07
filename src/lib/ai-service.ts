@@ -1,4 +1,5 @@
 import {
+  AIAlertInvestigation,
   AICveInsight,
   AIDigest,
   AIFeature,
@@ -24,6 +25,7 @@ import { appendAIRun, listRecentAIRuns } from "./ai-runs-store";
 import { SearchState, normalizeSearchState } from "./search";
 import { extractCVEId, extractDescription, getSeverityFromScore } from "./utils";
 import {
+  getAlertInvestigationPromptTemplate,
   getCveInsightPromptTemplate,
   getDailyDigestPromptTemplate,
   getProjectSummaryPromptTemplate,
@@ -41,7 +43,7 @@ const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
 const SEARCH_DEFAULT_SORT: SearchSortOption = "published_desc";
 const SEARCH_DEFAULT_MIN_SEVERITY: SearchSeverityFilter = "ANY";
-const AI_FEATURES: AIFeature[] = ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary"];
+const AI_FEATURES: AIFeature[] = ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary", "alert_investigation"];
 const AI_FEATURE_ENV_SEGMENTS: Record<AIFeature, string> = {
   search_assistant: "SEARCH_ASSISTANT",
   cve_insight: "CVE_INSIGHT",
@@ -50,6 +52,7 @@ const AI_FEATURE_ENV_SEGMENTS: Record<AIFeature, string> = {
   remediation_agent: "REMEDIATION_AGENT",
   watchlist_analyst: "WATCHLIST_ANALYST",
   project_summary: "PROJECT_SUMMARY",
+  alert_investigation: "ALERT_INVESTIGATION",
 };
 
 export interface DigestInput {
@@ -99,6 +102,24 @@ export interface ProjectSummaryInput {
     owner: string;
     affectedProducts: string[];
     published: string;
+  }>;
+}
+
+export interface AlertInvestigationInput {
+  rule: {
+    id: string;
+    name: string;
+    lastCheckedAt: string | null;
+    search: SearchState;
+  };
+  matches: Array<{
+    id: string;
+    summary: string;
+    severity: SearchSeverityFilter | "NONE" | "UNKNOWN";
+    kev: boolean;
+    published: string;
+    modified: string;
+    unread: boolean;
   }>;
 }
 
@@ -299,6 +320,17 @@ export async function generateProjectSummary(input: ProjectSummaryInput): Promis
     prompt: promptTemplate.build(preparePromptInputForFeature("project_summary", input)),
     fallback: () => buildHeuristicProjectSummary(input),
     sanitize: sanitizeProjectSummary,
+    toolCalls: [{ tool: "prompt_template", summary: `${promptTemplate.feature}@${promptTemplate.version}` }],
+  });
+}
+
+export async function generateAlertInvestigation(input: AlertInvestigationInput): Promise<AIAlertInvestigation> {
+  const promptTemplate = getAlertInvestigationPromptTemplate();
+  return executeStructuredTask({
+    feature: "alert_investigation",
+    prompt: promptTemplate.build(preparePromptInputForFeature("alert_investigation", input)),
+    fallback: () => buildHeuristicAlertInvestigation(input),
+    sanitize: sanitizeAlertInvestigation,
     toolCalls: [{ tool: "prompt_template", summary: `${promptTemplate.feature}@${promptTemplate.version}` }],
   });
 }
@@ -603,6 +635,50 @@ export function buildHeuristicProjectSummary(input: ProjectSummaryInput): AIProj
       investigatingCount,
     },
   };
+}
+
+export function buildHeuristicAlertInvestigation(input: AlertInvestigationInput): AIAlertInvestigation {
+  const unreadMatches = input.matches.filter((item) => item.unread);
+  const topMatches = input.matches.slice(0, 3);
+  const whyMatched = [
+    input.rule.search.query ? `The rule keeps matches whose text or aliases include ${input.rule.search.query}.` : "The rule evaluates the saved search filters against the latest upstream CVE sample.",
+    input.rule.search.product ? `Product filtering is scoped to ${input.rule.search.product}.` : "The rule is not restricted to a single product filter.",
+    input.rule.search.minSeverity !== "ANY" ? `Only ${input.rule.search.minSeverity.toLowerCase()} or higher issues qualify for this rule.` : "Severity is not the only reason a match appears, because the rule allows any severity.",
+  ].filter(Boolean);
+
+  return {
+    ruleName: input.rule.name,
+    summary: `${input.rule.name} matched ${input.matches.length} ${input.matches.length === 1 ? "entry" : "entries"}${unreadMatches.length > 0 ? `, including ${unreadMatches.length} unread ${unreadMatches.length === 1 ? "change" : "changes"}` : ""}.`,
+    whyMatched,
+    topMatches: topMatches.map((match) => ({
+      id: match.id,
+      summary: match.summary,
+      unread: match.unread,
+      rationale: buildAlertMatchRationale(match),
+    })),
+    recommendedAction: unreadMatches.length > 0
+      ? `Start with the ${unreadMatches.length} unread ${unreadMatches.length === 1 ? "match" : "matches"} and confirm whether the rule still needs escalation or ownership updates.`
+      : "Review the highest-risk matched CVEs, then mark the rule checked if the current set is already covered by triage or remediation work.",
+    nextSteps: [
+      unreadMatches.length > 0 ? "Inspect unread matches first because they changed since the last time this rule was checked." : "Reconfirm whether the current matches are already reflected in triage or project tracking.",
+      topMatches.length > 0 ? `Validate the top matched CVEs: ${topMatches.map((item) => item.id).join(", ")}.` : "No top matches were available from the current sample.",
+      input.matches.some((item) => item.kev) ? "Escalate any known-exploited matches into the active analyst queue immediately." : "If no exploit-linked signals exist, keep follow-up proportional to severity and recency.",
+    ],
+  };
+}
+
+function buildAlertMatchRationale(match: AlertInvestigationInput["matches"][number]): string {
+  const parts = [`severity ${match.severity.toLowerCase()}`];
+
+  if (match.kev) {
+    parts.push("known exploited");
+  }
+
+  if (match.unread) {
+    parts.push("new since the last rule check");
+  }
+
+  return parts.join(" • ");
 }
 
 function shouldRedactPromptInput(runtime: AIRuntimeSettings): boolean {
@@ -1726,6 +1802,52 @@ function sanitizeProjectSummaryMetrics(value: unknown, fallback: AIProjectSummar
     highCount: typeof record.highCount === "number" ? record.highCount : fallback.highCount,
     kevCount: typeof record.kevCount === "number" ? record.kevCount : fallback.kevCount,
     investigatingCount: typeof record.investigatingCount === "number" ? record.investigatingCount : fallback.investigatingCount,
+  };
+}
+
+function sanitizeAlertInvestigation(value: unknown): AIAlertInvestigation {
+  const fallback = buildHeuristicAlertInvestigation({
+    rule: {
+      id: "alert-unknown",
+      name: "Unknown alert",
+      lastCheckedAt: null,
+      search: normalizeSearchState({}),
+    },
+    matches: [],
+  });
+
+  if (!value || typeof value !== "object") {
+    return fallback;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    ruleName: typeof record.ruleName === "string" ? record.ruleName : fallback.ruleName,
+    summary: typeof record.summary === "string" ? record.summary : fallback.summary,
+    whyMatched: Array.isArray(record.whyMatched)
+      ? record.whyMatched.filter((item): item is string => typeof item === "string").slice(0, 6)
+      : fallback.whyMatched,
+    topMatches: Array.isArray(record.topMatches)
+      ? record.topMatches.flatMap((item) => {
+          if (!item || typeof item !== "object") {
+            return [];
+          }
+
+          const match = item as Record<string, unknown>;
+          return typeof match.id === "string" && typeof match.summary === "string" && typeof match.rationale === "string"
+            ? [{
+                id: match.id,
+                summary: match.summary,
+                rationale: match.rationale,
+                unread: Boolean(match.unread),
+              }]
+            : [];
+        }).slice(0, 5)
+      : fallback.topMatches,
+    recommendedAction: typeof record.recommendedAction === "string" ? record.recommendedAction : fallback.recommendedAction,
+    nextSteps: Array.isArray(record.nextSteps)
+      ? record.nextSteps.filter((item): item is string => typeof item === "string").slice(0, 6)
+      : fallback.nextSteps,
   };
 }
 
