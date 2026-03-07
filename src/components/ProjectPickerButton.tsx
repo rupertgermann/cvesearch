@@ -56,16 +56,16 @@ export default function ProjectPickerButton({ cveId }: { cveId: string }) {
           event.stopPropagation();
           setOpen((current) => !current);
         }}
-        className="inline-flex h-9 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-gray-300 transition-colors hover:text-white"
+        className="inline-flex h-7 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 text-[11px] font-medium text-white/25 transition-all hover:border-white/[0.12] hover:text-white/50"
       >
         Projects
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-20 w-80 rounded-2xl border border-white/[0.08] bg-[#11131a] p-4 shadow-2xl shadow-black/40">
+        <div className="absolute right-0 top-9 z-20 w-72 glass-raised rounded-xl p-4 shadow-2xl shadow-black/50 animate-fade-in-scale">
           <div className="mb-3">
             <div className="text-sm font-semibold text-white">Add {cveId} to project</div>
-            <p className="mt-1 text-xs text-gray-500">Projects are persisted server-side in this app workspace.</p>
+            <p className="mt-1 text-[11px] text-white/20">Projects are persisted server-side.</p>
           </div>
 
           <div className="mb-4 flex gap-2">
@@ -74,21 +74,21 @@ export default function ProjectPickerButton({ cveId }: { cveId: string }) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="New project name"
-              className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none"
+              className="input-base min-w-0 flex-1 px-3 py-1.5 text-sm"
             />
             <button
               type="button"
               onClick={handleCreateProject}
               disabled={busy}
-              className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-medium text-black disabled:opacity-50"
+              className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50"
             >
               Create
             </button>
           </div>
 
-          <div className="max-h-64 space-y-2 overflow-auto">
+          <div className="max-h-56 space-y-1.5 overflow-auto">
             {projects.length === 0 ? (
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-sm text-gray-500">
+              <div className="glass rounded-lg px-3 py-4 text-center text-sm text-white/25">
                 No projects yet.
               </div>
             ) : (
@@ -98,16 +98,16 @@ export default function ProjectPickerButton({ cveId }: { cveId: string }) {
                   type="button"
                   onClick={() => handleAdd(project.id)}
                   disabled={busy}
-                  className="block w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.05] disabled:opacity-50"
+                  className="block w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-left transition-all hover:bg-white/[0.05] hover:border-white/[0.1] disabled:opacity-50"
                 >
                   <div className="text-sm font-medium text-white">{project.name}</div>
-                  <div className="mt-1 text-xs text-gray-500">{project.items.length} CVEs</div>
+                  <div className="mt-0.5 text-[11px] text-white/20">{project.items.length} CVEs</div>
                 </button>
               ))
             )}
           </div>
 
-          {message && <div className="mt-3 text-xs text-cyan-300">{message}</div>}
+          {message && <div className="mt-3 text-xs text-cyan-400/80">{message}</div>}
         </div>
       )}
     </div>

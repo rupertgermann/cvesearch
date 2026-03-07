@@ -141,10 +141,10 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
     <div className="w-full">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+        className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
           hasFilters
-            ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-400"
-            : "border-white/[0.08] bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-white"
+            ? "border-cyan-500/30 bg-cyan-500/8 text-cyan-400 shadow-[0_0_12px_-4px_rgba(34,211,238,0.2)]"
+            : "border-white/[0.08] bg-white/[0.03] text-white/40 hover:bg-white/[0.05] hover:text-white/60"
         }`}
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -156,12 +156,12 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
         </svg>
         Filters
         {hasFilters && (
-          <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-xs font-bold text-black">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-black">
             {[vendor, product, cwe, since, minSeverity !== "ANY" ? minSeverity : "", sort !== "published_desc" ? sort : ""].filter(Boolean).length}
           </span>
         )}
         <svg
-          className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={2}
@@ -172,10 +172,10 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
       </button>
 
       {isOpen && (
-        <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="glass mt-3 rounded-xl p-5 animate-slide-down">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">Vendor</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/30">Vendor</label>
               <input
                 type="text"
                 value={vendor}
@@ -185,19 +185,19 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
                 }}
                 list="vendor-suggestions"
                 placeholder="e.g. microsoft"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                className="input-base w-full px-3 py-2 text-sm"
               />
               <datalist id="vendor-suggestions">
                 {vendorSuggestions.map((item) => (
                   <option key={item} value={item} />
                 ))}
               </datalist>
-              <p className="mt-1 text-[11px] text-gray-600">
-                {loadingVendors ? "Loading vendors..." : vendorSuggestions.length ? `${vendorSuggestions.length} vendor suggestions` : "Type to browse known vendors"}
+              <p className="mt-1 text-[11px] text-white/20">
+                {loadingVendors ? "Loading vendors..." : vendorSuggestions.length ? `${vendorSuggestions.length} suggestions` : "Type to browse"}
               </p>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">Product</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/30">Product</label>
               <input
                 type="text"
                 value={product}
@@ -205,40 +205,40 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
                 list="product-suggestions"
                 placeholder="e.g. windows"
                 disabled={!vendor.trim()}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                className="input-base w-full px-3 py-2 text-sm"
               />
               <datalist id="product-suggestions">
                 {productSuggestions.map((item) => (
                   <option key={item} value={item} />
                 ))}
               </datalist>
-              <p className="mt-1 text-[11px] text-gray-600">
+              <p className="mt-1 text-[11px] text-white/20">
                 {!vendor.trim()
-                  ? "Choose a vendor first to browse products"
+                  ? "Choose a vendor first"
                   : loadingProducts
                     ? "Loading products..."
                     : productSuggestions.length
-                      ? `${productSuggestions.length} product suggestions`
-                      : "No product suggestions for this vendor yet"}
+                      ? `${productSuggestions.length} suggestions`
+                      : "No suggestions"}
               </p>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">CWE</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/30">CWE</label>
               <input
                 type="text"
                 value={cwe}
                 onChange={(e) => setCwe(e.target.value)}
                 placeholder="e.g. CWE-79"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                className="input-base w-full px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">Since</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/30">Since</label>
               <input
                 type="date"
                 value={since}
                 onChange={(e) => setSince(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 [color-scheme:dark]"
+                className="input-base w-full px-3 py-2 text-sm [color-scheme:dark]"
               />
               <div className="mt-2 flex flex-wrap gap-1">
                 {QUICK_DATES.map((d) => (
@@ -246,7 +246,7 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
                     key={d.label}
                     type="button"
                     onClick={() => setQuickDate(d.days)}
-                    className="rounded-md bg-white/[0.05] px-2 py-0.5 text-xs text-gray-400 transition-colors hover:bg-white/[0.1] hover:text-white"
+                    className="rounded-md bg-white/[0.04] px-2 py-0.5 text-xs text-white/30 transition-colors hover:bg-white/[0.08] hover:text-white/60"
                   >
                     {d.label}
                   </button>
@@ -254,11 +254,11 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">Min Severity</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/30">Min Severity</label>
               <select
                 value={minSeverity}
                 onChange={(event) => setMinSeverity(event.target.value as SearchSeverityFilter)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                className="input-base w-full px-3 py-2 text-sm"
               >
                 <option value="ANY">Any</option>
                 <option value="LOW">Low+</option>
@@ -268,11 +268,11 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">Sort</label>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/30">Sort</label>
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value as SearchSortOption)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                className="input-base w-full px-3 py-2 text-sm"
               >
                 <option value="risk_desc">Highest risk</option>
                 <option value="published_desc">Newest first</option>
@@ -283,23 +283,17 @@ export default function Filters({ onApply, initialFilters }: FiltersProps) {
             </div>
           </div>
           <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleApply}
-              className="rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-cyan-500/20 transition-all hover:from-cyan-500 hover:to-blue-500"
-            >
+            <button onClick={handleApply} className="btn-primary px-4 py-2 text-sm">
               Apply Filters
             </button>
             {hasFilters && (
-              <button
-                onClick={handleClear}
-                className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-white"
-              >
+              <button onClick={handleClear} className="btn-ghost px-4 py-2 text-sm">
                 Clear All
               </button>
             )}
           </div>
           {vendor && !product && (
-            <p className="mt-3 text-xs text-amber-300/80">
+            <p className="mt-3 text-xs text-amber-300/60">
               Vendor-only search is not enabled yet. Pick a product to run a vendor-scoped search.
             </p>
           )}

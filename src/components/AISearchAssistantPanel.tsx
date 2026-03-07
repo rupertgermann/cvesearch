@@ -113,11 +113,18 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+    <div className="rounded-xl border border-cyan-500/15 bg-gradient-to-br from-cyan-500/[0.06] to-transparent p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">AI Search Assistant</h2>
-          <p className="mt-1 text-sm text-gray-500">Use natural language for aliases, CWE families, date windows, and remediation intent like &ldquo;show me xss vulns in k8s with proof of concept exploits from this week&rdquo;.</p>
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-cyan-500/15">
+            <svg className="h-3.5 w-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-200">AI Search Assistant</h2>
+            <p className="text-[11px] text-white/25">Natural language search with aliases, CWE families, date windows, and remediation intent.</p>
+          </div>
         </div>
         <div className="flex w-full flex-col gap-2 lg:w-2/3">
           <textarea
@@ -125,23 +132,23 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
             onChange={(event) => setPrompt(event.target.value)}
             rows={2}
             placeholder="What should we patch first for Microsoft Exchange since 2026-01-15?"
-            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+            className="input-base w-full px-3 py-2 text-sm"
           />
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <span className="text-xs text-gray-500">{message}</span>
+            <span className="text-xs text-white/25">{message}</span>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 value={templateName}
                 onChange={(event) => setTemplateName(event.target.value)}
                 placeholder={defaultTemplateName}
-                className="min-w-52 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
+                className="input-base min-w-52 px-3 py-2 text-sm"
               />
               <button
                 type="button"
                 onClick={() => void handleSaveTemplate()}
                 disabled={loading || templateBusy !== null}
-                className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+                className="btn-ghost px-4 py-2 text-sm disabled:opacity-50"
               >
                 {templateBusy === "save" ? "Saving..." : "Save Prompt"}
               </button>
@@ -149,19 +156,19 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
                 type="button"
                 onClick={() => void handleInterpret()}
                 disabled={loading}
-                className="rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
               >
                 {loading ? "Thinking..." : "Apply AI Search"}
               </button>
             </div>
           </div>
-          {templateMessage ? <span className="text-xs text-gray-500">{templateMessage}</span> : null}
+          {templateMessage ? <span className="text-xs text-white/25">{templateMessage}</span> : null}
         </div>
       </div>
 
       <div className="mt-4 grid gap-3 xl:grid-cols-2">
-        <section className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Analyst Templates</h3>
+        <section className="glass rounded-xl p-4">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Analyst Templates</h3>
           <div className="mt-3 grid gap-3">
             {BUILT_IN_PROMPTS.map((template) => (
               <PromptCard
@@ -176,8 +183,8 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
           </div>
         </section>
 
-        <section className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Saved Prompt Templates</h3>
+        <section className="glass rounded-xl p-4">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Saved Prompt Templates</h3>
           {promptTemplates.length > 0 ? (
             <div className="mt-3 grid gap-3">
               {promptTemplates.map((template) => (
@@ -197,38 +204,38 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-sm text-gray-500">No saved prompt templates yet. Save frequently used analyst questions here and reuse them across the workspace.</p>
+            <p className="mt-3 text-sm text-white/25">No saved prompt templates yet. Save frequently used analyst questions here and reuse them across the workspace.</p>
           )}
         </section>
       </div>
 
       {result && (
-        <div className="mt-4 space-y-4 rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-4">
+        <div className="mt-4 space-y-4 glass rounded-xl p-4 animate-fade-in">
           {result.needsClarification && result.clarificationQuestion ? (
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-amber-200">
               {result.clarificationQuestion}
             </div>
           ) : null}
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Applied Filters</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Applied Filters</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {result.appliedFilters.length > 0 ? (
                 result.appliedFilters.map((filter) => (
-                  <span key={`${filter.field}-${filter.value}`} className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-xs text-gray-300">
+                  <span key={`${filter.field}-${filter.value}`} className="badge badge-xs border-cyan-500/20 bg-cyan-500/8 text-cyan-200">
                     {filter.field}: {filter.value}
                   </span>
                 ))
               ) : (
-                <span className="text-sm text-gray-500">No additional filters were applied.</span>
+                <span className="text-sm text-white/25">No additional filters were applied.</span>
               )}
             </div>
           </div>
 
           {result.assumptions.length > 0 ? (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Assumptions</h3>
-              <ul className="mt-3 space-y-2 text-sm text-gray-300">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Assumptions</h3>
+              <ul className="mt-3 space-y-2 text-sm text-white/50">
                 {result.assumptions.map((assumption) => (
                   <li key={assumption} className="rounded-lg bg-white/[0.03] px-3 py-2">
                     {assumption}
@@ -239,12 +246,12 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
           ) : null}
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Agent Trace</h3>
-            <ul className="mt-3 space-y-2 text-sm text-gray-300">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Agent Trace</h3>
+            <ul className="mt-3 space-y-2 text-sm text-white/50">
               {result.toolCalls.map((call) => (
                 <li key={call.tool} className="rounded-lg bg-white/[0.03] px-3 py-2">
                   <span className="font-medium text-white">{call.tool}</span>
-                  <span className="text-gray-400"> - {call.summary}</span>
+                  <span className="text-white/40"> - {call.summary}</span>
                 </li>
               ))}
             </ul>
@@ -273,18 +280,18 @@ function PromptCard({
   deleteBusy?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
+    <div className="glass rounded-lg p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-medium text-white">{name}</div>
-          <p className="mt-1 text-sm text-gray-400">{prompt}</p>
+          <p className="mt-1 text-sm text-white/40">{prompt}</p>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={onAction}
             disabled={disabled}
-            className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-100 transition-colors hover:bg-cyan-500/20 disabled:opacity-50"
+            className="rounded-lg border border-cyan-500/20 bg-cyan-500/8 px-3 py-1.5 text-xs font-medium text-cyan-200 transition-colors hover:bg-cyan-500/15 disabled:opacity-50"
           >
             {actionLabel}
           </button>
@@ -293,7 +300,7 @@ function PromptCard({
               type="button"
               onClick={onDelete}
               disabled={disabled}
-              className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+              className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50"
             >
               {deleteBusy ? "Deleting..." : "Delete"}
             </button>

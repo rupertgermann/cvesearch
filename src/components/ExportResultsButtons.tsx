@@ -13,18 +13,18 @@ export default function ExportResultsButtons({ cves, search }: ExportResultsButt
   if (cves.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       <button
         type="button"
         onClick={() => downloadFile(buildCsv(cves), `${buildFileName(search)}.csv`, "text/csv;charset=utf-8")}
-        className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-gray-300 hover:bg-white/[0.06] hover:text-white"
+        className="btn-ghost px-3 py-1.5 text-xs"
       >
         Export CSV
       </button>
       <button
         type="button"
         onClick={() => downloadFile(JSON.stringify(cves, null, 2), `${buildFileName(search)}.json`, "application/json")}
-        className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-gray-300 hover:bg-white/[0.06] hover:text-white"
+        className="btn-ghost px-3 py-1.5 text-xs"
       >
         Export JSON
       </button>

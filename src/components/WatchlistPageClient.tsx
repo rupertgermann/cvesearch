@@ -200,18 +200,18 @@ export default function WatchlistPageClient() {
 
   return (
     <div className="app-shell px-4 py-8 sm:px-6">
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="page-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Watchlist</h1>
-          <p className="mt-2 text-base text-gray-500">Bookmarked CVEs and advisories with workspace triage status, notes, and ownership.</p>
+          <p className="mt-2 text-[15px] text-white/35">Bookmarked CVEs and advisories with workspace triage status, notes, and ownership.</p>
         </div>
-        <Link href="/" className="inline-flex rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white">
+        <Link href="/" className="btn-ghost inline-flex px-4 py-2 text-sm">
           Back to Search
         </Link>
       </div>
 
       {(actionSuccess || actionError) && (
-        <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${actionError ? "border-red-500/20 bg-red-500/10 text-red-200" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"}`}>
+        <div className={`mb-6 rounded-xl border px-4 py-3 text-sm animate-fade-in ${actionError ? "border-red-500/20 bg-red-500/8 text-red-300" : "border-emerald-500/20 bg-emerald-500/8 text-emerald-300"}`}>
           {actionError || actionSuccess}
         </div>
       )}
@@ -246,11 +246,11 @@ export default function WatchlistPageClient() {
       </div>
 
       {items.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+        <div className="glass mb-6 rounded-xl p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Bulk Actions</h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-white/40">Bulk Actions</h2>
+              <p className="mt-1 text-sm text-white/25">
                 {selectedIds.length > 0
                   ? `${selectedIds.length} selected across the current watchlist.`
                   : "Select CVEs to remove them from the watchlist, update triage, or assign them to a project."}
@@ -260,7 +260,7 @@ export default function WatchlistPageClient() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(Array.from(new Set([...selectedIds, ...visibleIds])))}
-                className="rounded-lg border border-white/[0.08] px-3 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white"
+                className="btn-ghost px-3 py-2 text-sm"
               >
                 Select Visible ({visibleIds.length})
               </button>
@@ -268,7 +268,7 @@ export default function WatchlistPageClient() {
                 type="button"
                 onClick={() => setSelectedIds([])}
                 disabled={selectedIds.length === 0}
-                className="rounded-lg border border-white/[0.08] px-3 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+                className="btn-ghost px-3 py-2 text-sm disabled:opacity-50"
               >
                 Clear Selection
               </button>
@@ -276,27 +276,27 @@ export default function WatchlistPageClient() {
           </div>
 
           <div className="mt-4 grid gap-3 xl:grid-cols-[1.2fr_1fr_1.4fr]">
-            <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Watchlist</p>
-              <p className="mt-2 text-sm text-gray-400">Remove selected CVEs from the current workspace watchlist.</p>
+            <div className="glass rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Watchlist</p>
+              <p className="mt-2 text-sm text-white/35">Remove selected CVEs from the current workspace watchlist.</p>
               <button
                 type="button"
                 onClick={() => void handleBulkRemove()}
                 disabled={selectedIds.length === 0 || actionBusy !== null}
-                className="mt-3 rounded-lg border border-red-500/20 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                className="mt-3 rounded-lg border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-500/15 disabled:opacity-50"
               >
                 {actionBusy === "remove" ? "Removing..." : `Remove Selected${selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}`}
               </button>
             </div>
 
-            <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Triage</p>
-              <p className="mt-2 text-sm text-gray-400">Set a shared triage status for the selected CVEs.</p>
+            <div className="glass rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Triage</p>
+              <p className="mt-2 text-sm text-white/35">Set a shared triage status for the selected CVEs.</p>
               <div className="mt-3 flex gap-2">
                 <select
                   value={bulkStatus}
                   onChange={(event) => setBulkStatus(event.target.value as TriageStatus)}
-                  className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white outline-none"
+                  className="input-base min-w-0 flex-1 px-3 py-2 text-sm"
                 >
                   <option value="new">New</option>
                   <option value="investigating">Investigating</option>
@@ -308,21 +308,21 @@ export default function WatchlistPageClient() {
                   type="button"
                   onClick={() => void handleBulkTriage()}
                   disabled={selectedIds.length === 0 || actionBusy !== null}
-                  className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-medium text-black disabled:opacity-50"
+                  className="btn-primary px-3 py-2 text-sm disabled:opacity-50"
                 >
                   {actionBusy === "triage" ? "Applying..." : "Apply"}
                 </button>
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Project Assignment</p>
-              <p className="mt-2 text-sm text-gray-400">Add the selected CVEs to an existing project or create a new one inline.</p>
+            <div className="glass rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Project Assignment</p>
+              <p className="mt-2 text-sm text-white/35">Add the selected CVEs to an existing project or create a new one inline.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
                 <select
                   value={bulkProjectId}
                   onChange={(event) => setBulkProjectId(event.target.value)}
-                  className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white outline-none"
+                  className="input-base px-3 py-2 text-sm"
                 >
                   <option value="">Choose project</option>
                   {projects.map((project) => (
@@ -334,7 +334,7 @@ export default function WatchlistPageClient() {
                   type="button"
                   onClick={() => void handleBulkProjectAssignment()}
                   disabled={selectedIds.length === 0 || actionBusy !== null}
-                  className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-black disabled:opacity-50"
+                  className="rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-500 px-3 py-2 text-sm font-semibold text-black shadow-[0_2px_12px_-2px_rgba(52,211,153,0.3)] transition-all hover:shadow-[0_4px_20px_-2px_rgba(52,211,153,0.4)] disabled:opacity-50"
                 >
                   {actionBusy === "project" ? "Adding..." : "Add to Project"}
                 </button>
@@ -345,14 +345,14 @@ export default function WatchlistPageClient() {
                   value={newProjectName}
                   onChange={(event) => setNewProjectName(event.target.value)}
                   placeholder="New project name"
-                  className="mt-2 w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-gray-600 outline-none"
+                  className="input-base mt-2 w-full px-3 py-2 text-sm"
                 />
               )}
             </div>
           </div>
 
           {selectedVisibleCount > 0 && (
-            <p className="mt-3 text-xs text-gray-500">
+            <p className="mt-3 text-xs text-white/25">
               {selectedVisibleCount} of {visibleIds.length} visible items selected for the current filter.
             </p>
           )}
@@ -400,14 +400,14 @@ function Summary({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+      className={`rounded-xl border px-4 py-4 text-left transition-all duration-200 ${
         active
-          ? "border-cyan-500/30 bg-cyan-500/10"
-          : "border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.05]"
+          ? "border-cyan-500/25 bg-cyan-500/8 shadow-[0_0_16px_-4px_rgba(34,211,238,0.15)]"
+          : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.1]"
       }`}
     >
-      <div className="text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-1 text-sm text-gray-400">{label}</div>
+      <div className="font-mono text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-1 text-sm text-white/35">{label}</div>
     </button>
   );
 }

@@ -165,12 +165,12 @@ export default function ReposPageClient() {
 
   return (
     <div className="app-shell px-4 py-8 sm:px-6">
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="page-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Repos
           </h1>
-          <p className="mt-2 text-base text-gray-500">
+          <p className="mt-2 text-[15px] text-white/35">
             Monitor GitHub repositories for dependency vulnerabilities.
           </p>
         </div>
@@ -180,7 +180,7 @@ export default function ReposPageClient() {
               type="button"
               onClick={handleScanAll}
               disabled={isAnyScanRunning}
-              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
             >
               {isAnyScanRunning ? (
                 <>
@@ -195,10 +195,7 @@ export default function ReposPageClient() {
               )}
             </button>
           )}
-          <Link
-            href="/"
-            className="inline-flex rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white"
-          >
+          <Link href="/" className="btn-ghost inline-flex px-4 py-2 text-sm">
             Back to Search
           </Link>
         </div>

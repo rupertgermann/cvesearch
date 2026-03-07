@@ -55,11 +55,11 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
   if (loading) {
     return (
       <div className="app-shell px-4 py-8 sm:px-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 rounded-lg bg-white/[0.06]" />
-          <div className="h-6 w-64 rounded-lg bg-white/[0.06]" />
-          <div className="h-32 rounded-xl bg-white/[0.04]" />
-          <div className="h-64 rounded-xl bg-white/[0.04]" />
+        <div className="space-y-6">
+          <div className="skeleton-shimmer h-8 w-48 rounded-lg" />
+          <div className="skeleton-shimmer h-6 w-64 rounded-lg" />
+          <div className="skeleton-shimmer h-32 rounded-xl" />
+          <div className="skeleton-shimmer h-64 rounded-xl" />
         </div>
       </div>
     );
@@ -105,7 +105,7 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
   return (
     <div className="app-shell px-4 py-8 sm:px-6">
       {/* Back nav */}
-      <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors">
+      <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-white/35 hover:text-white transition-colors">
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
@@ -113,7 +113,7 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
       </Link>
 
       {/* Header */}
-      <div className="mb-8">
+      <div className="page-header">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-mono text-2xl font-bold text-white sm:text-3xl">{cveId}</h1>
           <BookmarkButton cveId={cveId} />
@@ -128,14 +128,14 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
             />
           )}
           {state && (
-            <span className={`rounded-md px-2.5 py-1 text-xs font-medium border ${
-              state === "PUBLISHED" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-gray-500/10 text-gray-400 border-gray-500/20"
+            <span className={`badge badge-sm ${
+              state === "PUBLISHED" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-white/[0.04] text-white/40 border-white/[0.08]"
             }`}>
               {state}
             </span>
           )}
         </div>
-        <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
+        <div className="mt-3 flex flex-wrap gap-4 text-sm text-white/30">
           {published && (
             <span className="flex items-center gap-1.5">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -166,7 +166,7 @@ export default function CVEDetailPage({ params }: { params: Promise<{ id: string
       <div className="space-y-6">
         {/* Description */}
         <Section title="Description">
-          <p className="text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">{description}</p>
+          <p className="text-sm leading-relaxed text-white/60 whitespace-pre-wrap">{description}</p>
         </Section>
 
         <AICveInsightPanel cveId={cveId} detail={cve} />
@@ -593,19 +593,19 @@ function Section({
   const [isOpen, setIsOpen] = useState(!collapsible);
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
+    <div className="glass rounded-xl">
       <button
         onClick={() => collapsible && setIsOpen(!isOpen)}
         className={`flex w-full items-center justify-between px-5 py-4 text-left ${
           collapsible ? "cursor-pointer hover:bg-white/[0.02]" : "cursor-default"
         } rounded-t-xl`}
       >
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-white/40">
           {title}
         </h2>
         {collapsible && (
           <svg
-            className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            className={`h-4 w-4 text-white/25 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -633,9 +633,9 @@ function MetricCard({ label, value }: { label: string; value?: string }) {
   };
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-      <div className="text-[10px] uppercase tracking-wider text-gray-500">{label}</div>
-      <div className={`mt-1 text-sm font-medium ${getColor(value)}`}>{value}</div>
+    <div className="glass rounded-lg p-3">
+      <div className="text-[10px] uppercase tracking-[0.12em] text-white/25">{label}</div>
+      <div className={`mt-1 text-sm font-semibold ${getColor(value)}`}>{value}</div>
     </div>
   );
 }

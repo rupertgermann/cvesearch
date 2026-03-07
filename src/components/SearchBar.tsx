@@ -10,6 +10,7 @@ interface SearchBarProps {
 
 export default function SearchBar({ onSearch, initialQuery = "", loading }: SearchBarProps) {
   const [query, setQuery] = useState(initialQuery);
+  const [focused, setFocused] = useState(false);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -21,43 +22,57 @@ export default function SearchBar({ onSearch, initialQuery = "", loading }: Sear
 
   return (
     <form onSubmit={handleSubmit} className="w-full">
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-          {loading ? (
-            <svg className="h-5 w-5 animate-spin text-cyan-500" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <div className={`relative rounded-xl transition-all duration-300 ${
+        focused
+          ? "shadow-[0_0_0_1px_rgba(34,211,238,0.3),0_0_40px_-8px_rgba(34,211,238,0.15),0_4px_24px_-4px_rgba(0,0,0,0.3)]"
+          : "shadow-[0_2px_12px_-4px_rgba(0,0,0,0.3)]"
+      }`}>
+        {/* Gradient border effect */}
+        <div className={`absolute -inset-px rounded-xl bg-gradient-to-r transition-opacity duration-300 ${
+          focused
+            ? "from-cyan-500/30 via-cyan-400/10 to-cyan-500/30 opacity-100"
+            : "from-white/[0.06] to-white/[0.06] opacity-100"
+        }`} />
+
+        <div className="relative rounded-xl bg-[#0a0a14]">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+            {loading ? (
+              <svg className="h-5 w-5 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg
+                className={`h-5 w-5 transition-colors duration-200 ${focused ? "text-cyan-400" : "text-white/25"}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+            )}
+          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Search by CVE ID, keyword, or describe what you're looking for..."
+            className="h-13 w-full rounded-xl bg-transparent pl-12 pr-28 text-[15px] text-white placeholder-white/20 outline-none"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary absolute inset-y-1.5 right-1.5 flex items-center gap-1.5 rounded-lg px-5 text-sm disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
-          ) : (
-            <svg
-              className="h-5 w-5 text-gray-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
-            </svg>
-          )}
+            Search
+          </button>
         </div>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by CVE ID (e.g. CVE-2024-1234) or keyword..."
-          className="h-14 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-12 pr-28 text-base text-white placeholder-gray-500 outline-none transition-all focus:border-cyan-500/50 focus:bg-white/[0.05] focus:ring-1 focus:ring-cyan-500/30"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="absolute inset-y-2 right-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-5 text-sm font-medium text-white shadow-lg shadow-cyan-500/20 transition-all hover:from-cyan-500 hover:to-blue-500 hover:shadow-cyan-500/30 disabled:opacity-50"
-        >
-          Search
-        </button>
       </div>
     </form>
   );

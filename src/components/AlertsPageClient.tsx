@@ -81,10 +81,10 @@ export default function AlertsPageClient() {
 
   return (
     <div className="app-shell px-4 py-8 sm:px-6">
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="page-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Alerts</h1>
-          <p className="mt-2 text-base text-gray-500">
+          <p className="mt-2 text-[15px] text-white/35">
             Workspace alert rules evaluated against the latest upstream sample.
           </p>
         </div>
@@ -101,14 +101,11 @@ export default function AlertsPageClient() {
                   setFeedback({ type: "error", message: error instanceof Error ? error.message : "Failed to mark alerts checked." });
                 });
             }}
-            className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white"
+            className="btn-ghost px-4 py-2 text-sm"
           >
             Mark All Checked
           </button>
-          <Link
-            href="/"
-            className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white"
-          >
+          <Link href="/" className="btn-ghost inline-flex px-4 py-2 text-sm">
             Back to Search
           </Link>
         </div>
@@ -208,9 +205,9 @@ export default function AlertsPageClient() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4">
-      <div className="text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-1 text-sm text-gray-400">{label}</div>
+    <div className="glass rounded-xl px-4 py-4">
+      <div className="font-mono text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-1 text-sm text-white/35">{label}</div>
     </div>
   );
 }

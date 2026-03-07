@@ -74,25 +74,33 @@ export default function AITriageAssistantPanel({
   }, [cveId, requestBody]);
 
   return (
-    <div className="mt-5 rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-4">
+    <div className="mt-5 rounded-xl border border-cyan-500/15 bg-gradient-to-br from-cyan-500/[0.06] to-transparent p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">AI Triage Agent</h3>
-          <p className="mt-1 text-sm text-gray-400">Read-only guidance built from severity, EPSS, references, KEV, project context, and the current triage record. Any write now goes through an explicit approval checkpoint.</p>
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-cyan-500/15">
+            <svg className="h-3.5 w-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-300">AI Triage Agent</h3>
+            <p className="text-[11px] text-white/25">Read-only guidance from severity, EPSS, KEV, and project context.</p>
+          </div>
         </div>
         {suggestion?.requiresHumanApproval ? (
-          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200">
+          <span className="badge badge-xs border-amber-500/20 bg-amber-500/8 text-amber-200">
+            <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse" />
             Human approval required
           </span>
         ) : null}
       </div>
 
-      {loading ? <p className="mt-4 text-sm text-gray-500">Generating triage guidance...</p> : null}
+      {loading ? <p className="mt-4 text-sm text-white/25">Generating triage guidance...</p> : null}
       {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
 
       {suggestion && !loading ? (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm leading-relaxed text-gray-200">{suggestion.summary}</p>
+        <div className="mt-4 space-y-4 animate-fade-in">
+          <p className="text-sm leading-relaxed text-white/70">{suggestion.summary}</p>
 
           <div className="flex flex-wrap gap-2">
             <Chip label={`Priority: ${suggestion.recommendation.priority}`} tone="red" />
@@ -102,13 +110,13 @@ export default function AITriageAssistantPanel({
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Rationale</p>
-              <p className="mt-2 text-sm text-gray-300">{suggestion.recommendation.rationale}</p>
+            <div className="glass rounded-lg p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Rationale</p>
+              <p className="mt-2 text-sm text-white/50">{suggestion.recommendation.rationale}</p>
             </div>
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ownership</p>
-              <p className="mt-2 text-sm text-gray-300">{suggestion.ownershipRationale}</p>
+            <div className="glass rounded-lg p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Ownership</p>
+              <p className="mt-2 text-sm text-white/50">{suggestion.ownershipRationale}</p>
             </div>
           </div>
 
@@ -116,21 +124,21 @@ export default function AITriageAssistantPanel({
             <button
               type="button"
               onClick={() => onRequestApproval((current) => ({ ...current, status: suggestion.recommendation.status }), "AI triage status recommendation")}
-              className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-medium text-black"
+              className="btn-primary px-3 py-2 text-sm"
             >
               Review Status
             </button>
             <button
               type="button"
               onClick={() => onRequestApproval((current) => ({ ...current, owner: suggestion.recommendedOwner }), "AI triage owner recommendation")}
-              className="rounded-lg border border-emerald-500/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/10"
+              className="rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/15"
             >
               Review Owner
             </button>
             <button
               type="button"
               onClick={() => onRequestApproval((current) => ({ ...current, tags: Array.from(new Set([...current.tags, ...suggestion.recommendedTags])) }), "AI triage tag recommendation")}
-              className="rounded-lg border border-white/[0.08] px-3 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white"
+              className="btn-ghost px-3 py-2 text-sm"
             >
               Review Tags
             </button>
@@ -142,7 +150,7 @@ export default function AITriageAssistantPanel({
                 owner: suggestion.recommendedOwner,
                 tags: Array.from(new Set([...current.tags, ...suggestion.recommendedTags])),
               }), "AI triage full recommendation")}
-              className="rounded-lg border border-amber-500/20 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/10"
+              className="rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-amber-200 transition-colors hover:bg-amber-500/15"
             >
               Review Full Update
             </button>
@@ -150,7 +158,7 @@ export default function AITriageAssistantPanel({
 
           {suggestion.recommendedTags.length > 0 ? (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Suggested Tags</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Suggested Tags</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {suggestion.recommendedTags.map((tag) => (
                   <Chip key={tag} label={tag} tone="amber" />
@@ -160,8 +168,8 @@ export default function AITriageAssistantPanel({
           ) : null}
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Next Steps</p>
-            <ul className="mt-2 space-y-2 text-sm text-gray-300">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Next Steps</p>
+            <ul className="mt-2 space-y-2 text-sm text-white/50">
               {suggestion.recommendation.nextSteps.map((step) => (
                 <li key={step} className="rounded-lg bg-white/[0.03] px-3 py-2">{step}</li>
               ))}
@@ -170,20 +178,20 @@ export default function AITriageAssistantPanel({
 
           <div className="grid gap-3 md:grid-cols-2">
             {suggestion.recommendation.signals.map((signal) => (
-              <div key={`${signal.label}-${signal.value}`} className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
+              <div key={`${signal.label}-${signal.value}`} className="glass rounded-lg p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{signal.label}</span>
-                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-gray-300">{signal.level}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">{signal.label}</span>
+                  <span className="badge badge-xs border-white/[0.06] bg-white/[0.04] text-white/40">{signal.level}</span>
                 </div>
                 <p className="mt-2 text-sm text-white">{signal.value}</p>
-                <p className="mt-1 text-xs text-gray-400">{signal.rationale}</p>
+                <p className="mt-1 text-xs text-white/35">{signal.rationale}</p>
               </div>
             ))}
           </div>
 
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Project Context</p>
-            <p className="mt-2 text-sm text-gray-300">{suggestion.projectContext.summary}</p>
+          <div className="glass rounded-lg p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Project Context</p>
+            <p className="mt-2 text-sm text-white/50">{suggestion.projectContext.summary}</p>
           </div>
         </div>
       ) : null}
@@ -193,12 +201,12 @@ export default function AITriageAssistantPanel({
 
 function Chip({ label, tone }: { label: string; tone: "red" | "cyan" | "gray" | "emerald" | "amber" }) {
   const tones = {
-    red: "border-red-500/20 bg-red-500/10 text-red-200",
-    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
-    gray: "border-white/[0.08] bg-white/[0.05] text-gray-300",
-    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
-    amber: "border-amber-500/20 bg-amber-500/10 text-amber-200",
+    red: "border-red-500/20 bg-red-500/8 text-red-200",
+    cyan: "border-cyan-500/20 bg-cyan-500/8 text-cyan-200",
+    gray: "border-white/[0.06] bg-white/[0.04] text-white/40",
+    emerald: "border-emerald-500/20 bg-emerald-500/8 text-emerald-200",
+    amber: "border-amber-500/20 bg-amber-500/8 text-amber-200",
   } as const;
 
-  return <span className={`rounded-full border px-2.5 py-1 text-[11px] ${tones[tone]}`}>{label}</span>;
+  return <span className={`badge badge-xs ${tones[tone]}`}>{label}</span>;
 }
