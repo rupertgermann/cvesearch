@@ -18,13 +18,20 @@ import { generateVulnerabilityFix, extractFixedVersion } from "@/lib/ai-fix";
 import {
   FixRequestPayload,
   FixResponse,
+  FixFileChange,
+  ParsedDependency,
   RepoFileContent,
 } from "@/lib/github-types";
 import { AISettings, AIProvider } from "@/lib/types";
+import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 
 const MAX_SOURCE_FILES = 5;
+const MAX_ALLOWED_FILE_CHANGES = 8;
+const MAX_FILE_CONTENT_BYTES = 200_000;
+const VALID_PROVIDERS: AIProvider[] = ["heuristic", "openai", "anthropic"];
+const REPO_FULL_NAME_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteProtection(async function POST(request: NextRequest) {
   if (!isGitHubTokenConfigured()) {
     return NextResponse.json(
       { error: "GITHUB_TOKEN is not configured" },
@@ -33,20 +40,33 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body: FixRequestPayload = await request.json();
+    const body: FixRequestPayload | null = await request.json().catch(() => null);
+    const repoFullName = typeof body?.repoFullName === "string" ? body.repoFullName.trim() : "";
+    const vulnerability = body?.vulnerability;
+    const matchedDependency = body?.matchedDependency;
 
-    if (!body.repoFullName || !body.vulnerability || !body.matchedDependency) {
+    if (!repoFullName || !REPO_FULL_NAME_PATTERN.test(repoFullName) || !vulnerability || !isValidMatchedDependency(matchedDependency)) {
       return NextResponse.json(
         { error: "Missing required fields: repoFullName, vulnerability, matchedDependency" },
         { status: 400 }
       );
     }
 
-    const { repoFullName, vulnerability, matchedDependency, aiSettings } = body;
+    const aiSettings = body?.aiSettings;
 
     const fixedVersion = extractFixedVersion(vulnerability, matchedDependency.name);
 
-    const dependencyFiles = await fetchRepoDependencyFiles(repoFullName);
+    const dependencyFiles = selectRelevantDependencyFiles(
+      await fetchRepoDependencyFiles(repoFullName),
+      matchedDependency
+    );
+
+    if (dependencyFiles.length === 0) {
+      return NextResponse.json(
+        { error: "Could not locate the dependency manifest for this package in the repository." },
+        { status: 422 }
+      );
+    }
 
     const sourceFiles: RepoFileContent[] = [];
     try {
@@ -82,6 +102,19 @@ export async function POST(request: NextRequest) {
       },
       aiSettings ? normalizeAISettingsFromRequest(aiSettings) : undefined
     );
+
+    try {
+      validateFixFileChanges(
+        fixResult.fileChanges,
+        new Set([...dependencyFiles, ...sourceFiles].map((file) => file.path))
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid generated fix changes";
+      return NextResponse.json(
+        { error: message, analysis: fixResult.analysis },
+        { status: 422 }
+      );
+    }
 
     if (fixResult.fileChanges.length === 0) {
       return NextResponse.json(
@@ -213,9 +246,11 @@ export async function POST(request: NextRequest) {
     console.error(`[fix-route] Unexpected error:`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-const VALID_PROVIDERS: AIProvider[] = ["heuristic", "openai", "anthropic"];
+}, {
+  route: "/api/github/fix",
+  errorMessage: "Failed to create GitHub fix pull request",
+  rateLimit: API_RATE_LIMITS.githubWrites,
+});
 
 const normalizeAISettingsFromRequest = (
   raw: Record<string, unknown>
@@ -229,4 +264,96 @@ const normalizeAISettingsFromRequest = (
     model: typeof raw.model === "string" ? raw.model : undefined,
     apiKey: typeof raw.apiKey === "string" ? raw.apiKey : undefined,
   };
+};
+
+const isValidMatchedDependency = (value: unknown): value is ParsedDependency => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const manifestPath = typeof record.manifestPath === "string" ? record.manifestPath : undefined;
+  const lockfilePath = typeof record.lockfilePath === "string" ? record.lockfilePath : undefined;
+
+  return (
+    typeof record.name === "string" &&
+    typeof record.version === "string" &&
+    typeof record.isDev === "boolean" &&
+    (record.ecosystem === "npm" || record.ecosystem === "Packagist") &&
+    isSafeRepoPath(manifestPath) &&
+    isSafeRepoPath(lockfilePath)
+  );
+};
+
+const isSafeRepoPath = (value: string | undefined): boolean => {
+  if (value === undefined) {
+    return true;
+  }
+
+  return value.length > 0 && !value.startsWith("/") && !value.includes("\\") && !/(^|\/)\.\.(\/|$)/.test(value);
+};
+
+const getParentDir = (filePath: string | undefined): string => {
+  if (!filePath) {
+    return "";
+  }
+
+  const lastSlash = filePath.lastIndexOf("/");
+  return lastSlash === -1 ? "" : filePath.slice(0, lastSlash);
+};
+
+const selectRelevantDependencyFiles = (
+  files: RepoFileContent[],
+  dependency: ParsedDependency
+): RepoFileContent[] => {
+  const preferredPaths = new Set(
+    [dependency.manifestPath, dependency.lockfilePath].filter((value): value is string => Boolean(value))
+  );
+
+  if (preferredPaths.size > 0) {
+    return files.filter((file) => preferredPaths.has(file.path));
+  }
+
+  const sourceDirectory = dependency.sourceDirectory ?? getParentDir(dependency.manifestPath) ?? getParentDir(dependency.lockfilePath);
+  if (!sourceDirectory) {
+    return files;
+  }
+
+  return files.filter((file) => getParentDir(file.path) === sourceDirectory);
+};
+
+const validateFixFileChanges = (fileChanges: FixFileChange[], allowedPaths: Set<string>): void => {
+  if (fileChanges.length > MAX_ALLOWED_FILE_CHANGES) {
+    throw new Error(`Generated fix exceeds the maximum of ${MAX_ALLOWED_FILE_CHANGES} files`);
+  }
+
+  const seenPaths = new Set<string>();
+
+  for (const change of fileChanges) {
+    if (!isSafeRepoPath(change.path)) {
+      throw new Error(`Generated fix contains an unsafe path: ${change.path}`);
+    }
+
+    if (!allowedPaths.has(change.path)) {
+      throw new Error(`Generated fix tried to modify an unapproved file: ${change.path}`);
+    }
+
+    if (isLockfilePath(change.path)) {
+      throw new Error(`Generated fix tried to modify a lock file: ${change.path}`);
+    }
+
+    if (seenPaths.has(change.path)) {
+      throw new Error(`Generated fix contains duplicate file changes for ${change.path}`);
+    }
+
+    seenPaths.add(change.path);
+
+    if (Buffer.byteLength(change.content, "utf8") > MAX_FILE_CONTENT_BYTES) {
+      throw new Error(`Generated fix content is too large for ${change.path}`);
+    }
+  }
+};
+
+const isLockfilePath = (filePath: string): boolean => {
+  return filePath.endsWith("package-lock.json") || filePath.endsWith("pnpm-lock.yaml") || filePath.endsWith("composer.lock");
 };

@@ -4,8 +4,11 @@ import { parseDependencyFiles } from "@/lib/dependency-parser";
 import { queryOSVBatch } from "@/lib/osv";
 import { updateLastScan } from "@/lib/monitored-repos-store";
 import { DependencyScanResult } from "@/lib/github-types";
+import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 
-export async function POST(request: NextRequest) {
+const isRepoFullName = (value: string): boolean => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
+
+export const POST = withRouteProtection(async function POST(request: NextRequest) {
   if (!isGitHubTokenConfigured()) {
     return NextResponse.json(
       { error: "GITHUB_TOKEN is not configured" },
@@ -14,11 +17,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const fullName = body.fullName;
-    const branch = body.branch;
+    const body = await request.json().catch(() => null);
+    const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
+    const branch = typeof body?.branch === "string" && body.branch.trim() ? body.branch : undefined;
 
-    if (!fullName || typeof fullName !== "string") {
+    if (!fullName || !isRepoFullName(fullName)) {
       return NextResponse.json(
         { error: "Missing required field: fullName" },
         { status: 400 }
@@ -56,6 +59,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Scan failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 502 });
   }
-}
+}, {
+  route: "/api/github/scan",
+  errorMessage: "Failed to scan GitHub repository",
+  rateLimit: API_RATE_LIMITS.githubScans,
+});

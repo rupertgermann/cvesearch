@@ -14,6 +14,9 @@ interface GitPullRequest {
   head: { ref: string };
 }
 
+const PULL_REQUESTS_PER_PAGE = 100;
+const MAX_PULL_REQUEST_SCAN_PAGES = 10;
+
 export interface ExistingPR {
   url: string;
   number: number;
@@ -127,23 +130,31 @@ export const findExistingFixPR = async (
   const branchPattern = `fix/${sanitizeVulnIdForBranch(vulnId)}`;
 
   try {
-    const pullRequests = await fetchGitHub<GitPullRequest[]>(
-      `/repos/${fullName}/pulls?state=all&per_page=30&sort=created&direction=desc`
-    );
+    for (let page = 1; page <= MAX_PULL_REQUEST_SCAN_PAGES; page += 1) {
+      const pullRequests = await fetchGitHub<GitPullRequest[]>(
+        `/repos/${fullName}/pulls?state=all&per_page=${PULL_REQUESTS_PER_PAGE}&sort=created&direction=desc&page=${page}`
+      );
 
-    const match = pullRequests.find((pr) =>
-      pr.head.ref === branchPattern || pr.head.ref.startsWith(`${branchPattern}-`)
-    );
+      const match = pullRequests.find((pr) =>
+        pr.head.ref === branchPattern || pr.head.ref.startsWith(`${branchPattern}-`)
+      );
 
-    if (!match) return null;
+      if (match) {
+        return {
+          url: match.html_url,
+          number: match.number,
+          title: match.title,
+          state: match.state,
+          branchName: match.head.ref,
+        };
+      }
 
-    return {
-      url: match.html_url,
-      number: match.number,
-      title: match.title,
-      state: match.state,
-      branchName: match.head.ref,
-    };
+      if (pullRequests.length < PULL_REQUESTS_PER_PAGE) {
+        break;
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }

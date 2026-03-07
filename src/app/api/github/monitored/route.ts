@@ -4,8 +4,12 @@ import {
   addMonitoredRepo,
   removeMonitoredRepo,
 } from "@/lib/monitored-repos-store";
+import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 
-export async function GET() {
+const isRepoFullName = (value: string): boolean => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
+
+export const GET = withRouteProtection(async function GET(_request: NextRequest) {
+  void _request;
   try {
     const repos = await listMonitoredRepos();
     return NextResponse.json(repos);
@@ -13,22 +17,27 @@ export async function GET() {
     const message = error instanceof Error ? error.message : "Failed to list monitored repos";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+}, {
+  route: "/api/github/monitored",
+  errorMessage: "Failed to list monitored repositories",
+  rateLimit: API_RATE_LIMITS.githubReads,
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteProtection(async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
 
-    if (!body.fullName || typeof body.fullName !== "string") {
+    if (!fullName || !isRepoFullName(fullName)) {
       return NextResponse.json({ error: "Missing required field: fullName" }, { status: 400 });
     }
 
     const repo = await addMonitoredRepo({
-      githubId: body.githubId ?? 0,
-      fullName: body.fullName,
-      htmlUrl: body.htmlUrl ?? "",
-      isPrivate: body.isPrivate ?? false,
-      defaultBranch: body.defaultBranch ?? "main",
+      githubId: typeof body?.githubId === "number" ? body.githubId : 0,
+      fullName,
+      htmlUrl: typeof body?.htmlUrl === "string" ? body.htmlUrl : "",
+      isPrivate: body?.isPrivate === true,
+      defaultBranch: typeof body?.defaultBranch === "string" && body.defaultBranch.trim() ? body.defaultBranch : "main",
     });
 
     return NextResponse.json(repo, { status: 201 });
@@ -36,9 +45,13 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Failed to add monitored repo";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+}, {
+  route: "/api/github/monitored",
+  errorMessage: "Failed to add monitored repository",
+  rateLimit: API_RATE_LIMITS.githubWrites,
+});
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteProtection(async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const repoId = searchParams.get("id");
@@ -58,4 +71,8 @@ export async function DELETE(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Failed to remove monitored repo";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+}, {
+  route: "/api/github/monitored",
+  errorMessage: "Failed to remove monitored repository",
+  rateLimit: API_RATE_LIMITS.githubWrites,
+});

@@ -3,7 +3,11 @@ import path from "node:path";
 import { MonitoredRepo } from "./github-types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const MONITORED_REPOS_FILE = path.join(DATA_DIR, "monitored-repos.json");
+let writeQueue: Promise<void> = Promise.resolve();
+
+function getMonitoredReposFile(): string {
+  return process.env.MONITORED_REPOS_FILE?.trim() || path.join(DATA_DIR, "monitored-repos.json");
+}
 
 export const listMonitoredRepos = async (): Promise<MonitoredRepo[]> => {
   const repos = await readMonitoredRepos();
@@ -17,54 +21,65 @@ export const addMonitoredRepo = async (input: {
   isPrivate: boolean;
   defaultBranch: string;
 }): Promise<MonitoredRepo> => {
-  const repos = await readMonitoredRepos();
+  return mutateMonitoredRepos((repos) => {
+    const existing = repos.find((repo) => repo.fullName === input.fullName);
+    if (existing) {
+      return { repos, result: existing };
+    }
 
-  const existing = repos.find((repo) => repo.fullName === input.fullName);
-  if (existing) return existing;
+    const repo: MonitoredRepo = {
+      id: crypto.randomUUID(),
+      githubId: input.githubId,
+      fullName: input.fullName,
+      htmlUrl: input.htmlUrl,
+      isPrivate: input.isPrivate,
+      defaultBranch: input.defaultBranch,
+      addedAt: new Date().toISOString(),
+      lastScannedAt: null,
+      lastScanVulnerabilityCount: null,
+    };
 
-  const repo: MonitoredRepo = {
-    id: crypto.randomUUID(),
-    githubId: input.githubId,
-    fullName: input.fullName,
-    htmlUrl: input.htmlUrl,
-    isPrivate: input.isPrivate,
-    defaultBranch: input.defaultBranch,
-    addedAt: new Date().toISOString(),
-    lastScannedAt: null,
-    lastScanVulnerabilityCount: null,
-  };
-
-  repos.push(repo);
-  await writeMonitoredRepos(repos);
-  return repo;
+    return {
+      repos: [...repos, repo],
+      result: repo,
+    };
+  });
 };
 
 export const removeMonitoredRepo = async (repoId: string): Promise<boolean> => {
-  const repos = await readMonitoredRepos();
-  const filtered = repos.filter((repo) => repo.id !== repoId);
-
-  if (filtered.length === repos.length) return false;
-
-  await writeMonitoredRepos(filtered);
-  return true;
+  return mutateMonitoredRepos((repos) => {
+    const filtered = repos.filter((repo) => repo.id !== repoId);
+    return {
+      repos: filtered,
+      result: filtered.length !== repos.length,
+      changed: filtered.length !== repos.length,
+    };
+  });
 };
 
 export const updateLastScan = async (
   repoFullName: string,
   vulnerabilityCount: number
 ): Promise<void> => {
-  const repos = await readMonitoredRepos();
-  const index = repos.findIndex((repo) => repo.fullName === repoFullName);
+  await mutateMonitoredRepos((repos) => {
+    const index = repos.findIndex((repo) => repo.fullName === repoFullName);
+    if (index === -1) {
+      return { repos, result: undefined };
+    }
 
-  if (index === -1) return;
+    const next = [...repos];
+    next[index] = {
+      ...next[index],
+      lastScannedAt: new Date().toISOString(),
+      lastScanVulnerabilityCount: vulnerabilityCount,
+    };
 
-  repos[index] = {
-    ...repos[index],
-    lastScannedAt: new Date().toISOString(),
-    lastScanVulnerabilityCount: vulnerabilityCount,
-  };
-
-  await writeMonitoredRepos(repos);
+    return {
+      repos: next,
+      result: undefined,
+      changed: true,
+    };
+  });
 };
 
 export const getMonitoredRepo = async (repoIdOrFullName: string): Promise<MonitoredRepo | null> => {
@@ -78,7 +93,7 @@ export const getMonitoredRepo = async (repoIdOrFullName: string): Promise<Monito
 
 const readMonitoredRepos = async (): Promise<MonitoredRepo[]> => {
   try {
-    const raw = await fs.readFile(MONITORED_REPOS_FILE, "utf8");
+    const raw = await fs.readFile(getMonitoredReposFile(), "utf8");
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter(isMonitoredRepo) : [];
   } catch {
@@ -87,9 +102,29 @@ const readMonitoredRepos = async (): Promise<MonitoredRepo[]> => {
 };
 
 const writeMonitoredRepos = async (repos: MonitoredRepo[]): Promise<void> => {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(MONITORED_REPOS_FILE, JSON.stringify(repos, null, 2));
+  await fs.mkdir(path.dirname(getMonitoredReposFile()), { recursive: true });
+  await fs.writeFile(getMonitoredReposFile(), JSON.stringify(repos, null, 2));
 };
+
+async function mutateMonitoredRepos<T>(
+  mutation: (repos: MonitoredRepo[]) => { repos: MonitoredRepo[]; result: T; changed?: boolean }
+): Promise<T> {
+  let result!: T;
+
+  const operation = writeQueue.then(async () => {
+    const repos = await readMonitoredRepos();
+    const next = mutation(repos);
+    result = next.result;
+
+    if (next.changed !== false) {
+      await writeMonitoredRepos(next.repos);
+    }
+  });
+
+  writeQueue = operation.catch(() => undefined);
+  await operation;
+  return result;
+}
 
 const isMonitoredRepo = (value: unknown): value is MonitoredRepo => {
   if (!value || typeof value !== "object") return false;

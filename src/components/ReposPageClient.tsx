@@ -530,7 +530,7 @@ const ScanResults = ({ result, repoFullName }: ScanResultsProps) => {
         <div className="space-y-2">
           {displayedVulns.map((match) => (
             <VulnerabilityRow
-              key={`${match.vulnerability.id}-${match.matchedDependency.name}`}
+              key={`${match.vulnerability.id}-${match.matchedDependency.name}-${match.matchedDependency.manifestPath ?? "root"}`}
               match={match}
               onFix={() => setFixingMatch(match)}
             />
@@ -634,6 +634,11 @@ const VulnerabilityRow = ({ match, onFix }: VulnerabilityRowProps) => {
           {match.matchedDependency.isDev && (
             <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-purple-400">
               dev dependency
+            </span>
+          )}
+          {match.matchedDependency.manifestPath && (
+            <span className="rounded bg-white/[0.05] px-1.5 py-0.5 font-mono text-[11px] text-gray-400">
+              {match.matchedDependency.manifestPath}
             </span>
           )}
         </div>

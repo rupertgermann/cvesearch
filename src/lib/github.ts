@@ -144,21 +144,33 @@ export const fetchGitHubRepos = async (): Promise<GitHubRepo[]> => {
 export const fetchRepoFile = async (
   fullName: string,
   filePath: string,
-  branch?: string
+  branch?: string,
+  options?: { allowMissing?: boolean }
 ): Promise<string | null> => {
   const ref = branch ? `?ref=${encodeURIComponent(branch)}` : "";
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+  const allowMissing = options?.allowMissing ?? true;
 
   try {
     const data = await fetchGitHub<{ content?: string; encoding?: string }>(
       `/repos/${fullName}/contents/${encodedPath}${ref}`
     );
 
-    if (!data.content || data.encoding !== "base64") return null;
+    if (!data.content || data.encoding !== "base64") {
+      if (allowMissing) {
+        return null;
+      }
+
+      throw new Error(`Unsupported file content response for ${filePath}`);
+    }
 
     return Buffer.from(data.content, "base64").toString("utf-8");
-  } catch {
-    return null;
+  } catch (error) {
+    if (allowMissing) {
+      return null;
+    }
+
+    throw error;
   }
 };
 
@@ -175,9 +187,8 @@ const fetchInBatches = async (
     const batch = paths.slice(offset, offset + FETCH_BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (filePath) => {
-        const content = await fetchRepoFile(fullName, filePath, branch);
-        if (!content) return null;
-        return { path: filePath, content };
+        const content = await fetchRepoFile(fullName, filePath, branch, { allowMissing: false });
+        return content === null ? null : { path: filePath, content };
       })
     );
     results.push(...batchResults.filter((r): r is RepoFileContent => r !== null));
@@ -196,11 +207,16 @@ const isDependencyFile = (filePath: string): boolean => {
 
 export const discoverDependencyFiles = async (
   fullName: string,
-  treeSha: string
+  treeSha: string,
+  contentRef = treeSha
 ): Promise<RepoFileContent[]> => {
   const tree = await fetchGitHub<GitTree>(
     `/repos/${fullName}/git/trees/${treeSha}?recursive=1`
   );
+
+  if (tree.truncated) {
+    throw new Error(`Dependency scan tree is truncated for ${fullName}; narrow the scan target or use a smaller repository snapshot`);
+  }
 
   const matchingPaths = tree.tree
     .filter((entry) => entry.type === "blob" && isDependencyFile(entry.path) && !isIgnoredPath(entry.path))
@@ -208,7 +224,7 @@ export const discoverDependencyFiles = async (
 
   if (matchingPaths.length === 0) return [];
 
-  return fetchInBatches(fullName, matchingPaths);
+  return fetchInBatches(fullName, matchingPaths, contentRef);
 };
 
 export const fetchRepoDependencyFiles = async (
@@ -216,21 +232,17 @@ export const fetchRepoDependencyFiles = async (
   branchOrSha?: string
 ): Promise<RepoFileContent[]> => {
   if (branchOrSha && /^[0-9a-f]{40}$/i.test(branchOrSha)) {
-    return discoverDependencyFiles(fullName, branchOrSha);
+    return discoverDependencyFiles(fullName, branchOrSha, branchOrSha);
   }
 
-  try {
-    const repoInfo = await fetchGitHub<{ default_branch: string }>(
-      `/repos/${fullName}`
-    );
-    const branch = branchOrSha ?? repoInfo.default_branch;
-    const branchInfo = await fetchGitHub<{ commit: { sha: string } }>(
-      `/repos/${fullName}/branches/${encodeURIComponent(branch)}`
-    );
-    return discoverDependencyFiles(fullName, branchInfo.commit.sha);
-  } catch {
-    return [];
-  }
+  const repoInfo = await fetchGitHub<{ default_branch: string }>(
+    `/repos/${fullName}`
+  );
+  const branch = branchOrSha ?? repoInfo.default_branch;
+  const branchInfo = await fetchGitHub<{ commit: { sha: string } }>(
+    `/repos/${fullName}/branches/${encodeURIComponent(branch)}`
+  );
+  return discoverDependencyFiles(fullName, branchInfo.commit.sha, branchInfo.commit.sha);
 };
 
 export const isGitHubTokenConfigured = (): boolean => {

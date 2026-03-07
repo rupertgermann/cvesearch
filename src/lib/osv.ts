@@ -142,7 +142,7 @@ export const queryOSVBatch = async (
       const dependency = batch[index];
 
       result.vulns.forEach((vuln) => {
-        const dedupeKey = `${vuln.id}:${dependency.name}`;
+        const dedupeKey = `${vuln.id}:${dependency.name}:${dependency.version}:${dependency.manifestPath ?? dependency.lockfilePath ?? ""}`;
         if (seenVulnKeys.has(dedupeKey)) return;
         seenVulnKeys.add(dedupeKey);
 

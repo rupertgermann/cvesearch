@@ -64,6 +64,7 @@ const buildFixPrompt = (input: GenerateFixInput): string => {
     `Package: ${matchedDependency.name}`,
     `Current Version: ${matchedDependency.version}`,
     `Is Dev Dependency: ${matchedDependency.isDev}`,
+    `Manifest Path: ${matchedDependency.manifestPath || "unknown"}`,
     `Fixed Version: ${fixedVersion || "unknown -- choose the latest safe version"}`,
     "",
     "=== CURRENT DEPENDENCY FILES ===",
@@ -94,9 +95,8 @@ const buildHeuristicFix = (input: GenerateFixInput): AIFixResult => {
 
   const fileChanges: FixFileChange[] = [];
 
-  const manifestFile = ecosystem === "npm"
-    ? dependencyFiles.find((f) => f.path === "package.json")
-    : dependencyFiles.find((f) => f.path === "composer.json");
+  const expectedManifestPath = matchedDependency.manifestPath || (ecosystem === "npm" ? "package.json" : "composer.json");
+  const manifestFile = dependencyFiles.find((file) => file.path === expectedManifestPath);
 
   if (manifestFile && fixedVersion) {
     const updatedContent = bumpDependencyVersion(
@@ -122,6 +122,7 @@ const buildHeuristicFix = (input: GenerateFixInput): AIFixResult => {
     `**Vulnerability:** ${vulnerability.summary || vulnerability.id}`,
     `**Package:** ${matchedDependency.name}`,
     `**Current Version:** ${matchedDependency.version}`,
+    `**Manifest:** ${expectedManifestPath}`,
     `**Fixed Version:** ${targetVersion}`,
     "",
     vulnerability.aliases?.length

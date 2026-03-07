@@ -30,6 +30,9 @@ export interface ParsedDependency {
   version: string;
   ecosystem: DependencyEcosystem;
   isDev: boolean;
+  manifestPath?: string;
+  lockfilePath?: string;
+  sourceDirectory?: string;
 }
 
 export interface OSVSeverity {

@@ -47,7 +47,9 @@ const isConcreteVersion = (version: string): boolean => {
 
 export const parseNpmDependencies = (
   packageJsonRaw: string,
-  packageLockJsonRaw?: string
+  packageJsonPath: string,
+  packageLockJsonRaw?: string,
+  packageLockJsonPath?: string
 ): ParsedDependency[] => {
   let packageJson: PackageJson;
   try {
@@ -69,7 +71,7 @@ export const parseNpmDependencies = (
     if (lockJson.packages) {
       Object.entries(lockJson.packages).forEach(([key, value]) => {
         if (!key || !value.version) return;
-        const name = key.replace(/^node_modules\//, "");
+        const name = extractPackageLockDependencyName(key);
         if (!name) return;
         lockVersions.set(name, { version: value.version, isDev: !!value.dev });
       });
@@ -100,6 +102,9 @@ export const parseNpmDependencies = (
         version,
         ecosystem: "npm",
         isDev: lockEntry?.isDev ?? isDev,
+        manifestPath: packageJsonPath,
+        lockfilePath: packageLockJsonPath,
+        sourceDirectory: getParentDir(packageJsonPath),
       });
     });
   };
@@ -111,7 +116,15 @@ export const parseNpmDependencies = (
     lockVersions.forEach(({ version, isDev }, name) => {
       if (seen.has(name)) return;
       seen.add(name);
-      dependencies.push({ name, version, ecosystem: "npm", isDev });
+      dependencies.push({
+        name,
+        version,
+        ecosystem: "npm",
+        isDev,
+        manifestPath: packageJsonPath,
+        lockfilePath: packageLockJsonPath,
+        sourceDirectory: getParentDir(packageJsonPath),
+      });
     });
   }
 
@@ -124,7 +137,9 @@ const normalizeComposerVersion = (version: string): string => {
 
 export const parseComposerDependencies = (
   composerJsonRaw: string,
-  composerLockJsonRaw?: string
+  composerJsonPath: string,
+  composerLockJsonRaw?: string,
+  composerLockJsonPath?: string
 ): ParsedDependency[] => {
   let composerJson: ComposerJson;
   try {
@@ -159,6 +174,9 @@ export const parseComposerDependencies = (
           version,
           ecosystem: "Packagist",
           isDev,
+          manifestPath: composerJsonPath,
+          lockfilePath: composerLockJsonPath,
+          sourceDirectory: getParentDir(composerJsonPath),
         });
       });
     };
@@ -181,6 +199,9 @@ export const parseComposerDependencies = (
           version,
           ecosystem: "Packagist",
           isDev,
+          manifestPath: composerJsonPath,
+          lockfilePath: composerLockJsonPath,
+          sourceDirectory: getParentDir(composerJsonPath),
         });
       });
     };
@@ -216,7 +237,9 @@ const parsePnpmPackageKey = (key: string): { name: string; version: string } | n
 };
 
 export const parsePnpmLockDependencies = (
-  pnpmLockRaw: string
+  pnpmLockRaw: string,
+  manifestPath?: string,
+  lockfilePath?: string
 ): ParsedDependency[] => {
   let lockData: PnpmLockYaml;
   try {
@@ -247,6 +270,9 @@ export const parsePnpmLockDependencies = (
       version,
       ecosystem: "npm",
       isDev: entry?.dev === true,
+      manifestPath,
+      lockfilePath,
+      sourceDirectory: manifestPath ? getParentDir(manifestPath) : lockfilePath ? getParentDir(lockfilePath) : undefined,
     });
   });
 
@@ -273,6 +299,16 @@ interface DirectoryGroup {
   files: Map<string, string>;
 }
 
+const joinDirFile = (dir: string, fileName: string): string => {
+  return dir ? `${dir}/${fileName}` : fileName;
+};
+
+const extractPackageLockDependencyName = (key: string): string => {
+  const normalized = key.replace(/^node_modules\//, "");
+  const segments = normalized.split("/node_modules/");
+  return segments[segments.length - 1] ?? "";
+};
+
 const groupFilesByDirectory = (files: RepoFileContent[]): DirectoryGroup[] => {
   const dirMap = new Map<string, Map<string, string>>();
 
@@ -294,22 +330,31 @@ const groupFilesByDirectory = (files: RepoFileContent[]): DirectoryGroup[] => {
 
 const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
   const results: ParsedDependency[] = [];
+  const packageJsonPath = joinDirFile(group.dir, "package.json");
+  const packageLockPath = joinDirFile(group.dir, "package-lock.json");
+  const pnpmLockPath = joinDirFile(group.dir, "pnpm-lock.yaml");
+  const composerJsonPath = joinDirFile(group.dir, "composer.json");
+  const composerLockPath = joinDirFile(group.dir, "composer.lock");
 
   const pnpmLock = group.files.get("pnpm-lock.yaml");
   if (pnpmLock) {
-    results.push(...parsePnpmLockDependencies(pnpmLock));
+    results.push(...parsePnpmLockDependencies(
+      pnpmLock,
+      group.files.has("package.json") ? packageJsonPath : undefined,
+      pnpmLockPath
+    ));
   }
 
   const packageJson = group.files.get("package.json");
   if (packageJson) {
     const packageLock = group.files.get("package-lock.json");
-    results.push(...parseNpmDependencies(packageJson, packageLock));
+    results.push(...parseNpmDependencies(packageJson, packageJsonPath, packageLock, packageLock ? packageLockPath : undefined));
   }
 
   const composerJson = group.files.get("composer.json");
   if (composerJson) {
     const composerLock = group.files.get("composer.lock");
-    results.push(...parseComposerDependencies(composerJson, composerLock));
+    results.push(...parseComposerDependencies(composerJson, composerJsonPath, composerLock, composerLock ? composerLockPath : undefined));
   }
 
   return results;
@@ -335,7 +380,7 @@ const deduplicateDependencies = (dependencies: ParsedDependency[]): ParsedDepend
   const seen = new Map<string, ParsedDependency>();
 
   dependencies.forEach((dep) => {
-    const key = `${dep.ecosystem}:${dep.name}@${dep.version}`;
+    const key = `${dep.ecosystem}:${dep.name}@${dep.version}:${dep.manifestPath ?? dep.lockfilePath ?? ""}`;
     if (!seen.has(key)) {
       seen.set(key, dep);
     }

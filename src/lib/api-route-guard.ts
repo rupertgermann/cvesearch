@@ -237,6 +237,21 @@ export const API_RATE_LIMITS = {
     maxRequests: 120,
     windowMs: 60_000,
   },
+  githubReads: {
+    bucket: "github-reads",
+    maxRequests: 60,
+    windowMs: 60_000,
+  },
+  githubScans: {
+    bucket: "github-scans",
+    maxRequests: 12,
+    windowMs: 60_000,
+  },
+  githubWrites: {
+    bucket: "github-writes",
+    maxRequests: 12,
+    windowMs: 60_000,
+  },
   proxy: {
     bucket: "proxy",
     maxRequests: 90,

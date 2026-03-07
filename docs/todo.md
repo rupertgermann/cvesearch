@@ -1,5 +1,10 @@
 # Todo
 
+## misc stuff
+
+- [ ] make the UI use 95% of the screen width
+
+
 ## Recommended Build Order
 
 ### Build First
@@ -7,6 +12,11 @@
 - replace JSON file persistence with a real database (`sqlite` first, with a clean path to Postgres later)
 - add authentication and authorization
 - move browser-local workflow data (watchlist, alerts, triage, saved views) into user-scoped server persistence
+- [x] harden GitHub repository monitoring routes with the same rate limiting and request logging used by the rest of the API
+- [x] make GitHub dependency scans branch-accurate and fail closed on tree truncation or dependency file fetch errors
+- [x] preserve dependency manifest location through scan and fix flows so monorepo remediation targets the correct workspace
+- [x] constrain AI-generated fix PR file writes to server-validated repository files only
+- [x] add regression tests for dependency parsing and GitHub scan edge cases
 - [x] stop storing provider API keys in browser local storage; move to server-side secrets or secure per-user encrypted storage
 - [x] replace ad hoc AI calls with a typed AI service layer that supports structured outputs, tool calling, and multi-step workflows
 - evaluate adopting the Vercel AI SDK for typed tool execution, structured JSON generation, and reusable agent loops in Next.js
@@ -66,6 +76,7 @@
 - replace JSON file persistence with a real database (`sqlite` first, with a clean path to Postgres later)
 - add authentication and authorization
 - move browser-local workflow data (watchlist, alerts, triage, saved views) into user-scoped server persistence
+- [x] harden GitHub repository monitoring routes with the same rate limiting and request logging used by the rest of the API
 - [x] add audit fields and activity history for project and triage changes
 - [x] add rate limiting and request logging for API routes
 
@@ -126,6 +137,8 @@
 
 - expand natural-language search to understand CWE families, date ranges, product aliases, exploitability, and remediation intent
 - add saved prompt templates for common analyst tasks such as "show newly published critical CVEs affecting OpenSSL this week"
+- [x] preserve dependency manifest location through scan and fix flows so monorepo remediation targets the correct workspace
+- [x] add regression tests for dependency parsing and GitHub scan edge cases
 - [x] add search explanation output that shows exactly which fields, filters, and assumptions the AI applied
 - improve data normalization for aliases, linked vulnerabilities, affected products, and reference metadata
 - [x] add stronger schema validation around upstream CIRCL payloads and AI-generated JSON
