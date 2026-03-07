@@ -37,7 +37,7 @@ export default function AISettingsPageClient({ summary, recentRuns }: { summary:
 
         <Callout.Root color="amber" variant="soft">
           <Callout.Text>
-            Configure AI providers with environment variables such as `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. You can override individual flows with `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_SEARCH_ASSISTANT_MODEL`, `AI_CVE_INSIGHT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, `AI_TRIAGE_AGENT_PROVIDER`, `AI_TRIAGE_AGENT_MODEL`, `AI_REMEDIATION_AGENT_PROVIDER`, `AI_REMEDIATION_AGENT_MODEL`, `AI_DAILY_DIGEST_PROVIDER`, and `AI_DAILY_DIGEST_MODEL`. No provider API key is persisted in browser storage.
+            Configure AI providers with environment variables such as `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. You can override individual flows with `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_SEARCH_ASSISTANT_MODEL`, `AI_CVE_INSIGHT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, `AI_TRIAGE_AGENT_PROVIDER`, `AI_TRIAGE_AGENT_MODEL`, `AI_REMEDIATION_AGENT_PROVIDER`, `AI_REMEDIATION_AGENT_MODEL`, `AI_WATCHLIST_ANALYST_PROVIDER`, `AI_WATCHLIST_ANALYST_MODEL`, `AI_DAILY_DIGEST_PROVIDER`, and `AI_DAILY_DIGEST_MODEL`. No provider API key is persisted in browser storage.
           </Callout.Text>
         </Callout.Root>
 

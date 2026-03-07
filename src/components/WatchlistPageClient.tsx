@@ -17,6 +17,7 @@ import {
 import { ProjectRecord } from "@/lib/types";
 import CVEList from "@/components/CVEList";
 import AIDigestPanel from "@/components/AIDigestPanel";
+import AIWatchlistReviewPanel from "@/components/AIWatchlistReviewPanel";
 
 export default function WatchlistPageClient() {
   const [items, setItems] = useState<CVESummary[]>([]);
@@ -357,6 +358,10 @@ export default function WatchlistPageClient() {
           )}
         </div>
       )}
+
+      <div className="mb-6">
+        <AIWatchlistReviewPanel watchlistCount={items.length} />
+      </div>
 
       <div className="mb-6">
         <AIDigestPanel />

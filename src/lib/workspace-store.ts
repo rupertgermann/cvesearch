@@ -19,6 +19,15 @@ export async function listWatchlist(userId: string): Promise<string[]> {
   return rows.map((row) => row.cveId);
 }
 
+export async function listWatchlistEntriesForUser(userId: string): Promise<Array<{ cveId: string; addedAt: string }>> {
+  return getDb().prepare(`
+    SELECT cve_id as cveId, added_at as addedAt
+    FROM user_watchlist
+    WHERE user_id = ?
+    ORDER BY added_at DESC
+  `).all(userId) as Array<{ cveId: string; addedAt: string }>;
+}
+
 export async function toggleWatchlistEntry(userId: string, cveId: string): Promise<string[]> {
   withTransaction((db) => {
     const existing = db.prepare(`

@@ -5,6 +5,7 @@ import {
   buildHeuristicDigest,
   buildHeuristicRemediationPlan,
   buildHeuristicTriageSuggestion,
+  buildHeuristicWatchlistReview,
   getServerAIConfigurationSummary,
   interpretSearchPromptHeuristically,
 } from "../src/lib/ai";
@@ -194,6 +195,52 @@ test("buildHeuristicRemediationPlan drafts controls, validation, and rollout not
   assert.equal(result.recommendedOwner, "platform-security");
 });
 
+test("buildHeuristicWatchlistReview highlights changes and clusters", () => {
+  const result = buildHeuristicWatchlistReview({
+    previousReviewAt: "2026-03-07T08:00:00.000Z",
+    items: [
+      {
+        id: "CVE-2026-5001",
+        summary: "Critical issue in edge gateway",
+        severity: "CRITICAL",
+        kev: true,
+        addedAt: "2026-03-07T09:00:00.000Z",
+        triageStatus: "new",
+        triageUpdatedAt: "2026-03-07T09:10:00.000Z",
+        projectNames: ["Edge Gateway"],
+        projectUpdatedAt: "2026-03-07T09:20:00.000Z",
+        aliases: [],
+        relatedIds: ["GHSA-edge-1"],
+        affectedProducts: ["edge-gateway"],
+        published: "2026-03-07T07:00:00.000Z",
+        modified: "2026-03-07T09:30:00.000Z",
+      },
+      {
+        id: "CVE-2026-5002",
+        summary: "High issue in edge gateway plugin",
+        severity: "HIGH",
+        kev: false,
+        addedAt: "2026-03-06T07:00:00.000Z",
+        triageStatus: "investigating",
+        triageUpdatedAt: "2026-03-07T08:30:00.000Z",
+        projectNames: ["Edge Gateway"],
+        projectUpdatedAt: "2026-03-07T08:45:00.000Z",
+        aliases: [],
+        relatedIds: ["GHSA-edge-1"],
+        affectedProducts: ["edge-gateway"],
+        published: "2026-03-05T07:00:00.000Z",
+        modified: "2026-03-07T08:50:00.000Z",
+      },
+    ],
+  });
+
+  assert.match(result.headline, /change|active/i);
+  assert.equal(result.newMatches.some((item) => item.includes("CVE-2026-5001")), true);
+  assert.equal(result.changedSinceLastReview.length >= 2, true);
+  assert.equal(result.clusters.length >= 1, true);
+  assert.equal(result.recommendedActions.length >= 1, true);
+});
+
 test("getServerAIConfigurationSummary applies per-feature provider and model overrides", () => {
   const previous = {
     AI_PROVIDER: process.env.AI_PROVIDER,
@@ -211,6 +258,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     AI_TRIAGE_AGENT_MODEL: process.env.AI_TRIAGE_AGENT_MODEL,
     AI_REMEDIATION_AGENT_PROVIDER: process.env.AI_REMEDIATION_AGENT_PROVIDER,
     AI_REMEDIATION_AGENT_MODEL: process.env.AI_REMEDIATION_AGENT_MODEL,
+    AI_WATCHLIST_ANALYST_PROVIDER: process.env.AI_WATCHLIST_ANALYST_PROVIDER,
+    AI_WATCHLIST_ANALYST_MODEL: process.env.AI_WATCHLIST_ANALYST_MODEL,
   };
 
   process.env.AI_PROVIDER = "openai";
@@ -228,6 +277,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
   process.env.AI_TRIAGE_AGENT_MODEL = "claude-triage";
   process.env.AI_REMEDIATION_AGENT_PROVIDER = "openai";
   process.env.AI_REMEDIATION_AGENT_MODEL = "gpt-remediation";
+  process.env.AI_WATCHLIST_ANALYST_PROVIDER = "anthropic";
+  process.env.AI_WATCHLIST_ANALYST_MODEL = "claude-watchlist";
 
   try {
     const summary = getServerAIConfigurationSummary();
@@ -236,6 +287,7 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     const digest = summary.featureConfigurations.find((item) => item.feature === "daily_digest");
     const triageAgent = summary.featureConfigurations.find((item) => item.feature === "triage_agent");
     const remediationAgent = summary.featureConfigurations.find((item) => item.feature === "remediation_agent");
+    const watchlistAnalyst = summary.featureConfigurations.find((item) => item.feature === "watchlist_analyst");
 
     assert.equal(summary.provider, "openai");
     assert.equal(summary.model, "gpt-global");
@@ -250,6 +302,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     assert.equal(triageAgent?.model, "claude-triage");
     assert.equal(remediationAgent?.provider, "openai");
     assert.equal(remediationAgent?.model, "gpt-remediation");
+    assert.equal(watchlistAnalyst?.provider, "anthropic");
+    assert.equal(watchlistAnalyst?.model, "claude-watchlist");
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {

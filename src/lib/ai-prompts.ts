@@ -52,6 +52,18 @@ export const AI_PROMPT_TEMPLATES = {
       JSON.stringify(input),
     ].join("\n"),
   } satisfies PromptTemplate<unknown>,
+  watchlist_analyst: {
+    feature: "watchlist_analyst",
+    version: "2026-03-07.watchlist.v1",
+    description: "Review watchlist changes since the last analyst pass and cluster related issues.",
+    build: (input: unknown) => [
+      "You are a watchlist analyst assistant.",
+      "Return only valid JSON matching this shape:",
+      '{"headline":"string","summary":"string","newMatches":["string"],"changedSinceLastReview":["string"],"clusters":[{"label":"string","cveIds":["string"],"summary":"string"}],"recommendedActions":["string"],"previousReviewAt":"string|null","reviewedAt":"string"}',
+      "Base your answer only on this input JSON:",
+      JSON.stringify(input),
+    ].join("\n"),
+  } satisfies PromptTemplate<unknown>,
   triage_agent: {
     feature: "triage_agent",
     version: "2026-03-07.triage.v1",
@@ -96,6 +108,10 @@ export function getDailyDigestPromptTemplate() {
 
 export function getRemediationAgentPromptTemplate() {
   return AI_PROMPT_TEMPLATES.remediation_agent;
+}
+
+export function getWatchlistAnalystPromptTemplate() {
+  return AI_PROMPT_TEMPLATES.watchlist_analyst;
 }
 
 export function getTriageAgentPromptTemplate() {

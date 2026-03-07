@@ -12,19 +12,19 @@ const AI_TOOL_REGISTRY: AIToolDefinition[] = [
     name: "search_cves",
     description: "Search CVE summaries with structured filters and prioritization.",
     access: "read",
-    features: ["search_assistant", "daily_digest"],
+    features: ["search_assistant", "daily_digest", "watchlist_analyst"],
   },
   {
     name: "fetch_cve_details",
     description: "Fetch detailed CVE records, severity data, references, and exploit context.",
     access: "read",
-    features: ["cve_insight", "daily_digest", "triage_agent", "remediation_agent"],
+    features: ["cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst"],
   },
   {
     name: "read_watchlist_state",
     description: "Read workspace watchlist records and tracked CVE identifiers.",
     access: "read",
-    features: ["daily_digest"],
+    features: ["daily_digest", "watchlist_analyst"],
   },
   {
     name: "read_alert_rule_matches",
@@ -36,7 +36,7 @@ const AI_TOOL_REGISTRY: AIToolDefinition[] = [
     name: "read_project_records",
     description: "Read project groupings, audit history, and linked CVE items.",
     access: "read",
-    features: ["cve_insight", "daily_digest", "triage_agent", "remediation_agent"],
+    features: ["cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst"],
   },
   {
     name: "write_project_records",
@@ -48,7 +48,7 @@ const AI_TOOL_REGISTRY: AIToolDefinition[] = [
     name: "read_triage_state",
     description: "Read user-scoped triage notes, ownership, tags, and workflow status.",
     access: "read",
-    features: ["cve_insight", "daily_digest", "triage_agent", "remediation_agent"],
+    features: ["cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst"],
   },
   {
     name: "write_triage_state",

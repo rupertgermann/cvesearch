@@ -292,6 +292,23 @@ export interface AIRemediationPlan {
   requiresHumanApproval: boolean;
 }
 
+export interface AIWatchlistReviewCluster {
+  label: string;
+  cveIds: string[];
+  summary: string;
+}
+
+export interface AIWatchlistReview {
+  headline: string;
+  summary: string;
+  newMatches: string[];
+  changedSinceLastReview: string[];
+  clusters: AIWatchlistReviewCluster[];
+  recommendedActions: string[];
+  previousReviewAt: string | null;
+  reviewedAt: string;
+}
+
 export type AISearchFilterField = "query" | "vendor" | "product" | "cwe" | "since" | "minSeverity" | "sort";
 
 export interface AISearchAppliedFilter {
@@ -351,7 +368,7 @@ export interface AIRunRecord {
 
 export type AIProvider = "heuristic" | "openai" | "anthropic";
 
-export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent";
+export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent" | "watchlist_analyst";
 
 export interface AISettings {
   provider: AIProvider;

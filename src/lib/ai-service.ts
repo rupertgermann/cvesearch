@@ -12,6 +12,7 @@ import {
   AISearchFilterField,
   AISearchInterpretation,
   AISearchToolTrace,
+  AIWatchlistReview,
   CVEDetail,
   EPSSData,
   ProjectRecord,
@@ -27,6 +28,7 @@ import {
   getRemediationAgentPromptTemplate,
   getSearchAssistantPromptTemplate,
   getTriageAgentPromptTemplate,
+  getWatchlistAnalystPromptTemplate,
   listPromptTemplates,
 } from "./ai-prompts";
 import { listAITools } from "./ai-tool-registry";
@@ -37,13 +39,14 @@ const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
 const SEARCH_DEFAULT_SORT: SearchSortOption = "published_desc";
 const SEARCH_DEFAULT_MIN_SEVERITY: SearchSeverityFilter = "ANY";
-const AI_FEATURES: AIFeature[] = ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent"];
+const AI_FEATURES: AIFeature[] = ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst"];
 const AI_FEATURE_ENV_SEGMENTS: Record<AIFeature, string> = {
   search_assistant: "SEARCH_ASSISTANT",
   cve_insight: "CVE_INSIGHT",
   daily_digest: "DAILY_DIGEST",
   triage_agent: "TRIAGE_AGENT",
   remediation_agent: "REMEDIATION_AGENT",
+  watchlist_analyst: "WATCHLIST_ANALYST",
 };
 
 export interface DigestInput {
@@ -61,6 +64,26 @@ export interface CveInsightInput {
 
 export type TriageSuggestionInput = CveInsightInput;
 export type RemediationPlanInput = CveInsightInput;
+
+export interface WatchlistReviewInput {
+  items: Array<{
+    id: string;
+    summary: string;
+    severity: SearchSeverityFilter | "NONE" | "UNKNOWN";
+    kev: boolean;
+    addedAt: string;
+    triageStatus: AITriageContextSnapshot["status"];
+    triageUpdatedAt: string;
+    projectNames: string[];
+    projectUpdatedAt: string | null;
+    aliases: string[];
+    relatedIds: string[];
+    affectedProducts: string[];
+    published: string;
+    modified: string;
+  }>;
+  previousReviewAt: string | null;
+}
 
 export interface ServerAIConfigurationSummary {
   provider: AIProvider;
@@ -211,6 +234,17 @@ export async function generateRemediationPlan(input: RemediationPlanInput): Prom
     prompt: promptTemplate.build(input),
     fallback: () => buildHeuristicRemediationPlan(input),
     sanitize: sanitizeRemediationPlan,
+    toolCalls: [{ tool: "prompt_template", summary: `${promptTemplate.feature}@${promptTemplate.version}` }],
+  });
+}
+
+export async function generateWatchlistReview(input: WatchlistReviewInput): Promise<AIWatchlistReview> {
+  const promptTemplate = getWatchlistAnalystPromptTemplate();
+  return executeStructuredTask({
+    feature: "watchlist_analyst",
+    prompt: promptTemplate.build(input),
+    fallback: () => buildHeuristicWatchlistReview(input),
+    sanitize: sanitizeWatchlistReview,
     toolCalls: [{ tool: "prompt_template", summary: `${promptTemplate.feature}@${promptTemplate.version}` }],
   });
 }
@@ -412,6 +446,53 @@ export function buildHeuristicRemediationPlan(input: RemediationPlanInput | CVED
   };
 }
 
+export function buildHeuristicWatchlistReview(input: WatchlistReviewInput): AIWatchlistReview {
+  const reviewedAt = new Date().toISOString();
+  const sortedItems = [...input.items].sort((left, right) => compareWatchlistRisk(right, left));
+  const previousReviewAt = input.previousReviewAt;
+  const newMatches = previousReviewAt
+    ? sortedItems.filter((item) => item.addedAt > previousReviewAt)
+    : sortedItems.slice(0, Math.min(sortedItems.length, 5));
+  const changedItems = previousReviewAt
+    ? sortedItems.filter((item) => {
+        const projectChanged = item.projectUpdatedAt ? item.projectUpdatedAt > previousReviewAt : false;
+        return item.triageUpdatedAt > previousReviewAt || projectChanged || item.modified > previousReviewAt;
+      })
+    : [];
+  const clusters = buildWatchlistClusters(sortedItems);
+  const trackedHighRisk = sortedItems.filter((item) => item.kev || item.severity === "CRITICAL" || item.severity === "HIGH").length;
+
+  return {
+    headline:
+      newMatches.length > 0
+        ? `${newMatches.length} watchlist ${newMatches.length === 1 ? "change" : "changes"} need review`
+        : trackedHighRisk > 0
+          ? `${trackedHighRisk} high-risk watchlist ${trackedHighRisk === 1 ? "item" : "items"} remain active`
+          : `Watchlist review covers ${sortedItems.length} tracked ${sortedItems.length === 1 ? "item" : "items"}`,
+    summary: previousReviewAt
+      ? `Compared the current watchlist against the last saved review from ${new Date(previousReviewAt).toLocaleString("en-US")}. Focus on newly added matches, triage changes, and related clusters that may need coordinated handling.`
+      : "No prior watchlist review was saved, so this pass establishes a first analyst baseline from the current tracked items.",
+    newMatches: newMatches.slice(0, 6).map((item) => `${item.id} • ${buildWatchlistItemSummary(item)}`),
+    changedSinceLastReview: changedItems.slice(0, 8).map((item) => {
+      const reasons: string[] = [];
+      if (previousReviewAt && item.triageUpdatedAt > previousReviewAt) {
+        reasons.push(`triage is now ${item.triageStatus}`);
+      }
+      if (previousReviewAt && item.projectUpdatedAt && item.projectUpdatedAt > previousReviewAt) {
+        reasons.push(`project context changed (${item.projectNames.join(", ")})`);
+      }
+      if (previousReviewAt && item.modified > previousReviewAt) {
+        reasons.push("upstream record was updated");
+      }
+      return `${item.id} • ${reasons.join("; ") || buildWatchlistItemSummary(item)}`;
+    }),
+    clusters,
+    recommendedActions: buildWatchlistActions(sortedItems, newMatches, changedItems, clusters),
+    previousReviewAt,
+    reviewedAt,
+  };
+}
+
 function normalizeCveInsightInput(input: CVEDetail | CveInsightInput): CveInsightInput {
   if ("detail" in input) {
     return input;
@@ -508,6 +589,104 @@ function deriveSuggestedOwner(
   }
 
   return "Security triage";
+}
+
+function compareWatchlistRisk(left: WatchlistReviewInput["items"][number], right: WatchlistReviewInput["items"][number]): number {
+  return scoreWatchlistItem(left) - scoreWatchlistItem(right);
+}
+
+function scoreWatchlistItem(item: WatchlistReviewInput["items"][number]): number {
+  const severityScore = item.severity === "CRITICAL"
+    ? 5
+    : item.severity === "HIGH"
+      ? 4
+      : item.severity === "MEDIUM"
+        ? 3
+        : item.severity === "LOW"
+          ? 2
+          : 1;
+
+  return severityScore + (item.kev ? 3 : 0) + (item.projectNames.length > 0 ? 1 : 0) + (item.triageStatus === "new" ? 1 : 0);
+}
+
+function buildWatchlistItemSummary(item: WatchlistReviewInput["items"][number]): string {
+  const parts = [item.severity.toLowerCase()];
+
+  if (item.kev) {
+    parts.push("KEV");
+  }
+
+  if (item.projectNames.length > 0) {
+    parts.push(`projects: ${item.projectNames.join(", ")}`);
+  }
+
+  parts.push(`triage: ${item.triageStatus}`);
+  return parts.join(" • ");
+}
+
+function buildWatchlistClusters(items: WatchlistReviewInput["items"]): AIWatchlistReview["clusters"] {
+  const buckets = new Map<string, WatchlistReviewInput["items"]>();
+
+  for (const item of items) {
+    const labels = new Set<string>();
+    const primaryProduct = item.affectedProducts[0];
+    if (primaryProduct) {
+      labels.add(primaryProduct.toLowerCase());
+    }
+
+    for (const relatedId of item.relatedIds.slice(0, 2)) {
+      labels.add(`cluster:${relatedId.toLowerCase()}`);
+    }
+
+    for (const label of labels) {
+      const current = buckets.get(label) ?? [];
+      current.push(item);
+      buckets.set(label, current);
+    }
+  }
+
+  return Array.from(buckets.entries())
+    .filter(([, grouped]) => grouped.length > 1)
+    .slice(0, 4)
+    .map(([label, grouped]) => ({
+      label: label.startsWith("cluster:") ? `Linked to ${label.slice("cluster:".length).toUpperCase()}` : label,
+      cveIds: Array.from(new Set(grouped.map((item) => item.id))).slice(0, 6),
+      summary: label.startsWith("cluster:")
+        ? "These watchlist entries share linked-vulnerability context and may belong in the same analyst thread."
+        : `These entries share affected product context around ${label} and may benefit from coordinated review.`,
+    }));
+}
+
+function buildWatchlistActions(
+  items: WatchlistReviewInput["items"],
+  newMatches: WatchlistReviewInput["items"],
+  changedItems: WatchlistReviewInput["items"],
+  clusters: AIWatchlistReview["clusters"]
+): string[] {
+  const actions: string[] = [];
+
+  if (newMatches.length > 0) {
+    actions.push(`Triage the ${newMatches.length} newly added watchlist ${newMatches.length === 1 ? "item" : "items"} before the next review cycle.`);
+  }
+
+  const activeCritical = items.filter((item) => item.kev || item.severity === "CRITICAL");
+  if (activeCritical.length > 0) {
+    actions.push(`Reconfirm ownership and remediation status for ${activeCritical.length} critical or known-exploited watchlist ${activeCritical.length === 1 ? "item" : "items"}.`);
+  }
+
+  if (clusters.length > 0) {
+    actions.push("Review clustered items together so duplicate investigation work and fragmented notes do not accumulate.");
+  }
+
+  if (changedItems.length > 0) {
+    actions.push("Check the entries with triage or project updates to verify the recent workflow changes still match current exposure.");
+  }
+
+  if (actions.length === 0) {
+    actions.push("No major deltas were detected; keep the watchlist stable and revisit when new items or workflow changes arrive.");
+  }
+
+  return actions.slice(0, 5);
 }
 
 function buildTriageSignals(input: {
@@ -1270,6 +1449,47 @@ function sanitizeRemediationPlan(value: unknown): AIRemediationPlan {
     ownerRationale: typeof record.ownerRationale === "string" ? record.ownerRationale : fallback.ownerRationale,
     projectContext: sanitizeProjectContext(record.projectContext, fallback.projectContext),
     requiresHumanApproval: record.requiresHumanApproval === false ? false : true,
+  };
+}
+
+function sanitizeWatchlistReview(value: unknown): AIWatchlistReview {
+  const fallback = buildHeuristicWatchlistReview({ items: [], previousReviewAt: null });
+
+  if (!value || typeof value !== "object") {
+    return fallback;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    headline: typeof record.headline === "string" ? record.headline : fallback.headline,
+    summary: typeof record.summary === "string" ? record.summary : fallback.summary,
+    newMatches: Array.isArray(record.newMatches)
+      ? record.newMatches.filter((item): item is string => typeof item === "string").slice(0, 8)
+      : fallback.newMatches,
+    changedSinceLastReview: Array.isArray(record.changedSinceLastReview)
+      ? record.changedSinceLastReview.filter((item): item is string => typeof item === "string").slice(0, 10)
+      : fallback.changedSinceLastReview,
+    clusters: Array.isArray(record.clusters)
+      ? record.clusters
+          .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+          .flatMap((item) => {
+            const label = item.label;
+            const cveIds = item.cveIds;
+            const summary = item.summary;
+            return typeof label === "string" && Array.isArray(cveIds) && typeof summary === "string"
+              ? [{
+                  label,
+                  cveIds: cveIds.filter((entry): entry is string => typeof entry === "string").slice(0, 8),
+                  summary,
+                }]
+              : [];
+          })
+      : fallback.clusters,
+    recommendedActions: Array.isArray(record.recommendedActions)
+      ? record.recommendedActions.filter((item): item is string => typeof item === "string").slice(0, 6)
+      : fallback.recommendedActions,
+    previousReviewAt: typeof record.previousReviewAt === "string" ? record.previousReviewAt : fallback.previousReviewAt,
+    reviewedAt: typeof record.reviewedAt === "string" ? record.reviewedAt : fallback.reviewedAt,
   };
 }
 

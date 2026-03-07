@@ -3,6 +3,7 @@
 ## misc stuff
 
 - [x] make the UI use 95% of the screen width
+- [ ] persist scan results in "repos" module in db. 
 
 
 ## Recommended Build Order
@@ -41,7 +42,7 @@
 - [x] improve result cards with stronger severity, EPSS, KEV, and recency cues
 - [x] add bulk actions for watchlist, triage, and project assignment
 - [x] add an AI remediation agent that drafts remediation plans, compensating controls, validation steps, and rollout notes per vulnerability
-- add an AI watchlist analyst agent that reviews new matches, clusters related issues, and highlights what changed since the last review
+- [x] add an AI watchlist analyst agent that reviews new matches, clusters related issues, and highlights what changed since the last review
 - add an AI project summary agent that turns project state into executive, analyst, and engineering summaries with different output formats
 - [x] add an AI duplicate and cluster agent that groups aliases, related advisories, and linked vulnerabilities into a shared incident view
 - add human approval checkpoints before any agent writes triage state, modifies projects, or sends notifications
@@ -117,7 +118,7 @@
 - [x] upgrade the AI search assistant from single-shot prompt interpretation to an agent that can clarify intent, inspect available filters, and build multi-step searches
 - [x] add an AI triage agent that uses CVE detail, severity, references, KEV and EPSS signals, and project context to recommend priority, ownership, and next actions
 - [x] add an AI remediation agent that drafts remediation plans, compensating controls, validation steps, and rollout notes per vulnerability
-- add an AI watchlist analyst agent that reviews new matches, clusters related issues, and highlights what changed since the last review
+- [x] add an AI watchlist analyst agent that reviews new matches, clusters related issues, and highlights what changed since the last review
 - add an AI project summary agent that turns project state into executive, analyst, and engineering summaries with different output formats
 - add an AI alert investigation agent that explains why a rule matched and proposes the next best analyst action
 - [x] add an AI duplicate and cluster agent that groups aliases, related advisories, and linked vulnerabilities into a shared incident view

@@ -5,11 +5,13 @@ export {
   buildHeuristicDigest,
   buildHeuristicRemediationPlan,
   buildHeuristicTriageSuggestion,
+  buildHeuristicWatchlistReview,
   generateCveInsight,
   generateDigest,
   generateRemediationPlan,
   generateSearchInterpretation,
   generateTriageSuggestion,
+  generateWatchlistReview,
   getRecentAIRuns,
   getServerAIConfigurationSummary,
   interpretSearchPromptHeuristically,
@@ -21,6 +23,7 @@ export type {
   RemediationPlanInput,
   ServerAIConfigurationSummary,
   TriageSuggestionInput,
+  WatchlistReviewInput,
 } from "./ai-service";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";

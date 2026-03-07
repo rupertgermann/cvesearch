@@ -136,7 +136,7 @@ function normalizeLimit(limit: number): number {
 }
 
 function isAIFeature(value: string): value is AIFeature {
-  return ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent"].includes(value);
+  return ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst"].includes(value);
 }
 
 function isAIProvider(value: string): value is AIProvider {
