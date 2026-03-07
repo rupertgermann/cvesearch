@@ -2,6 +2,7 @@
 
 import type { ChangeEvent } from "react";
 import { useRef, useState } from "react";
+import { Badge, Button, Callout, Card, Flex, Heading, Text } from "@radix-ui/themes";
 
 interface ImportResult {
   success: boolean;
@@ -86,55 +87,22 @@ export default function WorkspaceDataPanel() {
   };
 
   return (
-    <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Workspace Data</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Export or import projects, watchlist items, saved views, alert rules, and triage records for this workspace.
-        </p>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+    <Card size="3" className="border border-white/[0.06] bg-white/[0.03]">
+      <Flex justify="between" align={{ initial: "start", md: "center" }} gap="4" wrap="wrap">
         <div>
-          <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500">Import Mode</span>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setMode("merge")}
-              className={`rounded-lg border px-3 py-2 text-sm ${mode === "merge" ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200" : "border-white/[0.08] bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
-            >
-              Merge Import
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("replace")}
-              className={`rounded-lg border px-3 py-2 text-sm ${mode === "replace" ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-white/[0.08] bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
-            >
-              Replace Existing
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-gray-500">
-            `Merge` keeps current data and upserts imported records. `Replace` clears current workspace data first.
-          </p>
+          <Heading size="4" className="text-white">Workspace Data</Heading>
+          <Text as="p" size="2" color="gray" className="mt-1 max-w-3xl">
+            Export or import projects, watchlist items, saved views, alert rules, and triage records for this workspace.
+          </Text>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void handleExport()}
-            disabled={busy !== null}
-            className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
-          >
+        <Flex gap="2" wrap="wrap">
+          <Badge color={mode === "merge" ? "cyan" : "gray"} variant="soft">{mode === "merge" ? "Merge Mode" : "Replace Mode"}</Badge>
+          <Button variant="soft" color="gray" disabled={busy !== null} onClick={() => void handleExport()}>
             {busy === "export" ? "Exporting..." : "Export JSON"}
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={busy !== null}
-            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
-          >
+          </Button>
+          <Button disabled={busy !== null} onClick={() => fileInputRef.current?.click()}>
             {busy === "import" ? "Importing..." : "Import JSON"}
-          </button>
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -142,14 +110,29 @@ export default function WorkspaceDataPanel() {
             onChange={(event) => void handleImport(event)}
             className="hidden"
           />
-        </div>
-      </div>
+        </Flex>
+      </Flex>
 
-      {message && (
-        <div className={`rounded-lg border px-3 py-2 text-sm ${message.type === "error" ? "border-red-500/20 bg-red-500/10 text-red-200" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"}`}>
-          {message.text}
+      <Flex gap="2" wrap="wrap" className="mt-4">
+        <Button variant={mode === "merge" ? "solid" : "soft"} color="cyan" onClick={() => setMode("merge")}>
+          Merge Import
+        </Button>
+        <Button variant={mode === "replace" ? "solid" : "soft"} color="amber" onClick={() => setMode("replace")}>
+          Replace Existing
+        </Button>
+      </Flex>
+
+      <Text as="p" size="1" color="gray" className="mt-2">
+        `Merge` keeps current data and upserts imported records. `Replace` clears current workspace data first.
+      </Text>
+
+      {message ? (
+        <div className="mt-4">
+          <Callout.Root color={message.type === "error" ? "red" : "green"} variant="soft">
+            <Callout.Text>{message.text}</Callout.Text>
+          </Callout.Root>
         </div>
-      )}
-    </div>
+      ) : null}
+    </Card>
   );
 }

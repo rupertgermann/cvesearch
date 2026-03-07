@@ -12,6 +12,19 @@ body {
   color: var(--color-foreground);
 }
 
+.rt-Theme {
+  min-height: 100vh;
+  background: transparent;
+  color: var(--color-foreground);
+}
+
+.rt-Theme button,
+.rt-Theme input,
+.rt-Theme select,
+.rt-Theme textarea {
+  font: inherit;
+}
+
 .app-shell {
   width: 95vw;
   margin-inline: auto;

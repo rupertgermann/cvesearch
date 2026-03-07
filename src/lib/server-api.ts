@@ -4,7 +4,9 @@ import {
   applySearchResultPreferences,
   buildPresetHref,
   getSearchValidationError,
+  getExploitReferenceCount,
   hasActiveFilters,
+  hasExploitSignals,
   isDirectVulnerabilityIdQuery,
   matchesSearchState,
   wasPublishedWithinDays,
@@ -185,6 +187,30 @@ export async function getHomeDashboardData(state: SearchState): Promise<HomeDash
         sort: "risk_desc",
       }
     ).slice(0, 5);
+    const analystQueue = applySearchResultPreferences(
+      latest.filter((cve) => Boolean(cve.kev) || (cve.epss ?? 0) >= 0.2 || wasPublishedWithinDays(cve, 14)),
+      {
+        ...state,
+        minSeverity: "HIGH",
+        sort: "risk_desc",
+      }
+    ).slice(0, 4);
+    const maintainerPatchRadar = applySearchResultPreferences(
+      latest.filter((cve) => (cve.vulnerable_product?.length ?? 0) > 0),
+      {
+        ...state,
+        minSeverity: "HIGH",
+        sort: "published_desc",
+      }
+    ).slice(0, 4);
+    const incidentResponse = applySearchResultPreferences(
+      latest.filter((cve) => Boolean(cve.kev) || hasExploitSignals(cve)),
+      {
+        ...state,
+        minSeverity: "HIGH",
+        sort: "risk_desc",
+      }
+    ).slice(0, 4);
 
     return {
       summary: {
@@ -225,6 +251,47 @@ export async function getHomeDashboardData(state: SearchState): Promise<HomeDash
       latestCritical,
       highestRisk,
       recentHighImpact,
+      workflowViews: [
+        {
+          id: "analyst",
+          title: "Analyst Queue",
+          description: "Start with the vulnerabilities most likely to need fresh triage or coordination this morning.",
+          accentClassName: "border-cyan-500/25 bg-cyan-500/10 text-cyan-100",
+          href: buildPresetHref({ minSeverity: "HIGH", sort: "risk_desc" }),
+          metrics: [
+            { label: "Needs attention", value: String(analystQueue.length) },
+            { label: "KEV in queue", value: String(analystQueue.filter((cve) => Boolean(cve.kev)).length) },
+            { label: "Fresh this week", value: String(analystQueue.filter((cve) => wasPublishedWithinDays(cve, 7)).length) },
+          ],
+          cves: analystQueue,
+        },
+        {
+          id: "maintainer",
+          title: "Maintainer Patch Radar",
+          description: "Focus on recently published package issues with product exposure and enough detail to plan remediation work.",
+          accentClassName: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
+          href: buildPresetHref({ minSeverity: "HIGH", sort: "published_desc" }),
+          metrics: [
+            { label: "Patch candidates", value: String(maintainerPatchRadar.length) },
+            { label: "Product mentions", value: String(maintainerPatchRadar.reduce((sum, cve) => sum + Math.min(cve.vulnerable_product?.length ?? 0, 6), 0)) },
+            { label: "Critical now", value: String(maintainerPatchRadar.filter((cve) => (cve.cvss3 ?? cve.cvss ?? 0) >= 9).length) },
+          ],
+          cves: maintainerPatchRadar,
+        },
+        {
+          id: "incident_response",
+          title: "Incident Response Signals",
+          description: "Pull the vulnerabilities with the strongest exploitation evidence into a faster response loop.",
+          accentClassName: "border-red-500/25 bg-red-500/10 text-red-100",
+          href: buildPresetHref({ minSeverity: "HIGH", sort: "risk_desc" }),
+          metrics: [
+            { label: "Exploit-linked", value: String(incidentResponse.filter((cve) => hasExploitSignals(cve)).length) },
+            { label: "Known exploited", value: String(incidentResponse.filter((cve) => Boolean(cve.kev)).length) },
+            { label: "Exploit refs", value: String(incidentResponse.reduce((sum, cve) => sum + getExploitReferenceCount(cve), 0)) },
+          ],
+          cves: incidentResponse,
+        },
+      ],
     };
   } catch {
     return null;

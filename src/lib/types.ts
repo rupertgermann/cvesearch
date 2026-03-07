@@ -176,12 +176,28 @@ export interface DashboardSummary {
   knownExploitedCount: number;
 }
 
+export interface DashboardMetric {
+  label: string;
+  value: string;
+}
+
+export interface DashboardWorkflowView {
+  id: "analyst" | "maintainer" | "incident_response";
+  title: string;
+  description: string;
+  accentClassName: string;
+  href: string;
+  metrics: DashboardMetric[];
+  cves: CVESummary[];
+}
+
 export interface HomeDashboardData {
   summary: DashboardSummary;
   presets: DashboardPreset[];
   latestCritical: CVESummary[];
   highestRisk: CVESummary[];
   recentHighImpact: CVESummary[];
+  workflowViews: DashboardWorkflowView[];
 }
 
 export interface ProjectItem {

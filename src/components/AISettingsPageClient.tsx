@@ -1,4 +1,14 @@
 import Link from "next/link";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  Flex,
+  Grid,
+  Heading,
+  Text,
+} from "@radix-ui/themes";
 import { ServerAIConfigurationSummary } from "@/lib/ai-service";
 import { AIRunRecord } from "@/lib/types";
 import WorkspaceDataPanel from "@/components/WorkspaceDataPanel";
@@ -6,139 +16,146 @@ import WorkspaceDataPanel from "@/components/WorkspaceDataPanel";
 export default function AISettingsPageClient({ summary, recentRuns }: { summary: ServerAIConfigurationSummary; recentRuns: AIRunRecord[] }) {
   return (
     <div className="app-shell px-4 py-8 sm:px-6">
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <Flex justify="between" align={{ initial: "start", sm: "end" }} gap="4" wrap="wrap" className="mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">AI Settings</h1>
-          <p className="mt-2 text-base text-gray-500">AI features now use server-side configuration so provider credentials never need to live in the browser.</p>
+          <Heading size="8" className="text-white">AI Settings</Heading>
+          <Text as="p" size="3" color="gray" className="mt-2 max-w-3xl">
+            AI features now use server-side configuration so provider credentials never need to live in the browser.
+          </Text>
         </div>
-        <Link href="/" className="inline-flex rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white">
-          Back to Search
-        </Link>
-      </div>
+        <Button asChild variant="soft" color="gray" highContrast>
+          <Link href="/">Back to Search</Link>
+        </Button>
+      </Flex>
 
       <div className="space-y-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500">Provider</span>
-            <p className="text-sm text-white">{summary.provider}</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500">Mode</span>
-            <p className="text-sm text-white">{summary.mode === "configured" ? "Configured provider" : "Heuristic fallback"}</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 sm:col-span-2">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500">Model</span>
-            <p className="text-sm text-white">{summary.model || "Not required in heuristic mode"}</p>
-          </div>
-        </div>
+        <Grid columns={{ initial: "1", sm: "2" }} gap="4">
+          <MetricCard label="Provider" value={summary.provider} />
+          <MetricCard label="Mode" value={summary.mode === "configured" ? "Configured provider" : "Heuristic fallback"} />
+          <MetricCard label="Model" value={summary.model || "Not required in heuristic mode"} className="sm:col-span-2" />
+        </Grid>
 
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          Configure AI providers with environment variables such as `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. You can override individual flows with `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_SEARCH_ASSISTANT_MODEL`, `AI_CVE_INSIGHT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, `AI_DAILY_DIGEST_PROVIDER`, and `AI_DAILY_DIGEST_MODEL`. No provider API key is persisted in browser storage.
-        </div>
+        <Callout.Root color="amber" variant="soft">
+          <Callout.Text>
+            Configure AI providers with environment variables such as `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. You can override individual flows with `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_SEARCH_ASSISTANT_MODEL`, `AI_CVE_INSIGHT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, `AI_DAILY_DIGEST_PROVIDER`, and `AI_DAILY_DIGEST_MODEL`. No provider API key is persisted in browser storage.
+          </Callout.Text>
+        </Callout.Root>
 
-        <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-100">
-          {summary.configured
-            ? `Server-side AI is active using ${summary.provider}${summary.model ? ` (${summary.model})` : ""}.`
-            : "No server-side AI provider key is configured, so the app is using deterministic heuristic fallbacks."}
-        </div>
+        <Callout.Root color={summary.configured ? "cyan" : "gray"} variant="soft">
+          <Callout.Text>
+            {summary.configured
+              ? `Server-side AI is active using ${summary.provider}${summary.model ? ` (${summary.model})` : ""}.`
+              : "No server-side AI provider key is configured, so the app is using deterministic heuristic fallbacks."}
+          </Callout.Text>
+        </Callout.Root>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-gray-500">
+        <Flex justify="between" align="center" wrap="wrap" gap="3">
+          <Text size="2" color="gray">
             {summary.availableProviders.length > 0
               ? `Available providers: ${summary.availableProviders.join(", ")}`
               : "No model provider credentials detected on the server."}
-          </span>
-        </div>
-
-        <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Per-Feature Configuration</h2>
-            <p className="mt-1 text-sm text-gray-500">Each AI flow can inherit the global server configuration or override it with feature-specific provider and model settings.</p>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            {summary.featureConfigurations.map((featureConfig) => (
-              <div key={featureConfig.feature} className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium text-white">{featureConfig.feature}</h3>
-                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-gray-300">{featureConfig.mode === "configured" ? "Configured" : "Heuristic"}</span>
-                </div>
-                <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <p>
-                    <span className="text-gray-500">Provider:</span> {featureConfig.provider}
-                  </p>
-                  <p>
-                    <span className="text-gray-500">Model:</span> {featureConfig.model || "Not required in heuristic mode"}
-                  </p>
-                </div>
-              </div>
+          </Text>
+          <Flex gap="2" wrap="wrap">
+            {summary.availableProviders.map((provider) => (
+              <Badge key={provider} color="cyan" variant="soft">{provider}</Badge>
             ))}
-          </div>
-        </div>
+          </Flex>
+        </Flex>
 
-        <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-          <WorkspaceDataPanel />
-        </div>
+        <Card size="3" className="border border-white/[0.06] bg-white/[0.03]">
+          <Heading size="4" className="text-white">Per-Feature Configuration</Heading>
+          <Text as="p" size="2" color="gray" className="mt-1">
+            Each AI flow can inherit the global server configuration or override it with feature-specific provider and model settings.
+          </Text>
 
-        <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Recent AI Runs</h2>
-              <p className="mt-1 text-sm text-gray-500">Read-only history of recent prompts, outcomes, tool traces, and failures.</p>
-            </div>
-          </div>
+          <Grid columns={{ initial: "1", md: "3" }} gap="3" className="mt-4">
+            {summary.featureConfigurations.map((featureConfig) => (
+              <Card key={featureConfig.feature} size="2" className="border border-white/[0.06] bg-black/20">
+                <Flex justify="between" align="center" gap="2">
+                  <Heading size="3" className="text-white">{featureConfig.feature}</Heading>
+                  <Badge color={featureConfig.mode === "configured" ? "cyan" : "gray"} variant="soft">
+                    {featureConfig.mode === "configured" ? "Configured" : "Heuristic"}
+                  </Badge>
+                </Flex>
+                <div className="mt-3 space-y-2">
+                  <Text as="p" size="2" className="text-gray-300"><span className="text-gray-500">Provider:</span> {featureConfig.provider}</Text>
+                  <Text as="p" size="2" className="text-gray-300"><span className="text-gray-500">Model:</span> {featureConfig.model || "Not required in heuristic mode"}</Text>
+                </div>
+              </Card>
+            ))}
+          </Grid>
+        </Card>
+
+        <WorkspaceDataPanel />
+
+        <Card size="3" className="border border-white/[0.06] bg-white/[0.03]">
+          <Heading size="4" className="text-white">Recent AI Runs</Heading>
+          <Text as="p" size="2" color="gray" className="mt-1">
+            Read-only history of recent prompts, outcomes, tool traces, and failures.
+          </Text>
 
           {recentRuns.length > 0 ? (
-            <div className="space-y-3">
+            <div className="mt-4 space-y-3">
               {recentRuns.map((run) => (
-                <div key={run.id} className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-300">{run.feature}</span>
-                    <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-gray-300">{run.status}</span>
-                    <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-gray-400">{run.provider}{run.model ? ` • ${run.model}` : ""}</span>
-                    <span className="text-xs text-gray-500">{new Date(run.createdAt).toLocaleString("en-US")}</span>
-                    <span className="text-xs text-gray-500">{run.durationMs}ms</span>
-                  </div>
+                <Card key={run.id} size="2" className="border border-white/[0.06] bg-black/20">
+                  <Flex gap="2" wrap="wrap" align="center">
+                    <Badge color="cyan" variant="soft">{run.feature}</Badge>
+                    <Badge color={run.status === "error" ? "red" : run.status === "fallback" ? "amber" : "green"} variant="soft">{run.status}</Badge>
+                    <Badge color="gray" variant="soft">{run.provider}{run.model ? ` • ${run.model}` : ""}</Badge>
+                    <Text size="1" color="gray">{new Date(run.createdAt).toLocaleString("en-US")}</Text>
+                    <Text size="1" color="gray">{run.durationMs}ms</Text>
+                  </Flex>
 
                   <div className="mt-3 grid gap-3">
-                    <div>
-                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Prompt</h3>
-                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-300">{run.prompt}</pre>
-                    </div>
-
-                    <div>
-                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Output</h3>
-                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-300">{run.output}</pre>
-                    </div>
+                    <RunBlock title="Prompt" value={run.prompt} />
+                    <RunBlock title="Output" value={run.output} />
 
                     {run.toolCalls.length > 0 ? (
                       <div>
-                        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Tool Calls</h3>
-                        <ul className="mt-2 space-y-2 text-xs text-gray-300">
+                        <Text size="1" weight="bold" className="uppercase tracking-wider text-gray-500">Tool Calls</Text>
+                        <div className="mt-2 space-y-2">
                           {run.toolCalls.map((call) => (
-                            <li key={`${run.id}-${call.tool}`} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                            <div key={`${run.id}-${call.tool}`} className="rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-300">
                               <span className="font-medium text-white">{call.tool}</span>
                               <span className="text-gray-400"> — {call.summary}</span>
-                            </li>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       </div>
                     ) : null}
 
                     {run.error ? (
-                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                        {run.error}
-                      </div>
+                      <Callout.Root color="amber" variant="soft">
+                        <Callout.Text>{run.error}</Callout.Text>
+                      </Callout.Root>
                     ) : null}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No AI runs have been recorded yet.</p>
+            <Text as="p" size="2" color="gray" className="mt-4">No AI runs have been recorded yet.</Text>
           )}
-        </div>
+        </Card>
       </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, className = "" }: { label: string; value: string; className?: string }) {
+  return (
+    <Card size="2" className={`border border-white/[0.06] bg-white/[0.03] ${className}`.trim()}>
+      <Text as="p" size="1" weight="bold" className="uppercase tracking-wider text-gray-500">{label}</Text>
+      <Text as="p" size="3" className="mt-2 text-white">{value}</Text>
+    </Card>
+  );
+}
+
+function RunBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <div>
+      <Text size="1" weight="bold" className="uppercase tracking-wider text-gray-500">{title}</Text>
+      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-300">{value}</pre>
     </div>
   );
 }

@@ -49,8 +49,8 @@
 
 ### Build Later
 
-- integrate Radix UI primitives/theme for a more consistent UI system
-- add richer dashboard views for analysts, maintainers, and incident response workflows
+- [x] integrate Radix UI primitives/theme for a more consistent UI system
+- [x] add richer dashboard views for analysts, maintainers, and incident response workflows
 - add better empty states, skeleton states, and success/error feedback across the app
 - [x] add import/export for projects, triage state, saved views, and watchlists
 - expand project management with owners, due dates, labels, status, and timeline views
@@ -82,8 +82,8 @@
 
 ## Product and UX
 
-- integrate Radix UI primitives/theme for a more consistent UI system
-- add richer dashboard views for analysts, maintainers, and incident response workflows
+- [x] integrate Radix UI primitives/theme for a more consistent UI system
+- [x] add richer dashboard views for analysts, maintainers, and incident response workflows
 - [x] improve result cards with stronger severity, EPSS, KEV, and recency cues
 - [x] add better empty states, skeleton states, and success/error feedback across the app
 - [x] add bulk actions for watchlist, triage, and project assignment
