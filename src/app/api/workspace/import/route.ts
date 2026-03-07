@@ -5,7 +5,7 @@ import { importProjects } from "@/lib/projects-store";
 import { createDefaultTriageRecord, normalizeTriageRecord, TriageRecord } from "@/lib/triage-shared";
 import { ProjectRecord } from "@/lib/types";
 import { importWorkspaceStateForUser } from "@/lib/workspace-store";
-import { AlertRule, SavedView, WorkspaceImportMode } from "@/lib/workspace-types";
+import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "@/lib/workspace-types";
 
 export const POST = withRouteProtection(async function POST(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
@@ -26,6 +26,9 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
   const alertRules = Array.isArray(snapshot.alertRules)
     ? snapshot.alertRules.flatMap((value: unknown) => (isAlertRule(value) ? [value] : []))
     : [];
+  const inventoryAssets = Array.isArray(snapshot.inventoryAssets)
+    ? snapshot.inventoryAssets.flatMap((value: unknown) => (isInventoryAsset(value) ? [value] : []))
+    : [];
   const triageRecords = Array.isArray(snapshot.triageRecords)
     ? snapshot.triageRecords.flatMap((value: unknown) => (isTriageRecord(value) ? [normalizeTriageRecord(value)] : []))
     : [];
@@ -39,6 +42,7 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
       watchlist,
       savedViews,
       alertRules,
+      inventoryAssets,
       triageRecords,
     },
     mode
@@ -52,6 +56,7 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
       watchlist: watchlist.length,
       savedViews: savedViews.length,
       alertRules: alertRules.length,
+      inventoryAssets: inventoryAssets.length,
       triageRecords: triageRecords.length,
       projects: projects.length,
     },
@@ -76,6 +81,24 @@ function isAlertRule(value: unknown): value is AlertRule {
     && typeof (value as Record<string, unknown>).id === "string"
     && typeof (value as Record<string, unknown>).name === "string"
     && typeof (value as Record<string, unknown>).search === "object";
+}
+
+function isInventoryAsset(value: unknown): value is InventoryAssetRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "string"
+    && typeof record.name === "string"
+    && typeof record.vendor === "string"
+    && typeof record.product === "string"
+    && typeof record.version === "string"
+    && typeof record.environment === "string"
+    && typeof record.criticality === "string"
+    && typeof record.notes === "string"
+    && typeof record.createdAt === "string"
+    && typeof record.updatedAt === "string";
 }
 
 function isTriageRecord(value: unknown): value is TriageRecord {

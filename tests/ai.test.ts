@@ -4,6 +4,7 @@ import {
   buildHeuristicAlertInvestigation,
   buildHeuristicCveInsight,
   buildHeuristicDigest,
+  buildHeuristicExposureAssessment,
   buildHeuristicProjectSummary,
   buildHeuristicRemediationPlan,
   buildHeuristicTriageSuggestion,
@@ -336,6 +337,45 @@ test("buildHeuristicAlertInvestigation explains matches and recommends follow-up
   assert.match(result.recommendedAction, /unread|review/i);
 });
 
+test("buildHeuristicExposureAssessment maps CVEs to tracked inventory assets", () => {
+  const result = buildHeuristicExposureAssessment({
+    detail: {
+      id: "CVE-2026-9001",
+      cvss3: 9.0,
+      summary: "Critical issue in Acme Gateway",
+      containers: {
+        cna: {
+          affected: [{ vendor: "Acme", product: "Gateway" }],
+        },
+      },
+      vulnerable_product: ["acme:gateway:1.2.3"],
+    },
+    triage: {
+      status: "investigating",
+      owner: "edge-security",
+      notes: "Public entry point",
+      tags: ["internet-facing"],
+      updatedAt: "2026-03-07T12:00:00.000Z",
+    },
+    relatedProjects: [{ name: "Gateway Platform", updatedAt: "2026-03-07T12:00:00.000Z", items: [{ cveId: "CVE-2026-9001", addedAt: "2026-03-07T11:00:00.000Z" }] }],
+    inventoryAssets: [{
+      id: "asset-1",
+      name: "Public API Gateway",
+      vendor: "Acme",
+      product: "Gateway",
+      version: "1.2.x",
+      environment: "production",
+      criticality: "critical",
+      notes: "Customer-facing edge entry point",
+    }],
+  });
+
+  assert.equal(result.likelyImpact, "critical");
+  assert.equal(result.matchedAssets.length, 1);
+  assert.equal(result.matchedAssets[0]?.assetName, "Public API Gateway");
+  assert.equal(result.recommendedActions.length >= 2, true);
+});
+
 test("preparePromptInputForFeature redacts sensitive notes and project metadata for external providers", () => {
   const previous = {
     AI_PROVIDER: process.env.AI_PROVIDER,
@@ -405,6 +445,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     AI_PROJECT_SUMMARY_MODEL: process.env.AI_PROJECT_SUMMARY_MODEL,
     AI_ALERT_INVESTIGATION_PROVIDER: process.env.AI_ALERT_INVESTIGATION_PROVIDER,
     AI_ALERT_INVESTIGATION_MODEL: process.env.AI_ALERT_INVESTIGATION_MODEL,
+    AI_EXPOSURE_AGENT_PROVIDER: process.env.AI_EXPOSURE_AGENT_PROVIDER,
+    AI_EXPOSURE_AGENT_MODEL: process.env.AI_EXPOSURE_AGENT_MODEL,
     AI_ALLOW_SENSITIVE_MODEL_DATA: process.env.AI_ALLOW_SENSITIVE_MODEL_DATA,
   };
 
@@ -429,6 +471,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
   process.env.AI_PROJECT_SUMMARY_MODEL = "gpt-project";
   process.env.AI_ALERT_INVESTIGATION_PROVIDER = "anthropic";
   process.env.AI_ALERT_INVESTIGATION_MODEL = "claude-alerts";
+  process.env.AI_EXPOSURE_AGENT_PROVIDER = "openai";
+  process.env.AI_EXPOSURE_AGENT_MODEL = "gpt-exposure";
   delete process.env.AI_ALLOW_SENSITIVE_MODEL_DATA;
 
   try {
@@ -441,6 +485,7 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     const watchlistAnalyst = summary.featureConfigurations.find((item) => item.feature === "watchlist_analyst");
     const projectSummary = summary.featureConfigurations.find((item) => item.feature === "project_summary");
     const alertInvestigation = summary.featureConfigurations.find((item) => item.feature === "alert_investigation");
+    const exposureAgent = summary.featureConfigurations.find((item) => item.feature === "exposure_agent");
 
     assert.equal(summary.provider, "openai");
     assert.equal(summary.model, "gpt-global");
@@ -463,6 +508,8 @@ test("getServerAIConfigurationSummary applies per-feature provider and model ove
     assert.equal(projectSummary?.model, "gpt-project");
     assert.equal(alertInvestigation?.provider, "anthropic");
     assert.equal(alertInvestigation?.model, "claude-alerts");
+    assert.equal(exposureAgent?.provider, "openai");
+    assert.equal(exposureAgent?.model, "gpt-exposure");
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {

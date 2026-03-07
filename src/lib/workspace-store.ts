@@ -6,7 +6,7 @@ import {
   normalizeTriageRecord,
   TriageRecord,
 } from "./triage-shared";
-import { AlertRule, SavedView, WorkspaceImportMode } from "./workspace-types";
+import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
 
 export async function listWatchlist(userId: string): Promise<string[]> {
   const rows = getDb().prepare(`
@@ -168,6 +168,103 @@ export async function markAllAlertRulesCheckedForUser(userId: string): Promise<A
   return listAlertRulesForUser(userId);
 }
 
+export async function listInventoryAssetsForUser(userId: string): Promise<InventoryAssetRecord[]> {
+  const rows = getDb().prepare(`
+    SELECT
+      id,
+      name,
+      vendor,
+      product,
+      version,
+      environment,
+      criticality,
+      notes,
+      created_at as createdAt,
+      updated_at as updatedAt
+    FROM user_inventory_assets
+    WHERE user_id = ?
+    ORDER BY updated_at DESC, created_at DESC
+  `).all(userId) as Array<Record<string, string>>;
+
+  return rows.map(normalizeInventoryAssetRow);
+}
+
+export async function createInventoryAssetForUser(
+  userId: string,
+  input: Omit<InventoryAssetRecord, "id" | "createdAt" | "updatedAt">
+): Promise<InventoryAssetRecord> {
+  const now = new Date().toISOString();
+  const record = normalizeInventoryAsset({
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    ...input,
+  });
+
+  getDb().prepare(`
+    INSERT INTO user_inventory_assets (
+      id, user_id, name, vendor, product, version, environment, criticality, notes, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    record.id,
+    userId,
+    record.name,
+    record.vendor,
+    record.product,
+    record.version,
+    record.environment,
+    record.criticality,
+    record.notes,
+    record.createdAt,
+    record.updatedAt
+  );
+
+  return record;
+}
+
+export async function updateInventoryAssetForUser(
+  userId: string,
+  id: string,
+  input: Partial<Omit<InventoryAssetRecord, "id" | "createdAt" | "updatedAt">>
+): Promise<InventoryAssetRecord | null> {
+  const existing = await getInventoryAssetForUser(userId, id);
+  if (!existing) {
+    return null;
+  }
+
+  const next = normalizeInventoryAsset({
+    ...existing,
+    ...input,
+    id,
+    createdAt: existing.createdAt,
+    updatedAt: new Date().toISOString(),
+  });
+
+  getDb().prepare(`
+    UPDATE user_inventory_assets
+    SET name = ?, vendor = ?, product = ?, version = ?, environment = ?, criticality = ?, notes = ?, updated_at = ?
+    WHERE user_id = ? AND id = ?
+  `).run(
+    next.name,
+    next.vendor,
+    next.product,
+    next.version,
+    next.environment,
+    next.criticality,
+    next.notes,
+    next.updatedAt,
+    userId,
+    id
+  );
+
+  return next;
+}
+
+export async function deleteInventoryAssetForUser(userId: string, id: string): Promise<boolean> {
+  const result = getDb().prepare("DELETE FROM user_inventory_assets WHERE user_id = ? AND id = ?").run(userId, id);
+  return result.changes > 0;
+}
+
 export async function readTriageMapForUser(userId: string): Promise<Record<string, TriageRecord>> {
   const rows = getDb().prepare(`
     SELECT cve_id as cveId, status, owner, notes, tags_json as tagsJson, updated_at as updatedAt, activity_json as activityJson
@@ -271,6 +368,7 @@ export async function importWorkspaceStateForUser(
     watchlist: string[];
     savedViews: SavedView[];
     alertRules: AlertRule[];
+    inventoryAssets: InventoryAssetRecord[];
     triageRecords: TriageRecord[];
   },
   mode: WorkspaceImportMode
@@ -280,6 +378,7 @@ export async function importWorkspaceStateForUser(
       db.prepare("DELETE FROM user_watchlist WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_saved_views WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_alert_rules WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM user_inventory_assets WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_triage_records WHERE user_id = ?").run(userId);
     }
 
@@ -294,6 +393,11 @@ export async function importWorkspaceStateForUser(
     const insertAlertRule = db.prepare(`
       INSERT OR REPLACE INTO user_alert_rules (id, user_id, name, search_json, created_at, last_checked_at)
       VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const insertInventoryAsset = db.prepare(`
+      INSERT OR REPLACE INTO user_inventory_assets (
+        id, user_id, name, vendor, product, version, environment, criticality, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertTriage = db.prepare(`
       INSERT OR REPLACE INTO user_triage_records (
@@ -326,6 +430,22 @@ export async function importWorkspaceStateForUser(
       );
     }
 
+    for (const asset of input.inventoryAssets.map(normalizeInventoryAsset)) {
+      insertInventoryAsset.run(
+        asset.id || crypto.randomUUID(),
+        userId,
+        asset.name,
+        asset.vendor,
+        asset.product,
+        asset.version,
+        asset.environment,
+        asset.criticality,
+        asset.notes,
+        asset.createdAt,
+        asset.updatedAt
+      );
+    }
+
     for (const triageRecord of input.triageRecords) {
       const normalized = normalizeTriageRecord(triageRecord);
       insertTriage.run(
@@ -340,6 +460,26 @@ export async function importWorkspaceStateForUser(
       );
     }
   });
+}
+
+async function getInventoryAssetForUser(userId: string, id: string): Promise<InventoryAssetRecord | null> {
+  const row = getDb().prepare(`
+    SELECT
+      id,
+      name,
+      vendor,
+      product,
+      version,
+      environment,
+      criticality,
+      notes,
+      created_at as createdAt,
+      updated_at as updatedAt
+    FROM user_inventory_assets
+    WHERE user_id = ? AND id = ?
+  `).get(userId, id) as Record<string, string> | undefined;
+
+  return row ? normalizeInventoryAssetRow(row) : null;
 }
 
 function parseSearchState(raw: string): SearchState | null {
@@ -357,6 +497,40 @@ function parseStringArray(raw: string): string[] {
   } catch {
     return [];
   }
+}
+
+function normalizeInventoryAssetRow(row: Record<string, string>): InventoryAssetRecord {
+  return normalizeInventoryAsset({
+    id: row.id,
+    name: row.name,
+    vendor: row.vendor,
+    product: row.product,
+    version: row.version,
+    environment: row.environment,
+    criticality: row.criticality as InventoryAssetRecord["criticality"],
+    notes: row.notes,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  });
+}
+
+function normalizeInventoryAsset(asset: InventoryAssetRecord): InventoryAssetRecord {
+  return {
+    id: asset.id,
+    name: asset.name.trim() || "Unnamed asset",
+    vendor: asset.vendor.trim(),
+    product: asset.product.trim(),
+    version: asset.version.trim(),
+    environment: asset.environment.trim() || "production",
+    criticality: isInventoryCriticality(asset.criticality) ? asset.criticality : "medium",
+    notes: asset.notes.trim(),
+    createdAt: asset.createdAt || new Date().toISOString(),
+    updatedAt: asset.updatedAt || new Date().toISOString(),
+  };
+}
+
+function isInventoryCriticality(value: string): value is InventoryAssetRecord["criticality"] {
+  return value === "critical" || value === "high" || value === "medium" || value === "low";
 }
 
 function parseAuditTrail(raw: string): TriageRecord["activity"] {

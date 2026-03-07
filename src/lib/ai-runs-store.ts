@@ -202,7 +202,7 @@ function getModelPricing(provider: string, model: string): { inputPerMillionUsd:
 }
 
 function isAIFeature(value: string): value is AIFeature {
-  return ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary", "alert_investigation"].includes(value);
+  return ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary", "alert_investigation", "exposure_agent"].includes(value);
 }
 
 function isAIProvider(value: string): value is AIProvider {

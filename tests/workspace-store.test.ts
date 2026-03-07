@@ -5,9 +5,11 @@ import path from "node:path";
 import test from "node:test";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
 import {
+  createInventoryAssetForUser,
   createAlertRuleForUser,
   createSavedViewForUser,
   importWorkspaceStateForUser,
+  listInventoryAssetsForUser,
   listAlertRulesForUser,
   listSavedViewsForUser,
   listWatchlist,
@@ -58,15 +60,26 @@ test("workspace stores are isolated per session user", async () => {
       tags: ["internet-facing"],
       updatedAt: new Date().toISOString(),
     });
+    await createInventoryAssetForUser(sessionA.userId, {
+      name: "Public OpenSSL Gateway",
+      vendor: "OpenSSL",
+      product: "openssl",
+      version: "3.0.x",
+      environment: "production",
+      criticality: "critical",
+      notes: "Public traffic terminates here",
+    });
 
     assert.deepEqual(await listWatchlist(sessionA.userId), ["CVE-2026-1111"]);
     assert.equal((await listSavedViewsForUser(sessionA.userId)).length, 1);
     assert.equal((await listAlertRulesForUser(sessionA.userId)).length, 1);
+    assert.equal((await listInventoryAssetsForUser(sessionA.userId)).length, 1);
     assert.equal((await readTriageRecordForUser(sessionA.userId, "CVE-2026-1111")).status, "investigating");
 
     assert.deepEqual(await listWatchlist(sessionB.userId), []);
     assert.equal((await listSavedViewsForUser(sessionB.userId)).length, 0);
     assert.equal((await listAlertRulesForUser(sessionB.userId)).length, 0);
+    assert.equal((await listInventoryAssetsForUser(sessionB.userId)).length, 0);
     assert.equal((await readTriageRecordForUser(sessionB.userId, "CVE-2026-1111")).status, "new");
   } finally {
     if (previousDatabaseFile === undefined) {
@@ -103,6 +116,18 @@ test("workspace import supports replace mode for user data and projects", async 
         createdAt: new Date().toISOString(),
         lastCheckedAt: null,
       }],
+      inventoryAssets: [{
+        id: "asset-1",
+        name: "Gateway",
+        vendor: "Acme",
+        product: "gateway",
+        version: "1.2.x",
+        environment: "production",
+        criticality: "high",
+        notes: "Public edge",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }],
       triageRecords: [{
         ...createDefaultTriageRecord("CVE-2026-1234"),
         status: "mitigated",
@@ -123,6 +148,7 @@ test("workspace import supports replace mode for user data and projects", async 
     assert.deepEqual(await listWatchlist(session.userId), ["CVE-2026-1234"]);
     assert.equal((await listSavedViewsForUser(session.userId))[0]?.name, "Critical");
     assert.equal((await listAlertRulesForUser(session.userId))[0]?.name, "Critical Alert");
+    assert.equal((await listInventoryAssetsForUser(session.userId))[0]?.name, "Gateway");
     assert.equal((await readTriageRecordForUser(session.userId, "CVE-2026-1234")).status, "mitigated");
     assert.equal((await listProjects())[0]?.name, "Imported Project");
   } finally {

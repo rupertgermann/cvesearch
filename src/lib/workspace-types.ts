@@ -17,12 +17,26 @@ export interface AlertRule {
   lastCheckedAt: string | null;
 }
 
+export interface InventoryAssetRecord {
+  id: string;
+  name: string;
+  vendor: string;
+  product: string;
+  version: string;
+  environment: string;
+  criticality: "critical" | "high" | "medium" | "low";
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface WorkspaceExportSnapshot {
   version: 1;
   exportedAt: string;
   watchlist: string[];
   savedViews: SavedView[];
   alertRules: AlertRule[];
+  inventoryAssets: InventoryAssetRecord[];
   triageRecords: TriageRecord[];
   projects: ProjectRecord[];
 }

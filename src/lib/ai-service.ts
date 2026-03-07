@@ -2,6 +2,7 @@ import {
   AIAlertInvestigation,
   AICveInsight,
   AIDigest,
+  AIExposureAssessment,
   AIFeature,
   AIProjectSummary,
   AIRemediationPlan,
@@ -28,6 +29,7 @@ import {
   getAlertInvestigationPromptTemplate,
   getCveInsightPromptTemplate,
   getDailyDigestPromptTemplate,
+  getExposureAgentPromptTemplate,
   getProjectSummaryPromptTemplate,
   getRemediationAgentPromptTemplate,
   getSearchAssistantPromptTemplate,
@@ -43,7 +45,7 @@ const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
 const SEARCH_DEFAULT_SORT: SearchSortOption = "published_desc";
 const SEARCH_DEFAULT_MIN_SEVERITY: SearchSeverityFilter = "ANY";
-const AI_FEATURES: AIFeature[] = ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary", "alert_investigation"];
+const AI_FEATURES: AIFeature[] = ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary", "alert_investigation", "exposure_agent"];
 const AI_FEATURE_ENV_SEGMENTS: Record<AIFeature, string> = {
   search_assistant: "SEARCH_ASSISTANT",
   cve_insight: "CVE_INSIGHT",
@@ -53,6 +55,7 @@ const AI_FEATURE_ENV_SEGMENTS: Record<AIFeature, string> = {
   watchlist_analyst: "WATCHLIST_ANALYST",
   project_summary: "PROJECT_SUMMARY",
   alert_investigation: "ALERT_INVESTIGATION",
+  exposure_agent: "EXPOSURE_AGENT",
 };
 
 export interface DigestInput {
@@ -120,6 +123,22 @@ export interface AlertInvestigationInput {
     published: string;
     modified: string;
     unread: boolean;
+  }>;
+}
+
+export interface ExposureAssessmentInput {
+  detail: CVEDetail;
+  triage: AITriageContextSnapshot | null;
+  relatedProjects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[];
+  inventoryAssets: Array<{
+    id: string;
+    name: string;
+    vendor: string;
+    product: string;
+    version: string;
+    environment: string;
+    criticality: "critical" | "high" | "medium" | "low";
+    notes: string;
   }>;
 }
 
@@ -264,6 +283,8 @@ export function preparePromptInputForFeature<T>(feature: AIFeature, input: T): T
       return redactWatchlistReviewInput(input as WatchlistReviewInput) as T;
     case "project_summary":
       return redactProjectSummaryInput(input as ProjectSummaryInput) as T;
+    case "exposure_agent":
+      return redactExposureAssessmentInput(input as ExposureAssessmentInput) as T;
     default:
       return input;
   }
@@ -331,6 +352,17 @@ export async function generateAlertInvestigation(input: AlertInvestigationInput)
     prompt: promptTemplate.build(preparePromptInputForFeature("alert_investigation", input)),
     fallback: () => buildHeuristicAlertInvestigation(input),
     sanitize: sanitizeAlertInvestigation,
+    toolCalls: [{ tool: "prompt_template", summary: `${promptTemplate.feature}@${promptTemplate.version}` }],
+  });
+}
+
+export async function generateExposureAssessment(input: ExposureAssessmentInput): Promise<AIExposureAssessment> {
+  const promptTemplate = getExposureAgentPromptTemplate();
+  return executeStructuredTask({
+    feature: "exposure_agent",
+    prompt: promptTemplate.build(preparePromptInputForFeature("exposure_agent", input)),
+    fallback: () => buildHeuristicExposureAssessment(input),
+    sanitize: sanitizeExposureAssessment,
     toolCalls: [{ tool: "prompt_template", summary: `${promptTemplate.feature}@${promptTemplate.version}` }],
   });
 }
@@ -681,6 +713,97 @@ function buildAlertMatchRationale(match: AlertInvestigationInput["matches"][numb
   return parts.join(" • ");
 }
 
+export function buildHeuristicExposureAssessment(input: ExposureAssessmentInput): AIExposureAssessment {
+  const severity = getSeverityFromScore(input.detail.cvss3 ?? input.detail.cvss);
+  const productSignals = new Set<string>([
+    ...(input.detail.vulnerable_product ?? []),
+    ...((input.detail.containers?.cna?.affected ?? []).flatMap((item) => [item.vendor, item.product].filter((value): value is string => Boolean(value)))),
+  ].map((value) => value.toLowerCase()));
+  const matchedAssets = input.inventoryAssets.flatMap((asset) => {
+    const signals: string[] = [];
+    const vendor = asset.vendor.toLowerCase();
+    const product = asset.product.toLowerCase();
+
+    if (vendor && Array.from(productSignals).some((value) => value.includes(vendor))) {
+      signals.push(`vendor match: ${asset.vendor}`);
+    }
+
+    if (product && Array.from(productSignals).some((value) => value.includes(product))) {
+      signals.push(`product match: ${asset.product}`);
+    }
+
+    const noteSignal = asset.notes && /internet|public|customer|edge|prod/i.test(asset.notes)
+      ? [`asset note suggests exposure: ${truncateSentence(asset.notes, 80)}`]
+      : [];
+    signals.push(...noteSignal);
+
+    if (signals.length === 0) {
+      return [];
+    }
+
+    const confidence: "high" | "medium" | "low" = signals.length > 1 ? "high" : asset.vendor || asset.product ? "medium" : "low";
+
+    return [{
+      assetId: asset.id,
+      assetName: asset.name,
+      confidence,
+      rationale: `${asset.name} matches the CVE metadata through ${signals.join(", ")}.`,
+      matchingSignals: signals,
+      criticality: asset.criticality,
+      environment: asset.environment,
+    }];
+  });
+
+  const highestCriticality = matchedAssets.some((asset) => asset.criticality === "critical")
+    ? "critical"
+    : matchedAssets.some((asset) => asset.criticality === "high")
+      ? "high"
+      : matchedAssets.some((asset) => asset.criticality === "medium")
+        ? "medium"
+        : "low";
+  const likelyImpact = input.detail.kev || severity === "CRITICAL"
+    ? highestCriticality === "low" ? "high" : highestCriticality
+    : severity === "HIGH"
+      ? highestCriticality === "critical" ? "critical" : highestCriticality === "low" ? "medium" : highestCriticality
+      : matchedAssets.length > 0 ? highestCriticality : "low";
+
+  return {
+    summary: matchedAssets.length > 0
+      ? `${extractCVEId(input.detail)} likely affects ${matchedAssets.length} tracked ${matchedAssets.length === 1 ? "asset" : "assets"}, with ${likelyImpact} estimated internal impact.`
+      : `${extractCVEId(input.detail)} does not currently match tracked inventory assets, so likely internal impact remains low until more asset data is mapped.`,
+    likelyImpact,
+    matchedAssets: matchedAssets.map((asset) => ({
+      assetId: asset.assetId,
+      assetName: asset.assetName,
+      confidence: asset.confidence,
+      rationale: asset.rationale,
+      matchingSignals: asset.matchingSignals,
+    })).slice(0, 6),
+    rationale: [
+      matchedAssets.length > 0
+        ? `Inventory matching found ${matchedAssets.length} asset ${matchedAssets.length === 1 ? "mapping" : "mappings"} using vendor, product, and environment notes.`
+        : "No vendor or product overlap was found between the CVE metadata and your tracked inventory assets.",
+      input.relatedProjects.length > 0
+        ? `The CVE is also linked to ${input.relatedProjects.length} tracked ${input.relatedProjects.length === 1 ? "project" : "projects"}, which increases confidence that the issue matters internally.`
+        : "No tracked project is currently linked to this CVE.",
+      input.triage?.status === "investigating"
+        ? "The current triage state is already investigating, which suggests this issue has active analyst attention."
+        : "Triage state does not yet confirm active internal investigation.",
+    ],
+    recommendedActions: [
+      matchedAssets.length > 0
+        ? `Confirm deployed versions for ${matchedAssets.slice(0, 3).map((asset) => asset.assetName).join(", ")} and attach evidence to triage notes.`
+        : "Add or refine inventory mappings for key vendors and products so exposure decisions do not rely on inference alone.",
+      input.detail.kev || severity === "CRITICAL"
+        ? "Escalate validation for internet-facing or business-critical systems before the next review cycle."
+        : "Validate whether the vulnerable component is present before committing remediation time.",
+      input.relatedProjects.length > 0
+        ? "Coordinate with the owning project teams to confirm whether the matched assets are part of active remediation plans."
+        : "Link the CVE to a project if remediation work becomes active.",
+    ],
+  };
+}
+
 function shouldRedactPromptInput(runtime: AIRuntimeSettings): boolean {
   return runtime.provider !== "heuristic" && !isSensitiveModelDataAllowed();
 }
@@ -742,6 +865,29 @@ function redactProjectSummaryInput(input: ProjectSummaryInput): ProjectSummaryIn
     items: input.items.map((item) => ({
       ...item,
       owner: redactSensitiveString(item.owner, "[redacted owner]"),
+    })),
+  };
+}
+
+function redactExposureAssessmentInput(input: ExposureAssessmentInput): ExposureAssessmentInput {
+  return {
+    ...input,
+    triage: input.triage
+      ? {
+          ...input.triage,
+          owner: redactSensitiveString(input.triage.owner, "[redacted owner]"),
+          notes: redactSensitiveString(input.triage.notes, "[redacted analyst notes]"),
+        }
+      : input.triage,
+    relatedProjects: input.relatedProjects.map((project, index) => ({
+      name: maskProjectName(index),
+      updatedAt: project.updatedAt,
+      items: project.items.map((item) => ({ cveId: item.cveId, addedAt: item.addedAt })),
+    })),
+    inventoryAssets: input.inventoryAssets.map((asset, index) => ({
+      ...asset,
+      name: `Tracked asset ${index + 1}`,
+      notes: redactSensitiveString(asset.notes, "[redacted asset notes]"),
     })),
   };
 }
@@ -1848,6 +1994,55 @@ function sanitizeAlertInvestigation(value: unknown): AIAlertInvestigation {
     nextSteps: Array.isArray(record.nextSteps)
       ? record.nextSteps.filter((item): item is string => typeof item === "string").slice(0, 6)
       : fallback.nextSteps,
+  };
+}
+
+function sanitizeExposureAssessment(value: unknown): AIExposureAssessment {
+  const fallback = buildHeuristicExposureAssessment({
+    detail: { id: "CVE-UNKNOWN" },
+    triage: null,
+    relatedProjects: [],
+    inventoryAssets: [],
+  });
+
+  if (!value || typeof value !== "object") {
+    return fallback;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    summary: typeof record.summary === "string" ? record.summary : fallback.summary,
+    likelyImpact: record.likelyImpact === "critical" || record.likelyImpact === "high" || record.likelyImpact === "medium" || record.likelyImpact === "low"
+      ? record.likelyImpact
+      : fallback.likelyImpact,
+    matchedAssets: Array.isArray(record.matchedAssets)
+      ? record.matchedAssets.flatMap((item) => {
+          if (!item || typeof item !== "object") {
+            return [];
+          }
+
+          const match = item as Record<string, unknown>;
+          return typeof match.assetId === "string"
+            && typeof match.assetName === "string"
+            && typeof match.rationale === "string"
+            && Array.isArray(match.matchingSignals)
+            && (match.confidence === "high" || match.confidence === "medium" || match.confidence === "low")
+            ? [{
+                assetId: match.assetId,
+                assetName: match.assetName,
+                confidence: match.confidence as "high" | "medium" | "low",
+                rationale: match.rationale,
+                matchingSignals: match.matchingSignals.filter((signal): signal is string => typeof signal === "string").slice(0, 6),
+              }]
+            : [];
+        }).slice(0, 8)
+      : fallback.matchedAssets,
+    rationale: Array.isArray(record.rationale)
+      ? record.rationale.filter((item): item is string => typeof item === "string").slice(0, 6)
+      : fallback.rationale,
+    recommendedActions: Array.isArray(record.recommendedActions)
+      ? record.recommendedActions.filter((item): item is string => typeof item === "string").slice(0, 6)
+      : fallback.recommendedActions,
   };
 }
 

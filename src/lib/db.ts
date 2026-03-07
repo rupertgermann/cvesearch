@@ -180,6 +180,23 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_alert_rules_user_id ON user_alert_rules(user_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS user_inventory_assets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      vendor TEXT NOT NULL,
+      product TEXT NOT NULL,
+      version TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      criticality TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_inventory_assets_user_id ON user_inventory_assets(user_id, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS user_triage_records (
       user_id TEXT NOT NULL,
       cve_id TEXT NOT NULL,

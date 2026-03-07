@@ -88,6 +88,18 @@ export const AI_PROMPT_TEMPLATES = {
       JSON.stringify(input),
     ].join("\n"),
   } satisfies PromptTemplate<unknown>,
+  exposure_agent: {
+    feature: "exposure_agent",
+    version: "2026-03-07.exposure.v1",
+    description: "Map a vulnerability against tracked inventory to estimate likely internal impact.",
+    build: (input: unknown) => [
+      "You are an exposure assessment assistant for vulnerability management.",
+      "Return only valid JSON matching this shape:",
+      '{"summary":"string","likelyImpact":"critical|high|medium|low","matchedAssets":[{"assetId":"string","assetName":"string","confidence":"high|medium|low","rationale":"string","matchingSignals":["string"]}],"rationale":["string"],"recommendedActions":["string"]}',
+      "Base your answer only on this input JSON:",
+      JSON.stringify(input),
+    ].join("\n"),
+  } satisfies PromptTemplate<unknown>,
   triage_agent: {
     feature: "triage_agent",
     version: "2026-03-07.triage.v1",
@@ -144,6 +156,10 @@ export function getProjectSummaryPromptTemplate() {
 
 export function getAlertInvestigationPromptTemplate() {
   return AI_PROMPT_TEMPLATES.alert_investigation;
+}
+
+export function getExposureAgentPromptTemplate() {
+  return AI_PROMPT_TEMPLATES.exposure_agent;
 }
 
 export function getTriageAgentPromptTemplate() {

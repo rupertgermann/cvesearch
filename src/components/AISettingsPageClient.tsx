@@ -11,9 +11,19 @@ import {
 } from "@radix-ui/themes";
 import { ServerAIConfigurationSummary } from "@/lib/ai-service";
 import { AIRunRecord } from "@/lib/types";
+import { InventoryAssetRecord } from "@/lib/workspace-types";
+import InventoryAssetsPanel from "@/components/InventoryAssetsPanel";
 import WorkspaceDataPanel from "@/components/WorkspaceDataPanel";
 
-export default function AISettingsPageClient({ summary, recentRuns }: { summary: ServerAIConfigurationSummary; recentRuns: AIRunRecord[] }) {
+export default function AISettingsPageClient({
+  summary,
+  recentRuns,
+  inventoryAssets,
+}: {
+  summary: ServerAIConfigurationSummary;
+  recentRuns: AIRunRecord[];
+  inventoryAssets: InventoryAssetRecord[];
+}) {
   const usageSummary = summarizeAIRunUsage(recentRuns);
 
   return (
@@ -39,7 +49,7 @@ export default function AISettingsPageClient({ summary, recentRuns }: { summary:
 
         <Callout.Root color="amber" variant="soft">
           <Callout.Text>
-            Configure AI providers with environment variables such as `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. You can override individual flows with `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_SEARCH_ASSISTANT_MODEL`, `AI_CVE_INSIGHT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, `AI_TRIAGE_AGENT_PROVIDER`, `AI_TRIAGE_AGENT_MODEL`, `AI_REMEDIATION_AGENT_PROVIDER`, `AI_REMEDIATION_AGENT_MODEL`, `AI_WATCHLIST_ANALYST_PROVIDER`, `AI_WATCHLIST_ANALYST_MODEL`, `AI_PROJECT_SUMMARY_PROVIDER`, `AI_PROJECT_SUMMARY_MODEL`, `AI_ALERT_INVESTIGATION_PROVIDER`, `AI_ALERT_INVESTIGATION_MODEL`, `AI_DAILY_DIGEST_PROVIDER`, and `AI_DAILY_DIGEST_MODEL`. No provider API key is persisted in browser storage.
+            Configure AI providers with environment variables such as `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL`. You can override individual flows with `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_SEARCH_ASSISTANT_MODEL`, `AI_CVE_INSIGHT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, `AI_TRIAGE_AGENT_PROVIDER`, `AI_TRIAGE_AGENT_MODEL`, `AI_REMEDIATION_AGENT_PROVIDER`, `AI_REMEDIATION_AGENT_MODEL`, `AI_WATCHLIST_ANALYST_PROVIDER`, `AI_WATCHLIST_ANALYST_MODEL`, `AI_PROJECT_SUMMARY_PROVIDER`, `AI_PROJECT_SUMMARY_MODEL`, `AI_ALERT_INVESTIGATION_PROVIDER`, `AI_ALERT_INVESTIGATION_MODEL`, `AI_EXPOSURE_AGENT_PROVIDER`, `AI_EXPOSURE_AGENT_MODEL`, and `AI_DAILY_DIGEST_PROVIDER`, `AI_DAILY_DIGEST_MODEL`. No provider API key is persisted in browser storage.
           </Callout.Text>
         </Callout.Root>
 
@@ -140,6 +150,8 @@ export default function AISettingsPageClient({ summary, recentRuns }: { summary:
             </div>
           </Card>
         </Grid>
+
+        <InventoryAssetsPanel initialAssets={inventoryAssets} />
 
         <WorkspaceDataPanel />
 

@@ -346,6 +346,22 @@ export interface AIAlertInvestigation {
   nextSteps: string[];
 }
 
+export interface AIExposureMatch {
+  assetId: string;
+  assetName: string;
+  confidence: "high" | "medium" | "low";
+  rationale: string;
+  matchingSignals: string[];
+}
+
+export interface AIExposureAssessment {
+  summary: string;
+  likelyImpact: "critical" | "high" | "medium" | "low";
+  matchedAssets: AIExposureMatch[];
+  rationale: string[];
+  recommendedActions: string[];
+}
+
 export type AISearchFilterField = "query" | "vendor" | "product" | "cwe" | "since" | "minSeverity" | "sort";
 
 export interface AISearchAppliedFilter {
@@ -408,7 +424,7 @@ export interface AIRunRecord {
 
 export type AIProvider = "heuristic" | "openai" | "anthropic";
 
-export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent" | "watchlist_analyst" | "project_summary" | "alert_investigation";
+export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent" | "watchlist_analyst" | "project_summary" | "alert_investigation" | "exposure_agent";
 
 export interface AISettings {
   provider: AIProvider;
