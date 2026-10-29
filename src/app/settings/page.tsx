@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const cookieStore = await cookies();
   const session = getWorkspaceSession(new Request("https://example.test/settings", {
     headers: { cookie: cookieStore.toString() },
-  }));
+  }), { refresh: false });
   const summary = getServerAIConfigurationSummary();
   const [recentRuns, inventoryAssets] = await Promise.all([
     session ? getRecentAIRuns(session.userId, 12) : Promise.resolve([]),

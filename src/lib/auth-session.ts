@@ -2,7 +2,7 @@ import { getDb, withTransaction } from "./db";
 
 const SESSION_COOKIE_NAME = "cvesearch_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
-const SESSION_REFRESH_THRESHOLD_SECONDS = 60 * 60 * 24 * 29;
+const SESSION_REFRESH_THRESHOLD_SECONDS = SESSION_MAX_AGE_SECONDS - 60 * 60 * 24;
 
 export interface WorkspaceSession {
   sessionId: string;
@@ -10,7 +10,8 @@ export interface WorkspaceSession {
   setCookieHeader?: string;
 }
 
-export function getWorkspaceSession(request: Request): WorkspaceSession | null {
+// Pass refresh: false where no Set-Cookie can be sent (server components), so the refresh is not used up.
+export function getWorkspaceSession(request: Request, { refresh = true } = {}): WorkspaceSession | null {
   const existingSessionId = readCookie(request.headers.get("cookie"), SESSION_COOKIE_NAME);
   if (!existingSessionId) {
     return null;
@@ -27,8 +28,8 @@ export function getWorkspaceSession(request: Request): WorkspaceSession | null {
     return null;
   }
 
-  // Sliding expiry, throttled: only extend once less than 29 days remain.
-  if (Date.parse(existing.expiresAt) - now >= SESSION_REFRESH_THRESHOLD_SECONDS * 1000) {
+  // Sliding expiry, throttled: only extend once less than max age minus one day remains.
+  if (!refresh || Date.parse(existing.expiresAt) - now >= SESSION_REFRESH_THRESHOLD_SECONDS * 1000) {
     return {
       sessionId: existing.id,
       userId: existing.userId,
