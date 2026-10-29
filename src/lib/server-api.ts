@@ -3,6 +3,8 @@ import { SearchState } from "./search";
 import {
   applySearchResultPreferences,
   buildPresetHref,
+  DEFAULT_MIN_SEVERITY,
+  DEFAULT_SORT,
   getSearchValidationError,
   getExploitReferenceCount,
   hasActiveFilters,
@@ -106,9 +108,23 @@ export async function getHomePageResults(state: SearchState): Promise<{
       };
     }
 
+    // Upstream only sorts by published date, so non-default sort/severity runs over one fixed window.
+    const HOME_RESULTS_WINDOW = 200;
+    const windowed = state.sort !== DEFAULT_SORT || state.minSeverity !== DEFAULT_MIN_SEVERITY;
+    const page = windowed ? 1 : state.page;
+    const perPage = windowed ? HOME_RESULTS_WINDOW : state.perPage;
+    const paginate = (results: CVESummary[]) =>
+      windowed
+        ? {
+            cves: applySearchResultPreferences(results, state).slice((state.page - 1) * state.perPage, state.page * state.perPage),
+            error: null,
+            totalHint: `Page ${state.page} · sorted/filtered within the ${HOME_RESULTS_WINDOW} newest matches`,
+          }
+        : null;
+
     if (state.vendor && state.product) {
-      const results = await searchByVendorProductServer(state.vendor, state.product, state.page, state.perPage);
-      return {
+      const results = await searchByVendorProductServer(state.vendor, state.product, page, perPage);
+      return paginate(results) ?? {
         cves: results,
         error: null,
         totalHint: `Page ${state.page}`,
@@ -121,22 +137,22 @@ export async function getHomePageResults(state: SearchState): Promise<{
           product: state.product || state.query,
           cwe: state.cwe,
           since: state.since,
-          page: state.page,
-          perPage: state.perPage,
+          page,
+          perPage,
         })
-      : await getLatestCVEsServer(state.page, state.perPage);
+      : await getLatestCVEsServer(page, perPage);
 
     let totalHint = `Page ${state.page}`;
 
     if (state.query && !state.product && results.length === 0) {
       const fallbackSample = await getLatestCVEsServer(1, 200);
-      results = fallbackSample.filter((cve) => matchesSearchState(cve, state)).slice(0, state.perPage);
+      results = fallbackSample.filter((cve) => matchesSearchState(cve, state)).slice(0, perPage);
       if (results.length > 0) {
         totalHint = "Fallback match from recent sample";
       }
     }
 
-    return {
+    return paginate(results) ?? {
       cves: results,
       error: null,
       totalHint,
