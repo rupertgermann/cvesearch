@@ -3,6 +3,8 @@ import { SearchState } from "./search";
 import {
   applySearchResultPreferences,
   buildPresetHref,
+  DEFAULT_MIN_SEVERITY,
+  DEFAULT_SORT,
   getSearchValidationError,
   getExploitReferenceCount,
   hasActiveFilters,
@@ -25,6 +27,8 @@ import {
 } from "./vulnerability-api";
 
 const KEV_CATALOG_URL = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json";
+const EPSS_API_URL = "https://api.first.org/data/v1/epss";
+const EPSS_BATCH_SIZE = 100;
 
 async function fetchUpstream<T>(path: string): Promise<T> {
   return fetchVulnerabilityAPIUpstream<T>(path);
@@ -32,7 +36,7 @@ async function fetchUpstream<T>(path: string): Promise<T> {
 
 export async function getLatestCVEsServer(page: number, perPage: number): Promise<CVESummary[]> {
   const data = await fetchUpstream<unknown>(buildLatestCVEsPath(page, perPage));
-  return enrichCVEsWithKev(parseCVESummaryList(data));
+  return enrichCVEs(parseCVESummaryList(data));
 }
 
 export async function searchCVEsServer(params: {
@@ -43,7 +47,7 @@ export async function searchCVEsServer(params: {
   perPage: number;
 }): Promise<CVESummary[]> {
   const data = await fetchUpstream<unknown>(buildSearchCVEsPath(params));
-  return enrichCVEsWithKev(parseCVESummaryList(data));
+  return enrichCVEs(parseCVESummaryList(data));
 }
 
 export async function getCVEByIdServer(id: string): Promise<CVEDetail> {
@@ -78,7 +82,7 @@ export async function searchByVendorProductServer(
   perPage: number
 ): Promise<CVESummary[]> {
   const data = await fetchUpstream<unknown>(buildVendorProductSearchPath(vendor, product, page, perPage));
-  return enrichCVEsWithKev(parseCVESummaryList(data));
+  return enrichCVEs(parseCVESummaryList(data));
 }
 
 export async function getHomePageResults(state: SearchState): Promise<{
@@ -106,9 +110,23 @@ export async function getHomePageResults(state: SearchState): Promise<{
       };
     }
 
+    // Upstream only sorts by published date, so non-default sort/severity runs over one fixed window.
+    const HOME_RESULTS_WINDOW = 200;
+    const windowed = state.sort !== DEFAULT_SORT || state.minSeverity !== DEFAULT_MIN_SEVERITY;
+    const page = windowed ? 1 : state.page;
+    const perPage = windowed ? HOME_RESULTS_WINDOW : state.perPage;
+    const paginate = (results: CVESummary[]) =>
+      windowed
+        ? {
+            cves: applySearchResultPreferences(results, state).slice((state.page - 1) * state.perPage, state.page * state.perPage),
+            error: null,
+            totalHint: `Page ${state.page} · sorted/filtered within the ${HOME_RESULTS_WINDOW} newest matches`,
+          }
+        : null;
+
     if (state.vendor && state.product) {
-      const results = await searchByVendorProductServer(state.vendor, state.product, state.page, state.perPage);
-      return {
+      const results = await searchByVendorProductServer(state.vendor, state.product, page, perPage);
+      return paginate(results) ?? {
         cves: results,
         error: null,
         totalHint: `Page ${state.page}`,
@@ -121,22 +139,22 @@ export async function getHomePageResults(state: SearchState): Promise<{
           product: state.product || state.query,
           cwe: state.cwe,
           since: state.since,
-          page: state.page,
-          perPage: state.perPage,
+          page,
+          perPage,
         })
-      : await getLatestCVEsServer(state.page, state.perPage);
+      : await getLatestCVEsServer(page, perPage);
 
     let totalHint = `Page ${state.page}`;
 
     if (state.query && !state.product && results.length === 0) {
       const fallbackSample = await getLatestCVEsServer(1, 200);
-      results = fallbackSample.filter((cve) => matchesSearchState(cve, state)).slice(0, state.perPage);
+      results = fallbackSample.filter((cve) => matchesSearchState(cve, state)).slice(0, perPage);
       if (results.length > 0) {
         totalHint = "Fallback match from recent sample";
       }
     }
 
-    return {
+    return paginate(results) ?? {
       cves: results,
       error: null,
       totalHint,
@@ -245,16 +263,63 @@ export async function getHomeDashboardData(state: SearchState): Promise<HomeDash
   }
 }
 
-async function enrichCVEsWithKev<T extends CVESummary>(cves: T[]): Promise<T[]> {
+async function enrichCVEs<T extends CVESummary>(cves: T[]): Promise<T[]> {
   if (cves.length === 0) {
     return cves;
   }
 
-  const kevMap = await getKnownExploitedMap();
-  return cves.map((cve) => {
-    const kev = kevMap.get(extractCVEId(cve).toUpperCase());
-    return kev ? ({ ...cve, kev } satisfies T) : cve;
+  const ids = cves.map((cve) => extractCVEId(cve).toUpperCase());
+  const [kevMap, epssMap] = await Promise.all([getKnownExploitedMap(), getEPSSMap(ids)]);
+  return cves.map((cve, index) => {
+    const kev = kevMap.get(ids[index]);
+    const epss = epssMap.get(ids[index]);
+    return {
+      ...cve,
+      ...(kev ? { kev } : {}),
+      ...(epss !== undefined ? { epss } : {}),
+    } satisfies T;
   });
+}
+
+async function getEPSSMap(cveIds: string[]): Promise<Map<string, number>> {
+  const ids = Array.from(new Set(cveIds.filter((id) => id.startsWith("CVE-"))));
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += EPSS_BATCH_SIZE) {
+    chunks.push(ids.slice(i, i + EPSS_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(chunks.map(fetchEPSSBatch));
+  return new Map(results.flat());
+}
+
+async function fetchEPSSBatch(cveIds: string[]): Promise<Array<[string, number]>> {
+  try {
+    const options: NextFetchOptions = {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "CVESearch-WebApp/1.0",
+      },
+      next: { revalidate: 3600 },
+    };
+    const res = await fetch(`${EPSS_API_URL}?cve=${encodeURIComponent(cveIds.join(","))}`, options);
+
+    if (!res.ok) {
+      throw new Error(`EPSS API error: ${res.status}`);
+    }
+
+    const body = (await res.json()) as { data?: unknown };
+    if (!Array.isArray(body.data)) {
+      return [];
+    }
+
+    return body.data.flatMap((row): Array<[string, number]> => {
+      const record = row as { cve?: unknown; epss?: unknown };
+      const epss = typeof record.epss === "string" ? Number.parseFloat(record.epss) : Number.NaN;
+      return typeof record.cve === "string" && Number.isFinite(epss) ? [[record.cve.toUpperCase(), epss]] : [];
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function getKnownExploitedVulnerabilityById(cveId: string): Promise<KnownExploitedVulnerability | undefined> {
