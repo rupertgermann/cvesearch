@@ -13,6 +13,7 @@ import {
   matchesSearchState,
   wasPublishedWithinDays,
 } from "./search";
+import { searchStoredCVESummaries } from "./cve-store";
 import { extractCVEId } from "./utils";
 import { parseCVEDetail, parseCVESummaryList, parseCWEData, parseEPSSResponse, parseKnownExploitedCatalog } from "./validation";
 import {
@@ -148,9 +149,18 @@ export async function getHomePageResults(state: SearchState): Promise<{
 
     if (state.query && !state.product && results.length === 0) {
       const fallbackSample = await getLatestCVEsServer(1, 200);
-      results = fallbackSample.filter((cve) => matchesSearchState(cve, state)).slice(0, perPage);
+      // Recent sample first so its enriched copy wins over the cached one.
+      const seenIds = new Set<string>();
+      results = [...fallbackSample, ...searchStoredCVESummaries(state.query, 200)]
+        .filter((cve) => {
+          const id = extractCVEId(cve);
+          if (seenIds.has(id) || !matchesSearchState(cve, state)) return false;
+          seenIds.add(id);
+          return true;
+        })
+        .slice(0, perPage);
       if (results.length > 0) {
-        totalHint = "Fallback match from recent sample";
+        totalHint = "Keyword matches from the 200 most recent and locally cached CVEs only (not a full-text search)";
       }
     }
 

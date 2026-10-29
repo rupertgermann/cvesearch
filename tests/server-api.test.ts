@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { upsertCVESummaries } from "../src/lib/cve-store";
 import { getRiskScore, normalizeSearchState } from "../src/lib/search";
 import { getHomePageResults, getLatestCVEsServer } from "../src/lib/server-api";
 
@@ -74,6 +75,28 @@ test("getHomePageResults keeps upstream pagination for the default sort and seve
     assert.equal(result.cves[0].id, "CVE-2026-1020");
     assert.equal(result.totalHint, "Page 2");
     assert.ok(requestedUrls.some((url) => url.includes("per_page=20&page=2")));
+  });
+});
+
+test("keyword fallback also searches locally cached CVEs older than the newest 200", async () => {
+  const recent = Array.from({ length: 200 }, (_, index) => ({
+    id: `CVE-2026-${String(3000 + index)}`,
+    summary: index === 0 ? "Prototype pollution in widget" : `Issue ${index}`,
+    published: new Date(Date.UTC(2026, 5, 1) - index * 3_600_000).toISOString(),
+  }));
+  await withUpstream(recent, async () => {
+    upsertCVESummaries([
+      { id: "CVE-2019-0001", summary: "Old prototype pollution bug", published: "2019-01-01T00:00:00Z" },
+      { id: "CVE-2019-0002", summary: "Unrelated issue", published: "2019-01-02T00:00:00Z" },
+    ]);
+    const upstream = globalThis.fetch;
+    globalThis.fetch = (async (input) =>
+      String(input).includes("product=") ? new Response("[]") : upstream(input)) as typeof fetch;
+
+    const result = await getHomePageResults(normalizeSearchState({ query: "prototype pollution" }));
+
+    assert.deepEqual(result.cves.map((cve) => cve.id), ["CVE-2026-3000", "CVE-2019-0001"]);
+    assert.match(result.totalHint, /recent and locally cached/i);
   });
 });
 
