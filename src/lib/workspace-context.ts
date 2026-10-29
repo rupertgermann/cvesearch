@@ -5,14 +5,18 @@ import { TriageRecord } from "./triage-shared";
 import { ProjectRecord, CVESummary } from "./types";
 import { AlertRule, SavedView } from "./workspace-types";
 import {
+  getAlertRuleCursor,
+  listAlertRuleMatches,
   listAlertRulesForUser,
   listSavedViewsForUser,
   listWatchlistEntriesForUser,
   readTriageMapForUser,
+  recordAlertRuleMatches,
 } from "./workspace-store";
 import { listProjects } from "./projects-store";
 
-const WORKSPACE_ALERT_SAMPLE_SIZE = 80;
+const ALERT_PAGE_SIZE = 100;
+const ALERT_MAX_PAGES = 10;
 
 export interface EvaluatedAlertRule {
   rule: AlertRule;
@@ -36,25 +40,34 @@ export interface AlertEvaluationsSnapshot {
 }
 
 export async function loadWorkspaceContextSnapshot(userId: string): Promise<WorkspaceContextSnapshot> {
-  const [watchlist, savedViews, alertRules, triage, projects, latestSample] = await Promise.all([
+  const [watchlist, savedViews, alertRules, triage, projects] = await Promise.all([
     listWatchlistEntriesForUser(userId),
     listSavedViewsForUser(userId),
     listAlertRulesForUser(userId),
     readTriageMapForUser(userId),
     listProjects(userId),
-    getLatestCVEsServer(1, WORKSPACE_ALERT_SAMPLE_SIZE).catch(() => []),
   ]);
 
-  const alertEvaluations = alertRules.map((rule) => {
-    const matching = applySearchResultPreferences(
-      latestSample.filter((cve) => matchesSearchState(cve, rule.search)),
-      rule.search
+  const cursors = alertRules.map((rule) => getAlertRuleCursor(rule.id));
+  const latestSample = await fetchLatestCVEsUntil(cursors);
+  const newestPublished = latestSample.reduce<string | null>(
+    (newest, cve) => (cve.published && (!newest || Date.parse(cve.published) > Date.parse(newest)) ? cve.published : newest),
+    null
+  );
+
+  const alertEvaluations = alertRules.map((rule, index) => {
+    const cursor = cursors[index];
+    recordAlertRuleMatches(
+      rule.id,
+      latestSample.filter((cve) => !isBeforeCursor(cve, cursor) && matchesSearchState(cve, rule.search)),
+      newestPublished
     );
 
+    const stored = listAlertRuleMatches(rule.id);
     return {
       rule,
-      matching,
-      unread: matching.filter((cve) => isUnreadMatch(cve, rule.lastCheckedAt)).length,
+      matching: applySearchResultPreferences(stored.matching, rule.search),
+      unread: stored.unread,
     };
   });
 
@@ -93,17 +106,30 @@ export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContext
   };
 }
 
-function isUnreadMatch(cve: CVESummary, lastCheckedAt: string | null): boolean {
-  if (!lastCheckedAt) return true;
+// Pages upstream (newest published first) until every rule's cursor is reached; null cursor means a never-evaluated rule.
+async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<CVESummary[]> {
+  if (cursors.length === 0) return [];
 
-  const modified = cve.modified ?? cve.published;
-  if (!modified) return false;
+  const oldestCursor = cursors.includes(null)
+    ? null
+    : cursors.reduce((oldest, cursor) => (Date.parse(cursor!) < Date.parse(oldest!) ? cursor : oldest));
+  const fetched: CVESummary[] = [];
 
-  const modifiedTs = Date.parse(modified);
-  const checkedTs = Date.parse(lastCheckedAt);
-  if (Number.isNaN(modifiedTs) || Number.isNaN(checkedTs)) {
-    return true;
+  try {
+    for (let page = 1; page <= ALERT_MAX_PAGES; page += 1) {
+      const batch = await getLatestCVEsServer(page, ALERT_PAGE_SIZE);
+      fetched.push(...batch);
+      if (batch.length < ALERT_PAGE_SIZE || batch.some((cve) => isBeforeCursor(cve, oldestCursor))) break;
+    }
+  } catch {
+    // Partial pages would advance cursors past unseen records, so drop them and retry next time.
+    return [];
   }
 
-  return modifiedTs > checkedTs;
+  return fetched;
+}
+
+function isBeforeCursor(cve: CVESummary, cursor: string | null): boolean {
+  if (!cursor || !cve.published) return false;
+  return Date.parse(cve.published) < Date.parse(cursor);
 }
