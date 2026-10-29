@@ -73,6 +73,7 @@ export interface OSVVulnerability {
   references: { type: string; url: string }[];
   published: string;
   modified: string;
+  database_specific?: { severity?: string };
 }
 
 export interface VulnerabilityMatch {

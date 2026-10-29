@@ -27,6 +27,8 @@ import {
 } from "./vulnerability-api";
 
 const KEV_CATALOG_URL = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json";
+const EPSS_API_URL = "https://api.first.org/data/v1/epss";
+const EPSS_BATCH_SIZE = 100;
 
 async function fetchUpstream<T>(path: string): Promise<T> {
   return fetchVulnerabilityAPIUpstream<T>(path);
@@ -34,7 +36,7 @@ async function fetchUpstream<T>(path: string): Promise<T> {
 
 export async function getLatestCVEsServer(page: number, perPage: number): Promise<CVESummary[]> {
   const data = await fetchUpstream<unknown>(buildLatestCVEsPath(page, perPage));
-  return enrichCVEsWithKev(parseCVESummaryList(data));
+  return enrichCVEs(parseCVESummaryList(data));
 }
 
 export async function searchCVEsServer(params: {
@@ -45,7 +47,7 @@ export async function searchCVEsServer(params: {
   perPage: number;
 }): Promise<CVESummary[]> {
   const data = await fetchUpstream<unknown>(buildSearchCVEsPath(params));
-  return enrichCVEsWithKev(parseCVESummaryList(data));
+  return enrichCVEs(parseCVESummaryList(data));
 }
 
 export async function getCVEByIdServer(id: string): Promise<CVEDetail> {
@@ -80,7 +82,7 @@ export async function searchByVendorProductServer(
   perPage: number
 ): Promise<CVESummary[]> {
   const data = await fetchUpstream<unknown>(buildVendorProductSearchPath(vendor, product, page, perPage));
-  return enrichCVEsWithKev(parseCVESummaryList(data));
+  return enrichCVEs(parseCVESummaryList(data));
 }
 
 export async function getHomePageResults(state: SearchState): Promise<{
@@ -261,16 +263,63 @@ export async function getHomeDashboardData(state: SearchState): Promise<HomeDash
   }
 }
 
-async function enrichCVEsWithKev<T extends CVESummary>(cves: T[]): Promise<T[]> {
+async function enrichCVEs<T extends CVESummary>(cves: T[]): Promise<T[]> {
   if (cves.length === 0) {
     return cves;
   }
 
-  const kevMap = await getKnownExploitedMap();
-  return cves.map((cve) => {
-    const kev = kevMap.get(extractCVEId(cve).toUpperCase());
-    return kev ? ({ ...cve, kev } satisfies T) : cve;
+  const ids = cves.map((cve) => extractCVEId(cve).toUpperCase());
+  const [kevMap, epssMap] = await Promise.all([getKnownExploitedMap(), getEPSSMap(ids)]);
+  return cves.map((cve, index) => {
+    const kev = kevMap.get(ids[index]);
+    const epss = epssMap.get(ids[index]);
+    return {
+      ...cve,
+      ...(kev ? { kev } : {}),
+      ...(epss !== undefined ? { epss } : {}),
+    } satisfies T;
   });
+}
+
+async function getEPSSMap(cveIds: string[]): Promise<Map<string, number>> {
+  const ids = Array.from(new Set(cveIds.filter((id) => id.startsWith("CVE-"))));
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += EPSS_BATCH_SIZE) {
+    chunks.push(ids.slice(i, i + EPSS_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(chunks.map(fetchEPSSBatch));
+  return new Map(results.flat());
+}
+
+async function fetchEPSSBatch(cveIds: string[]): Promise<Array<[string, number]>> {
+  try {
+    const options: NextFetchOptions = {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "CVESearch-WebApp/1.0",
+      },
+      next: { revalidate: 3600 },
+    };
+    const res = await fetch(`${EPSS_API_URL}?cve=${encodeURIComponent(cveIds.join(","))}`, options);
+
+    if (!res.ok) {
+      throw new Error(`EPSS API error: ${res.status}`);
+    }
+
+    const body = (await res.json()) as { data?: unknown };
+    if (!Array.isArray(body.data)) {
+      return [];
+    }
+
+    return body.data.flatMap((row): Array<[string, number]> => {
+      const record = row as { cve?: unknown; epss?: unknown };
+      const epss = typeof record.epss === "string" ? Number.parseFloat(record.epss) : Number.NaN;
+      return typeof record.cve === "string" && Number.isFinite(epss) ? [[record.cve.toUpperCase(), epss]] : [];
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function getKnownExploitedVulnerabilityById(cveId: string): Promise<KnownExploitedVulnerability | undefined> {
