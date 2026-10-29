@@ -8,6 +8,8 @@ import {
   NormalizedAffectedProduct,
   VulnerabilityReference,
 } from "./types";
+import { parseCvssScore } from "./osv";
+import { extractCVSSScore } from "./utils";
 
 export function parseCVESummaryList(value: unknown): CVESummary[] {
   const items = normalizeCVEListPayload(value);
@@ -158,7 +160,33 @@ function parseCVESummary(value: unknown): CVESummary {
     throw new Error("Unexpected response format: CVE summary is missing an id");
   }
 
-  return normalizeSupplementalData(normalizeRecordIdentifiers(record, normalizedId)) as unknown as CVESummary;
+  return normalizeSummaryFields(normalizeSupplementalData(normalizeRecordIdentifiers(record, normalizedId))) as unknown as CVESummary;
+}
+
+// Lists mix CVE 5 records and OSV records; fill the flat fields that search, sort and cards read.
+function normalizeSummaryFields(record: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...record };
+
+  if (typeof next.cvss3 !== "number" && typeof next.cvss !== "number") {
+    const cveScore = extractCVSSScore(next as unknown as CVEDetail);
+    const osvVector = Array.isArray(next.severity)
+      ? (next.severity as Array<{ type?: unknown; score?: unknown }>).find((entry) => entry?.type === "CVSS_V3")?.score
+      : undefined;
+    const osvScore = typeof osvVector === "string" ? parseCvssScore(osvVector) : null;
+
+    if (cveScore) {
+      next[cveScore.version === "2.0" ? "cvss" : "cvss3"] = cveScore.score;
+    } else if (osvScore !== null) {
+      next.cvss3 = osvScore;
+    }
+  }
+
+  if (typeof next.summary !== "string" && typeof next.description !== "string" && typeof next.details === "string") {
+    next.description = next.details;
+  }
+  next.published ??= getNestedString(next, "cveMetadata", "datePublished") ?? undefined;
+  next.modified ??= getNestedString(next, "cveMetadata", "dateUpdated") ?? undefined;
+  return next;
 }
 
 function parseKnownExploitedVulnerability(value: unknown): KnownExploitedVulnerability {

@@ -19,7 +19,9 @@ async function withUpstream(rows: unknown[], run: (requestedUrls: string[]) => P
     requestedUrls.push(url);
     if (url.includes("vulnerability.circl.lu")) {
       const params = new URL(url).searchParams;
-      const perPage = Number(params.get("per_page"));
+      // Like CIRCL: per_page above 100 silently falls back to 30.
+      const requestedPerPage = Number(params.get("per_page"));
+      const perPage = requestedPerPage > 100 ? 30 : requestedPerPage;
       const page = Number(params.get("page"));
       return new Response(JSON.stringify(rows.slice((page - 1) * perPage, page * perPage)));
     }

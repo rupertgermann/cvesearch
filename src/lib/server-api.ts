@@ -28,9 +28,12 @@ import {
 } from "./vulnerability-api";
 
 const KEV_CATALOG_URL = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json";
+const KEV_CACHE_TTL_MS = 60 * 60 * 1000;
 const EPSS_API_URL = "https://api.first.org/data/v1/epss";
 const EPSS_BATCH_SIZE = 100;
 const HOME_RESULTS_WINDOW = 200;
+// CIRCL silently falls back to 30 rows when per_page is above 100.
+const UPSTREAM_MAX_PER_PAGE = 100;
 const HOURLY_JSON_FETCH: NextFetchOptions = {
   headers: {
     Accept: "application/json",
@@ -43,9 +46,26 @@ async function fetchUpstream<T>(path: string): Promise<T> {
   return fetchVulnerabilityAPIUpstream<T>(path);
 }
 
+// Fetches rows [(page-1)*perPage, page*perPage) using upstream pages of at most UPSTREAM_MAX_PER_PAGE.
+async function fetchCVEList(buildPath: (page: number, perPage: number) => string, page: number, perPage: number): Promise<CVESummary[]> {
+  if (perPage <= UPSTREAM_MAX_PER_PAGE) {
+    return parseCVESummaryList(await fetchUpstream<unknown>(buildPath(page, perPage)));
+  }
+
+  const offset = (page - 1) * perPage;
+  const firstPage = Math.floor(offset / UPSTREAM_MAX_PER_PAGE) + 1;
+  const lastPage = Math.ceil((offset + perPage) / UPSTREAM_MAX_PER_PAGE);
+  const pages = await Promise.all(
+    Array.from({ length: lastPage - firstPage + 1 }, (_, index) =>
+      fetchUpstream<unknown>(buildPath(firstPage + index, UPSTREAM_MAX_PER_PAGE)).then(parseCVESummaryList)
+    )
+  );
+  const start = offset - (firstPage - 1) * UPSTREAM_MAX_PER_PAGE;
+  return pages.flat().slice(start, start + perPage);
+}
+
 export async function getLatestCVEsServer(page: number, perPage: number): Promise<CVESummary[]> {
-  const data = await fetchUpstream<unknown>(buildLatestCVEsPath(page, perPage));
-  return enrichCVEs(parseCVESummaryList(data));
+  return enrichCVEs(await fetchCVEList(buildLatestCVEsPath, page, perPage));
 }
 
 export async function searchCVEsServer(params: {
@@ -55,8 +75,9 @@ export async function searchCVEsServer(params: {
   page: number;
   perPage: number;
 }): Promise<CVESummary[]> {
-  const data = await fetchUpstream<unknown>(buildSearchCVEsPath(params));
-  return enrichCVEs(parseCVESummaryList(data));
+  return enrichCVEs(
+    await fetchCVEList((page, perPage) => buildSearchCVEsPath({ ...params, page, perPage }), params.page, params.perPage)
+  );
 }
 
 export async function getCVEByIdServer(id: string): Promise<CVEDetail> {
@@ -90,8 +111,9 @@ export async function searchByVendorProductServer(
   page: number,
   perPage: number
 ): Promise<CVESummary[]> {
-  const data = await fetchUpstream<unknown>(buildVendorProductSearchPath(vendor, product, page, perPage));
-  return enrichCVEs(parseCVESummaryList(data));
+  return enrichCVEs(
+    await fetchCVEList((upstreamPage, upstreamPerPage) => buildVendorProductSearchPath(vendor, product, upstreamPage, upstreamPerPage), page, perPage)
+  );
 }
 
 export async function getHomePageResults(state: SearchState): Promise<{
@@ -140,7 +162,7 @@ export async function getHomePageResults(state: SearchState): Promise<{
     let pageLocally = windowed;
 
     if (state.query && !state.product && results.length === 0) {
-      const recent = parseCVESummaryList(await fetchUpstream<unknown>(buildLatestCVEsPath(1, HOME_RESULTS_WINDOW)));
+      const recent = await fetchCVEList(buildLatestCVEsPath, 1, HOME_RESULTS_WINDOW);
       // Recent sample first so its fresher copy wins over the cached one.
       const seenIds = new Set<string>();
       results = await enrichCVEs(
@@ -329,17 +351,26 @@ async function getKnownExploitedVulnerabilityById(cveId: string): Promise<KnownE
   return kevMap.get(cveId.toUpperCase());
 }
 
+// The KEV catalog is over Next's 2 MB fetch-cache limit, so it is cached in memory instead.
+let kevCache: { map: Map<string, KnownExploitedVulnerability>; expiresAt: number } | null = null;
+
 async function getKnownExploitedMap(): Promise<Map<string, KnownExploitedVulnerability>> {
+  if (kevCache && kevCache.expiresAt > Date.now()) {
+    return kevCache.map;
+  }
+
   try {
-    const res = await fetch(KEV_CATALOG_URL, HOURLY_JSON_FETCH);
+    const res = await fetch(KEV_CATALOG_URL, { headers: HOURLY_JSON_FETCH.headers, cache: "no-store" });
 
     if (!res.ok) {
       throw new Error(`KEV catalog error: ${res.status}`);
     }
 
     const data = parseKnownExploitedCatalog(await res.json());
-    return new Map(data.map((item) => [item.cveID.toUpperCase(), item]));
+    const map = new Map(data.map((item) => [item.cveID.toUpperCase(), item]));
+    kevCache = { map, expiresAt: Date.now() + KEV_CACHE_TTL_MS };
+    return map;
   } catch {
-    return new Map();
+    return kevCache?.map ?? new Map();
   }
 }

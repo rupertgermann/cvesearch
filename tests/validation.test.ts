@@ -130,3 +130,25 @@ test("parseKnownExploitedCatalog parses KEV entries", () => {
   assert.equal(data[0].knownRansomwareCampaignUse, "Known");
   assert.deepEqual(data[0].cwes, ["CWE-94"]);
 });
+
+test("parseCVESummaryList fills cvss3 and dates from CVE 5 and OSV records", () => {
+  const [cve5, osv] = parseCVESummaryList([
+    {
+      cveMetadata: { cveId: "CVE-2026-0003", datePublished: "2026-10-01T00:00:00Z", dateUpdated: "2026-10-02T00:00:00Z" },
+      containers: { cna: { metrics: [{ cvssV3_1: { baseScore: 9.8 } }] } },
+    },
+    {
+      id: "GHSA-aaaa-bbbb-cccc",
+      published: "2026-10-03T00:00:00Z",
+      details: "Prototype pollution in example-lib",
+      severity: [{ type: "CVSS_V3", score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" }],
+    },
+  ]);
+
+  assert.equal(cve5.cvss3, 9.8);
+  assert.equal(cve5.published, "2026-10-01T00:00:00Z");
+  assert.equal(cve5.modified, "2026-10-02T00:00:00Z");
+  assert.equal(osv.cvss3, 9.8);
+  assert.equal(osv.published, "2026-10-03T00:00:00Z");
+  assert.equal(osv.description, "Prototype pollution in example-lib");
+});

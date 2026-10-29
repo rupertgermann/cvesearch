@@ -123,7 +123,8 @@ async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<{ cv
     for (let page = 1; page <= ALERT_MAX_PAGES; page += 1) {
       const batch = await getLatestCVEsServer(page, ALERT_PAGE_SIZE);
       fetched.push(...batch);
-      if (batch.length < ALERT_PAGE_SIZE || batch.some((cve) => isBeforeCursor(cve, oldestCursor))) {
+      // Short pages are not the end: the list parser drops duplicate ids, so only an empty page is.
+      if (batch.length === 0 || batch.some((cve) => isBeforeCursor(cve, oldestCursor))) {
         return { cves: fetched, truncated: false };
       }
     }

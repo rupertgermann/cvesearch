@@ -153,3 +153,29 @@ test("re-importing an alert rule does not keep stale matches", async () => {
     assert.equal(listAlertRuleMatches(rule.id).unread, 0);
   });
 });
+
+test("alert evaluation keeps paging past a page shortened by duplicate ids", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-alert-dup-"));
+  const previousDatabaseFile = process.env.DATABASE_FILE;
+  process.env.DATABASE_FILE = path.join(tempDir, "alerts.db");
+  const feed = buildFeed(300);
+  feed[1] = { ...feed[1], id: feed[0].id }; // page 1 parses to 99 rows
+  const upstream = installFakeUpstream(feed);
+
+  try {
+    const session = getOrCreateWorkspaceSession(new Request("https://example.test/alerts"));
+    const rule = await createAlertRuleForUser(session.userId, "OpenSSL", normalizeSearchState({ query: "openssl" }));
+    recordAlertRuleMatches(rule.id, [], feed[250].published);
+
+    const result = await loadAlertEvaluationsForUser(session.userId);
+    assert.deepEqual(result.evaluations[0].matching.map((cve) => cve.id), [feed[150].id]);
+  } finally {
+    upstream.restore();
+    if (previousDatabaseFile === undefined) {
+      delete process.env.DATABASE_FILE;
+    } else {
+      process.env.DATABASE_FILE = previousDatabaseFile;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+});
