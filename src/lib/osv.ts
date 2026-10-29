@@ -246,10 +246,12 @@ const scoreToSeverityLabel = (score: number): string => {
 
 export const getSeverityLabel = (vuln: OSVVulnerability): string => {
   const cvssString = getHighestSeverity(vuln);
-  if (!cvssString) return "UNKNOWN";
-
-  const calculatedScore = parseCvssScore(cvssString);
+  const calculatedScore = cvssString ? parseCvssScore(cvssString) : null;
   if (calculatedScore !== null) return scoreToSeverityLabel(calculatedScore);
+
+  const ghsaSeverity = vuln.database_specific?.severity?.toUpperCase();
+  if (ghsaSeverity === "MODERATE") return "MEDIUM";
+  if (ghsaSeverity === "LOW" || ghsaSeverity === "HIGH" || ghsaSeverity === "CRITICAL") return ghsaSeverity;
 
   return "UNKNOWN";
 };
