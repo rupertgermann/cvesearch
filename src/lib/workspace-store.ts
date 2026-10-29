@@ -6,6 +6,7 @@ import {
   normalizeTriageRecord,
   TriageRecord,
 } from "./triage-shared";
+import { CVESummary } from "./types";
 import { AlertRule, InventoryAssetRecord, PromptTemplateRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
 
 export async function listWatchlist(userId: string): Promise<string[]> {
@@ -188,6 +189,11 @@ export async function markAlertRuleCheckedForUser(userId: string, id: string): P
     SET last_checked_at = ?
     WHERE user_id = ? AND id = ?
   `).run(new Date().toISOString(), userId, id);
+  getDb().prepare(`
+    UPDATE alert_rule_matches
+    SET read_at = ?
+    WHERE read_at IS NULL AND rule_id IN (SELECT id FROM user_alert_rules WHERE user_id = ? AND id = ?)
+  `).run(new Date().toISOString(), userId, id);
 
   return listAlertRulesForUser(userId);
 }
@@ -198,8 +204,53 @@ export async function markAllAlertRulesCheckedForUser(userId: string): Promise<A
     SET last_checked_at = ?
     WHERE user_id = ?
   `).run(new Date().toISOString(), userId);
+  getDb().prepare(`
+    UPDATE alert_rule_matches
+    SET read_at = ?
+    WHERE read_at IS NULL AND rule_id IN (SELECT id FROM user_alert_rules WHERE user_id = ?)
+  `).run(new Date().toISOString(), userId);
 
   return listAlertRulesForUser(userId);
+}
+
+export function getAlertRuleCursor(ruleId: string): string | null {
+  const row = getDb().prepare("SELECT cursor_published_at as cursor FROM user_alert_rules WHERE id = ?").get(ruleId) as
+    | { cursor: string | null }
+    | undefined;
+  return row?.cursor ?? null;
+}
+
+export function recordAlertRuleMatches(ruleId: string, matches: CVESummary[], cursor: string | null): void {
+  withTransaction((db) => {
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO alert_rule_matches (rule_id, cve_id, summary_json, matched_at, read_at)
+      VALUES (?, ?, ?, ?, NULL)
+    `);
+    const matchedAt = new Date().toISOString();
+    for (const cve of matches) {
+      insert.run(ruleId, cve.id, JSON.stringify(cve), matchedAt);
+    }
+    if (cursor) {
+      db.prepare("UPDATE user_alert_rules SET cursor_published_at = ? WHERE id = ?").run(cursor, ruleId);
+    }
+  });
+}
+
+export function listAlertRuleMatches(ruleId: string): { matching: CVESummary[]; unread: number } {
+  const db = getDb();
+  // shortcut: only the 200 newest matches are returned; paginate if the alerts UI ever needs older ones.
+  const rows = db.prepare(`
+    SELECT summary_json as summaryJson
+    FROM alert_rule_matches
+    WHERE rule_id = ?
+    ORDER BY matched_at DESC
+    LIMIT 200
+  `).all(ruleId) as Array<{ summaryJson: string }>;
+  const unread = db.prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ? AND read_at IS NULL").get(ruleId) as {
+    count: number;
+  };
+
+  return { matching: rows.map((row) => JSON.parse(row.summaryJson) as CVESummary), unread: unread.count };
 }
 
 export async function listInventoryAssetsForUser(userId: string): Promise<InventoryAssetRecord[]> {
