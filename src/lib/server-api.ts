@@ -30,6 +30,14 @@ import {
 const KEV_CATALOG_URL = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json";
 const EPSS_API_URL = "https://api.first.org/data/v1/epss";
 const EPSS_BATCH_SIZE = 100;
+const HOME_RESULTS_WINDOW = 200;
+const HOURLY_JSON_FETCH: NextFetchOptions = {
+  headers: {
+    Accept: "application/json",
+    "User-Agent": "CVESearch-WebApp/1.0",
+  },
+  next: { revalidate: 3600 },
+};
 
 async function fetchUpstream<T>(path: string): Promise<T> {
   return fetchVulnerabilityAPIUpstream<T>(path);
@@ -112,60 +120,51 @@ export async function getHomePageResults(state: SearchState): Promise<{
     }
 
     // Upstream only sorts by published date, so non-default sort/severity runs over one fixed window.
-    const HOME_RESULTS_WINDOW = 200;
     const windowed = state.sort !== DEFAULT_SORT || state.minSeverity !== DEFAULT_MIN_SEVERITY;
     const page = windowed ? 1 : state.page;
     const perPage = windowed ? HOME_RESULTS_WINDOW : state.perPage;
-    const paginate = (results: CVESummary[]) =>
-      windowed
-        ? {
-            cves: applySearchResultPreferences(results, state).slice((state.page - 1) * state.perPage, state.page * state.perPage),
-            error: null,
-            totalHint: `Page ${state.page} · sorted/filtered within the ${HOME_RESULTS_WINDOW} newest matches`,
-          }
-        : null;
-
-    if (state.vendor && state.product) {
-      const results = await searchByVendorProductServer(state.vendor, state.product, page, perPage);
-      return paginate(results) ?? {
-        cves: results,
-        error: null,
-        totalHint: `Page ${state.page}`,
-      };
-    }
-
     const hasSearch = Boolean(state.query || state.product || state.cwe || state.since);
-    let results = hasSearch
-      ? await searchCVEsServer({
-          product: state.product || state.query,
-          cwe: state.cwe,
-          since: state.since,
-          page,
-          perPage,
-        })
-      : await getLatestCVEsServer(page, perPage);
 
+    let results = state.vendor && state.product
+      ? await searchByVendorProductServer(state.vendor, state.product, page, perPage)
+      : hasSearch
+        ? await searchCVEsServer({
+            product: state.product || state.query,
+            cwe: state.cwe,
+            since: state.since,
+            page,
+            perPage,
+          })
+        : await getLatestCVEsServer(page, perPage);
     let totalHint = `Page ${state.page}`;
+    let pageLocally = windowed;
 
     if (state.query && !state.product && results.length === 0) {
-      const fallbackSample = await getLatestCVEsServer(1, 200);
-      // Recent sample first so its enriched copy wins over the cached one.
+      const recent = parseCVESummaryList(await fetchUpstream<unknown>(buildLatestCVEsPath(1, HOME_RESULTS_WINDOW)));
+      // Recent sample first so its fresher copy wins over the cached one.
       const seenIds = new Set<string>();
-      results = [...fallbackSample, ...searchStoredCVESummaries(state.query, 200)]
-        .filter((cve) => {
+      results = await enrichCVEs(
+        [...recent, ...searchStoredCVESummaries(state.query, HOME_RESULTS_WINDOW)].filter((cve) => {
           const id = extractCVEId(cve);
           if (seenIds.has(id) || !matchesSearchState(cve, state)) return false;
           seenIds.add(id);
           return true;
         })
-        .slice(0, perPage);
+      );
+      pageLocally = true;
       if (results.length > 0) {
-        totalHint = "Keyword matches from the 200 most recent and locally cached CVEs only (not a full-text search)";
+        totalHint = `Keyword matches from the ${HOME_RESULTS_WINDOW} most recent and locally cached CVEs only (not a full-text search)`;
       }
     }
 
-    return paginate(results) ?? {
-      cves: results,
+    if (windowed) {
+      totalHint += ` · sorted/filtered within the ${HOME_RESULTS_WINDOW} newest matches`;
+    }
+
+    return {
+      cves: pageLocally
+        ? applySearchResultPreferences(results, state).slice((state.page - 1) * state.perPage, state.page * state.perPage)
+        : results,
       error: null,
       totalHint,
     };
@@ -304,14 +303,7 @@ async function getEPSSMap(cveIds: string[]): Promise<Map<string, number>> {
 
 async function fetchEPSSBatch(cveIds: string[]): Promise<Array<[string, number]>> {
   try {
-    const options: NextFetchOptions = {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "CVESearch-WebApp/1.0",
-      },
-      next: { revalidate: 3600 },
-    };
-    const res = await fetch(`${EPSS_API_URL}?cve=${encodeURIComponent(cveIds.join(","))}`, options);
+    const res = await fetch(`${EPSS_API_URL}?cve=${encodeURIComponent(cveIds.join(","))}`, HOURLY_JSON_FETCH);
 
     if (!res.ok) {
       throw new Error(`EPSS API error: ${res.status}`);
@@ -339,14 +331,7 @@ async function getKnownExploitedVulnerabilityById(cveId: string): Promise<KnownE
 
 async function getKnownExploitedMap(): Promise<Map<string, KnownExploitedVulnerability>> {
   try {
-    const options: NextFetchOptions = {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "CVESearch-WebApp/1.0",
-      },
-      next: { revalidate: 3600 },
-    };
-    const res = await fetch(KEV_CATALOG_URL, options);
+    const res = await fetch(KEV_CATALOG_URL, HOURLY_JSON_FETCH);
 
     if (!res.ok) {
       throw new Error(`KEV catalog error: ${res.status}`);

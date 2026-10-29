@@ -58,9 +58,8 @@ export const parseNpmDependencies = (
     return [];
   }
 
-  // name -> version the manifest resolves to (top-level install)
-  const lockVersions = new Map<string, { version: string; isDev: boolean }>();
-  // every installed copy, including nested ones with other versions
+  // Every installed copy, including nested ones; top-level installs first so find() by name
+  // returns the version the manifest resolves to.
   const lockEntries: { name: string; version: string; isDev: boolean }[] = [];
 
   if (packageLockJsonRaw) {
@@ -76,37 +75,30 @@ export const parseNpmDependencies = (
         if (!key || !value.version) return;
         const name = extractPackageLockDependencyName(key);
         if (!name) return;
-        const entry = { version: value.version, isDev: !!value.dev };
-        lockEntries.push({ name, ...entry });
-        if (key === `node_modules/${name}` || !lockVersions.has(name)) {
-          lockVersions.set(name, entry);
-        }
+        const entry = { name, version: value.version, isDev: !!value.dev };
+        if (key === `node_modules/${name}`) lockEntries.unshift(entry);
+        else lockEntries.push(entry);
       });
     } else if (lockJson.dependencies) {
       Object.entries(lockJson.dependencies).forEach(([name, value]) => {
         if (!value.version) return;
-        const entry = { version: value.version, isDev: !!value.dev };
-        lockEntries.push({ name, ...entry });
-        lockVersions.set(name, entry);
+        lockEntries.push({ name, version: value.version, isDev: !!value.dev });
       });
     }
   }
 
   const dependencies: ParsedDependency[] = [];
+  // name@version already listed
   const seen = new Set<string>();
-  const seenVersions = new Set<string>();
 
   const addFromManifest = (deps: Record<string, string> | undefined, isDev: boolean) => {
     if (!deps) return;
     Object.entries(deps).forEach(([name, versionRange]) => {
-      if (seen.has(name)) return;
-      seen.add(name);
-
-      const lockEntry = lockVersions.get(name);
+      const lockEntry = lockEntries.find((entry) => entry.name === name);
       const version = lockEntry?.version ?? stripSemverPrefix(versionRange);
 
-      if (!isConcreteVersion(version)) return;
-      seenVersions.add(`${name}@${version}`);
+      if (!isConcreteVersion(version) || seen.has(`${name}@${version}`)) return;
+      seen.add(`${name}@${version}`);
 
       dependencies.push({
         name,
@@ -125,9 +117,8 @@ export const parseNpmDependencies = (
 
   if (packageLockJsonRaw && lockEntries.length > 0) {
     lockEntries.forEach(({ name, version, isDev }) => {
-      const key = `${name}@${version}`;
-      if (seenVersions.has(key)) return;
-      seenVersions.add(key);
+      if (seen.has(`${name}@${version}`)) return;
+      seen.add(`${name}@${version}`);
       dependencies.push({
         name,
         version,

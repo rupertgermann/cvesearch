@@ -23,6 +23,8 @@ test("a session used on day 29 is still valid on day 45", async (t) => {
     assert.equal(getWorkspaceSession(request())?.setCookieHeader, undefined);
 
     t.mock.timers.setTime(start + 29 * DAY_MS);
+    // A read-only lookup (server components cannot set cookies) must not use up the refresh.
+    assert.equal(getWorkspaceSession(request(), { refresh: false })?.setCookieHeader, undefined);
     const day29 = getWorkspaceSession(request());
     assert.equal(day29?.userId, created.userId);
     assert.match(day29?.setCookieHeader ?? "", /cvesearch_session=.*Max-Age=2592000/);

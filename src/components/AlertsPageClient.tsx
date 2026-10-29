@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ALERT_RULES_UPDATED_EVENT,
+  type AlertEvaluationsPayload,
   deleteAlertRule,
   loadAlertEvaluations,
   markAllAlertRulesChecked,
@@ -14,8 +15,8 @@ import AIAlertInvestigationPanel from "@/components/AIAlertInvestigationPanel";
 import ConfirmationDialog from "@/components/ConfirmationDialog";
 
 export default function AlertsPageClient() {
-  const [evaluations, setEvaluations] = useState<Awaited<ReturnType<typeof loadAlertEvaluations>>["evaluations"]>([]);
-  const [sampledCount, setSampledCount] = useState(0);
+  const [snapshot, setSnapshot] = useState<AlertEvaluationsPayload>({ evaluations: [], sampledCount: 0, truncated: false });
+  const { evaluations, sampledCount, truncated } = snapshot;
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pendingDeleteRuleId, setPendingDeleteRuleId] = useState<string | null>(null);
@@ -28,8 +29,7 @@ export default function AlertsPageClient() {
       try {
         const next = await loadAlertEvaluations();
         if (!cancelled) {
-          setEvaluations(next.evaluations);
-          setSampledCount(next.sampledCount);
+          setSnapshot(next);
         }
       } catch (error) {
         if (!cancelled) {
@@ -71,8 +71,7 @@ export default function AlertsPageClient() {
               void markAllAlertRulesChecked()
                 .then(async () => {
                   const next = await loadAlertEvaluations();
-                  setEvaluations(next.evaluations);
-                  setSampledCount(next.sampledCount);
+                  setSnapshot(next);
                   setFeedback({ type: "success", message: "Marked all alert rules as checked." });
                 })
                 .catch((error: unknown) => {
@@ -100,6 +99,12 @@ export default function AlertsPageClient() {
         <Metric label="Unread matches" value={totalUnread} />
         <Metric label="Sampled CVEs" value={sampledCount} />
       </div>
+
+      {truncated && (
+        <p className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm text-amber-300">
+          More than {sampledCount} new CVEs since last check — older ones were not evaluated.
+        </p>
+      )}
 
       {evaluations.length === 0 ? (
         <div className="glass rounded-xl px-6 py-10 text-center">
@@ -141,8 +146,7 @@ export default function AlertsPageClient() {
                       void markAlertRuleChecked(rule.id)
                         .then(async () => {
                           const next = await loadAlertEvaluations();
-                          setEvaluations(next.evaluations);
-                          setSampledCount(next.sampledCount);
+                          setSnapshot(next);
                           setFeedback({ type: "success", message: `Marked ${rule.name} as checked.` });
                         })
                         .catch((error: unknown) => {
@@ -184,8 +188,7 @@ export default function AlertsPageClient() {
           void deleteAlertRule(pendingDeleteRule.id)
             .then(async () => {
               const next = await loadAlertEvaluations();
-              setEvaluations(next.evaluations);
-              setSampledCount(next.sampledCount);
+              setSnapshot(next);
               setFeedback({ type: "success", message: `Deleted ${pendingDeleteRule.name}.` });
               setPendingDeleteRuleId(null);
             })

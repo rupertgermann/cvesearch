@@ -13,6 +13,7 @@ export type { AlertRule };
 export interface AlertEvaluationsPayload {
   evaluations: EvaluatedAlertRule[];
   sampledCount: number;
+  truncated: boolean;
 }
 
 export async function loadAlertRules(): Promise<AlertRule[]> {
@@ -93,6 +94,7 @@ export async function loadAlertEvaluations(): Promise<AlertEvaluationsPayload> {
   return {
     evaluations: Array.isArray(data?.evaluations) ? data.evaluations.filter(isEvaluatedAlertRule) : [],
     sampledCount: typeof data?.sampledCount === "number" ? data.sampledCount : 0,
+    truncated: data?.truncated === true,
   };
 }
 

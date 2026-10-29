@@ -5,7 +5,6 @@ import { TriageRecord } from "./triage-shared";
 import { ProjectRecord, CVESummary } from "./types";
 import { AlertRule, SavedView } from "./workspace-types";
 import {
-  getAlertRuleCursor,
   listAlertRuleMatches,
   listAlertRulesForUser,
   listSavedViewsForUser,
@@ -32,11 +31,14 @@ export interface WorkspaceContextSnapshot {
   triage: Record<string, TriageRecord>;
   projects: ProjectRecord[];
   latestSample: CVESummary[];
+  // The page cap stopped before reaching every rule's cursor, so older new CVEs were not evaluated.
+  latestSampleTruncated: boolean;
 }
 
 export interface AlertEvaluationsSnapshot {
   evaluations: EvaluatedAlertRule[];
   sampledCount: number;
+  truncated: boolean;
 }
 
 export async function loadWorkspaceContextSnapshot(userId: string): Promise<WorkspaceContextSnapshot> {
@@ -48,8 +50,8 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
     listProjects(userId),
   ]);
 
-  const cursors = alertRules.map((rule) => getAlertRuleCursor(rule.id));
-  const latestSample = await fetchLatestCVEsUntil(cursors);
+  const cursors = alertRules.map((rule) => rule.cursorPublishedAt);
+  const { cves: latestSample, truncated: latestSampleTruncated } = await fetchLatestCVEsUntil(cursors);
   const newestPublished = latestSample.reduce<string | null>(
     (newest, cve) => (cve.published && (!newest || Date.parse(cve.published) > Date.parse(newest)) ? cve.published : newest),
     null
@@ -79,6 +81,7 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
     triage,
     projects,
     latestSample,
+    latestSampleTruncated,
   };
 }
 
@@ -87,6 +90,7 @@ export async function loadAlertEvaluationsForUser(userId: string): Promise<Alert
   return {
     evaluations: snapshot.alertEvaluations,
     sampledCount: snapshot.latestSample.length,
+    truncated: snapshot.latestSampleTruncated,
   };
 }
 
@@ -107,8 +111,8 @@ export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContext
 }
 
 // Pages upstream (newest published first) until every rule's cursor is reached; null cursor means a never-evaluated rule.
-async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<CVESummary[]> {
-  if (cursors.length === 0) return [];
+async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<{ cves: CVESummary[]; truncated: boolean }> {
+  if (cursors.length === 0) return { cves: [], truncated: false };
 
   const oldestCursor = cursors.includes(null)
     ? null
@@ -119,14 +123,16 @@ async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<CVES
     for (let page = 1; page <= ALERT_MAX_PAGES; page += 1) {
       const batch = await getLatestCVEsServer(page, ALERT_PAGE_SIZE);
       fetched.push(...batch);
-      if (batch.length < ALERT_PAGE_SIZE || batch.some((cve) => isBeforeCursor(cve, oldestCursor))) break;
+      if (batch.length < ALERT_PAGE_SIZE || batch.some((cve) => isBeforeCursor(cve, oldestCursor))) {
+        return { cves: fetched, truncated: false };
+      }
     }
   } catch {
     // Partial pages would advance cursors past unseen records, so drop them and retry next time.
-    return [];
+    return { cves: [], truncated: false };
   }
 
-  return fetched;
+  return { cves: fetched, truncated: oldestCursor !== null };
 }
 
 function isBeforeCursor(cve: CVESummary, cursor: string | null): boolean {
