@@ -267,8 +267,6 @@ function initializeDatabase(db: DatabaseSync): void {
       FOREIGN KEY (rule_id) REFERENCES user_alert_rules(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_alert_rule_matches_rule_id ON alert_rule_matches(rule_id, published_at DESC, matched_at DESC);
-
     CREATE TABLE IF NOT EXISTS user_notification_preferences (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -383,6 +381,8 @@ function initializeDatabase(db: DatabaseSync): void {
   ensureColumn(db, "project_items", "updated_at", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "ai_runs", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "user_alert_rules", "cursor_published_at", "TEXT");
+  ensureColumn(db, "alert_rule_matches", "published_at", "TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_alert_rule_matches_rule_id ON alert_rule_matches(rule_id, published_at DESC, matched_at DESC)");
 
   migrateMonitoredRepoScope(db);
   ensureColumn(db, "monitored_repos", "user_id", "TEXT NOT NULL DEFAULT ''");
