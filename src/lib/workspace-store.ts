@@ -231,6 +231,8 @@ export async function markAllAlertRulesCheckedForUser(userId: string): Promise<A
   return listAlertRulesForUser(userId);
 }
 
+const MAX_STORED_ALERT_MATCHES = 200;
+
 export function recordAlertRuleMatches(ruleId: string, matches: CVESummary[], cursor: string | null): void {
   withTransaction((db) => {
     const insert = db.prepare(`
@@ -244,19 +246,27 @@ export function recordAlertRuleMatches(ruleId: string, matches: CVESummary[], cu
     if (cursor) {
       db.prepare("UPDATE user_alert_rules SET cursor_published_at = ? WHERE id = ?").run(cursor, ruleId);
     }
+    // shortcut: read matches beyond the newest MAX_STORED_ALERT_MATCHES are pruned; if one is still inside the
+    // cursor lookback window it comes back unread once. Fine unless a rule matches hundreds of CVEs within hours.
+    db.prepare(`
+      DELETE FROM alert_rule_matches
+      WHERE rule_id = ? AND read_at IS NOT NULL AND cve_id NOT IN (
+        SELECT cve_id FROM alert_rule_matches WHERE rule_id = ? ORDER BY published_at DESC, matched_at DESC LIMIT ?
+      )
+    `).run(ruleId, ruleId, MAX_STORED_ALERT_MATCHES);
   });
 }
 
 export function listAlertRuleMatches(ruleId: string): { matching: CVESummary[]; unread: number } {
   const db = getDb();
-  // shortcut: only the 200 newest matches are returned; paginate if the alerts UI ever needs older ones.
+  // shortcut: only the newest MAX_STORED_ALERT_MATCHES are returned; paginate if the alerts UI ever needs older ones.
   const rows = db.prepare(`
     SELECT summary_json as summaryJson
     FROM alert_rule_matches
     WHERE rule_id = ?
     ORDER BY published_at DESC, matched_at DESC
-    LIMIT 200
-  `).all(ruleId) as Array<{ summaryJson: string }>;
+    LIMIT ?
+  `).all(ruleId, MAX_STORED_ALERT_MATCHES) as Array<{ summaryJson: string }>;
   const unread = db.prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ? AND read_at IS NULL").get(ruleId) as {
     count: number;
   };

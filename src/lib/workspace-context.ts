@@ -1,6 +1,6 @@
 import type { DigestInput } from "./ai-service";
 import { applySearchResultPreferences, matchesSearchState } from "./search";
-import { getLatestCVEsServer } from "./server-api";
+import { enrichCVEs, getLatestCVESummariesServer } from "./server-api";
 import { TriageRecord } from "./triage-shared";
 import { ProjectRecord, CVESummary } from "./types";
 import { AlertRule, SavedView } from "./workspace-types";
@@ -15,7 +15,12 @@ import {
 import { listProjects } from "./projects-store";
 
 const ALERT_PAGE_SIZE = 100;
-const ALERT_MAX_PAGES = 10;
+// ~4 days of feed (~1,100 records/day) for rules that already have a cursor.
+const ALERT_MAX_PAGES = 40;
+// A new rule only needs a baseline, not the whole backlog.
+const ALERT_BASELINE_PAGES = 10;
+// The feed is only roughly ordered by published date, so keep paging a little past the cursor.
+const ALERT_CURSOR_LOOKBACK_MS = 3 * 60 * 60 * 1000;
 
 export interface EvaluatedAlertRule {
   rule: AlertRule;
@@ -57,21 +62,19 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
     null
   );
 
-  const alertEvaluations = alertRules.map((rule, index) => {
-    const cursor = cursors[index];
-    recordAlertRuleMatches(
-      rule.id,
-      latestSample.filter((cve) => !isBeforeCursor(cve, cursor) && matchesSearchState(cve, rule.search)),
-      newestPublished
-    );
+  const alertEvaluations: EvaluatedAlertRule[] = [];
+  for (const rule of alertRules) {
+    // No cursor filter here: out-of-order records must still match; the (rule, cve) key dedupes repeats.
+    const matches = latestSample.filter((cve) => matchesSearchState(cve, rule.search));
+    recordAlertRuleMatches(rule.id, await enrichCVEs(matches), newestPublished);
 
     const stored = listAlertRuleMatches(rule.id);
-    return {
+    alertEvaluations.push({
       rule,
       matching: applySearchResultPreferences(stored.matching, rule.search),
       unread: stored.unread,
-    };
-  });
+    });
+  }
 
   return {
     watchlist,
@@ -117,14 +120,16 @@ async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<{ cv
   const oldestCursor = cursors.includes(null)
     ? null
     : cursors.reduce((oldest, cursor) => (Date.parse(cursor!) < Date.parse(oldest!) ? cursor : oldest));
+  const stopBefore = oldestCursor === null ? null : new Date(Date.parse(oldestCursor) - ALERT_CURSOR_LOOKBACK_MS).toISOString();
+  const maxPages = oldestCursor === null ? ALERT_BASELINE_PAGES : ALERT_MAX_PAGES;
   const fetched: CVESummary[] = [];
 
   try {
-    for (let page = 1; page <= ALERT_MAX_PAGES; page += 1) {
-      const batch = await getLatestCVEsServer(page, ALERT_PAGE_SIZE);
+    for (let page = 1; page <= maxPages; page += 1) {
+      const batch = await getLatestCVESummariesServer(page, ALERT_PAGE_SIZE);
       fetched.push(...batch);
       // Short pages are not the end: the list parser drops duplicate ids, so only an empty page is.
-      if (batch.length === 0 || batch.some((cve) => isBeforeCursor(cve, oldestCursor))) {
+      if (batch.length === 0 || batch.every((cve) => isBeforeCursor(cve, stopBefore))) {
         return { cves: fetched, truncated: false };
       }
     }

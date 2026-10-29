@@ -61,10 +61,10 @@ test("alert evaluation stores a match beyond the newest 80 CVEs and tracks unrea
 
     await markAlertRuleCheckedForUser(session.userId, rule.id);
 
-    // Cursor reached on page 1: only one upstream page is read and the stored match stays, now read.
+    // Paging stops at the first page entirely older than cursor - 3h lookback (1 record/minute → page 3).
     upstream.requestedPages.length = 0;
     const second = await loadAlertEvaluationsForUser(session.userId);
-    assert.deepEqual(upstream.requestedPages, [1]);
+    assert.deepEqual(upstream.requestedPages, [1, 2, 3]);
     assert.deepEqual(second.evaluations[0].matching.map((cve) => cve.id), [feed[150].id]);
     assert.equal(second.evaluations[0].unread, 0);
   } finally {
@@ -104,7 +104,7 @@ test("alert evaluation reports truncation when more new CVEs arrived than the pa
       first.restore();
     }
 
-    const later = installFakeUpstream([...buildFeed(1100, 300), ...buildFeed(300)]);
+    const later = installFakeUpstream([...buildFeed(4100, 300), ...buildFeed(300)]);
     try {
       assert.equal((await loadAlertEvaluationsForUser(userId)).truncated, true);
     } finally {
@@ -178,4 +178,41 @@ test("alert evaluation keeps paging past a page shortened by duplicate ids", asy
     }
     await fs.rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("alert evaluation stores a late-listed match published before the cursor", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "OpenSSL", normalizeSearchState({ query: "openssl" }));
+    const feed = buildFeed(300).map((cve) => ({ ...cve, summary: "Unrelated issue" }));
+    const first = installFakeUpstream(feed);
+    try {
+      await loadAlertEvaluationsForUser(userId);
+    } finally {
+      first.restore();
+    }
+
+    // CIRCL lists a record published an hour before the cursor at the top of page 1.
+    const late = { id: "CVE-2026-999999", summary: "OpenSSL flaw ingested late", published: feed[60].published };
+    const second = installFakeUpstream([late, ...feed]);
+    try {
+      const result = await loadAlertEvaluationsForUser(userId);
+      assert.deepEqual(result.evaluations[0].matching.map((cve) => cve.id), [late.id]);
+      assert.equal(result.evaluations[0].unread, 1);
+    } finally {
+      second.restore();
+    }
+    assert.ok(rule.id);
+  });
+});
+
+test("read alert matches beyond the newest 200 are pruned", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));
+    recordAlertRuleMatches(rule.id, buildFeed(250), null);
+    await markAlertRuleCheckedForUser(userId, rule.id);
+    recordAlertRuleMatches(rule.id, [], null);
+
+    const count = getDb().prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ?").get(rule.id) as { count: number };
+    assert.equal(count.count, 200);
+  });
 });

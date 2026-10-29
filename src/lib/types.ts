@@ -115,6 +115,7 @@ export interface AffectedProduct {
 export interface MetricEntry {
   cvssV3_1?: CVSSv3;
   cvssV3_0?: CVSSv3;
+  cvssV4_0?: CVSSv3;
   cvssV2_0?: CVSSv2;
   format?: string;
   scenarios?: { lang: string; value: string }[];

@@ -29,6 +29,7 @@ import {
 
 const KEV_CATALOG_URL = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json";
 const KEV_CACHE_TTL_MS = 60 * 60 * 1000;
+const EXTERNAL_FETCH_TIMEOUT_MS = 5_000;
 const EPSS_API_URL = "https://api.first.org/data/v1/epss";
 const EPSS_BATCH_SIZE = 100;
 const HOME_RESULTS_WINDOW = 200;
@@ -62,6 +63,11 @@ async function fetchCVEList(buildPath: (page: number, perPage: number) => string
   );
   const start = offset - (firstPage - 1) * UPSTREAM_MAX_PER_PAGE;
   return pages.flat().slice(start, start + perPage);
+}
+
+// Unenriched (no KEV/EPSS) for callers that only filter the list.
+export async function getLatestCVESummariesServer(page: number, perPage: number): Promise<CVESummary[]> {
+  return fetchCVEList(buildLatestCVEsPath, page, perPage);
 }
 
 export async function getLatestCVEsServer(page: number, perPage: number): Promise<CVESummary[]> {
@@ -160,6 +166,8 @@ export async function getHomePageResults(state: SearchState): Promise<{
         : await getLatestCVEsServer(page, perPage);
     let totalHint = `Page ${state.page}`;
     let pageLocally = windowed;
+    // Vendor/product sources overlap, so the window can hold fewer unique rows than requested.
+    const windowSize = results.length;
 
     if (state.query && !state.product && results.length === 0) {
       const recent = await fetchCVEList(buildLatestCVEsPath, 1, HOME_RESULTS_WINDOW);
@@ -180,7 +188,7 @@ export async function getHomePageResults(state: SearchState): Promise<{
     }
 
     if (windowed) {
-      totalHint += ` · sorted/filtered within the ${HOME_RESULTS_WINDOW} newest matches`;
+      totalHint += ` · sorted/filtered within the ${windowSize} newest matches`;
     }
 
     return {
@@ -294,7 +302,7 @@ export async function getHomeDashboardData(state: SearchState): Promise<HomeDash
   }
 }
 
-async function enrichCVEs<T extends CVESummary>(cves: T[]): Promise<T[]> {
+export async function enrichCVEs<T extends CVESummary>(cves: T[]): Promise<T[]> {
   if (cves.length === 0) {
     return cves;
   }
@@ -325,7 +333,10 @@ async function getEPSSMap(cveIds: string[]): Promise<Map<string, number>> {
 
 async function fetchEPSSBatch(cveIds: string[]): Promise<Array<[string, number]>> {
   try {
-    const res = await fetch(`${EPSS_API_URL}?cve=${encodeURIComponent(cveIds.join(","))}`, HOURLY_JSON_FETCH);
+    const res = await fetch(`${EPSS_API_URL}?cve=${encodeURIComponent(cveIds.join(","))}`, {
+      ...HOURLY_JSON_FETCH,
+      signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
+    });
 
     if (!res.ok) {
       throw new Error(`EPSS API error: ${res.status}`);
@@ -360,7 +371,11 @@ async function getKnownExploitedMap(): Promise<Map<string, KnownExploitedVulnera
   }
 
   try {
-    const res = await fetch(KEV_CATALOG_URL, { headers: HOURLY_JSON_FETCH.headers, cache: "no-store" });
+    const res = await fetch(KEV_CATALOG_URL, {
+      headers: HOURLY_JSON_FETCH.headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS * 2),
+    });
 
     if (!res.ok) {
       throw new Error(`KEV catalog error: ${res.status}`);

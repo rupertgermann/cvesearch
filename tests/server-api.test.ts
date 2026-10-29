@@ -56,7 +56,7 @@ test("getHomePageResults sorts by CVSS across more than one upstream page", asyn
     assert.equal(result.error, null);
     assert.equal(result.cves.length, 20);
     assert.deepEqual(result.cves.slice(0, 2).map((cve) => cve.id), ["CVE-2026-1025", "CVE-2026-1045"]);
-    assert.match(result.totalHint, /within the 200 newest/);
+    assert.match(result.totalHint, /within the 60 newest/);
   });
 });
 
