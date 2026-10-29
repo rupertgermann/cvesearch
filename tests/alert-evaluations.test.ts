@@ -6,7 +6,15 @@ import test from "node:test";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
 import { normalizeSearchState } from "../src/lib/search";
 import { loadAlertEvaluationsForUser } from "../src/lib/workspace-context";
-import { createAlertRuleForUser, markAlertRuleCheckedForUser } from "../src/lib/workspace-store";
+import { getDb } from "../src/lib/db";
+import {
+  createAlertRuleForUser,
+  deleteAlertRuleForUser,
+  importWorkspaceStateForUser,
+  listAlertRuleMatches,
+  markAlertRuleCheckedForUser,
+  recordAlertRuleMatches,
+} from "../src/lib/workspace-store";
 
 // 300 records, newest first; only position 150 mentions openssl.
 const BASE_TS = Date.parse("2026-10-01T00:00:00.000Z");
@@ -68,4 +76,80 @@ test("alert evaluation stores a match beyond the newest 80 CVEs and tracks unrea
     }
     await fs.rm(tempDir, { recursive: true, force: true });
   }
+});
+
+async function withAlertDb(run: (userId: string) => Promise<void>) {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-alert-eval-"));
+  const previousDatabaseFile = process.env.DATABASE_FILE;
+  process.env.DATABASE_FILE = path.join(tempDir, "alerts.db");
+  try {
+    await run(getOrCreateWorkspaceSession(new Request("https://example.test/alerts")).userId);
+  } finally {
+    if (previousDatabaseFile === undefined) {
+      delete process.env.DATABASE_FILE;
+    } else {
+      process.env.DATABASE_FILE = previousDatabaseFile;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+test("alert evaluation reports truncation when more new CVEs arrived than the page cap covers", async () => {
+  await withAlertDb(async (userId) => {
+    await createAlertRuleForUser(userId, "OpenSSL", normalizeSearchState({ query: "openssl" }));
+    const first = installFakeUpstream(buildFeed(300));
+    try {
+      assert.equal((await loadAlertEvaluationsForUser(userId)).truncated, false);
+    } finally {
+      first.restore();
+    }
+
+    const later = installFakeUpstream([...buildFeed(1100, 300), ...buildFeed(300)]);
+    try {
+      assert.equal((await loadAlertEvaluationsForUser(userId)).truncated, true);
+    } finally {
+      later.restore();
+    }
+  });
+});
+
+test("stored alert matches are the newest published, survive a corrupt row and dedupe by CVE id", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));
+    const oldestFirst = buildFeed(250).reverse();
+    const newestId = oldestFirst[249].id;
+    recordAlertRuleMatches(rule.id, oldestFirst, null);
+    recordAlertRuleMatches(rule.id, [{ id: "GHSA-xxxx-yyyy-zzzz", aliases: [newestId] }], null);
+    getDb().prepare("UPDATE alert_rule_matches SET summary_json = '{broken' WHERE cve_id = ?").run(newestId);
+
+    const stored = listAlertRuleMatches(rule.id);
+    assert.equal(stored.unread, 250);
+    assert.deepEqual(
+      stored.matching.map((cve) => cve.id).sort(),
+      oldestFirst.slice(50, 249).map((cve) => cve.id).sort()
+    );
+  });
+});
+
+test("deleting an alert rule removes its stored matches", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));
+    recordAlertRuleMatches(rule.id, buildFeed(3), null);
+    assert.equal(await deleteAlertRuleForUser(userId, rule.id), true);
+    const { count } = getDb().prepare("SELECT COUNT(*) as count FROM alert_rule_matches").get() as { count: number };
+    assert.equal(count, 0);
+  });
+});
+
+test("re-importing an alert rule does not keep stale matches", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));
+    recordAlertRuleMatches(rule.id, buildFeed(3), null);
+    await importWorkspaceStateForUser(
+      userId,
+      { watchlist: [], savedViews: [], promptTemplates: [], alertRules: [rule], inventoryAssets: [], triageRecords: [] },
+      "merge"
+    );
+    assert.equal(listAlertRuleMatches(rule.id).unread, 0);
+  });
 });

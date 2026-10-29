@@ -260,13 +260,14 @@ function initializeDatabase(db: DatabaseSync): void {
       rule_id TEXT NOT NULL,
       cve_id TEXT NOT NULL,
       summary_json TEXT NOT NULL,
+      published_at TEXT,
       matched_at TEXT NOT NULL,
       read_at TEXT,
       PRIMARY KEY (rule_id, cve_id),
       FOREIGN KEY (rule_id) REFERENCES user_alert_rules(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_alert_rule_matches_rule_id ON alert_rule_matches(rule_id, matched_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_alert_rule_matches_rule_id ON alert_rule_matches(rule_id, published_at DESC, matched_at DESC);
 
     CREATE TABLE IF NOT EXISTS user_notification_preferences (
       id TEXT PRIMARY KEY,
