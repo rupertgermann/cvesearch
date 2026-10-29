@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import { parseDependencyFiles, parseNpmDependencies } from "../src/lib/dependency-parser";
 
@@ -49,4 +51,19 @@ test("parseDependencyFiles preserves duplicate dependencies across manifest loca
     result.dependencies.map((dependency) => dependency.manifestPath).sort(),
     ["package.json", "packages/admin/package.json"]
   );
+});
+
+test("parseNpmDependencies reports every version of a package found in package-lock", () => {
+  const dependencies = parseNpmDependencies(
+    JSON.stringify({ dependencies: { lodash: "^4.17.21", "some-lib": "^1.0.0" } }),
+    "package.json",
+    readFileSync(path.join(process.cwd(), "tests", "fixtures", "package-lock-nested-duplicate.json"), "utf8"),
+    "package-lock.json"
+  );
+
+  assert.deepEqual(
+    dependencies.filter((dependency) => dependency.name === "lodash").map((dependency) => dependency.version).sort(),
+    ["4.17.10", "4.17.21"]
+  );
+  assert.equal(dependencies.filter((dependency) => dependency.name === "some-lib").length, 1);
 });

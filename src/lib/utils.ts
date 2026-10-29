@@ -85,6 +85,13 @@ export function extractCVSSScore(cve: CVEDetail): { score: number; version: stri
           severity: (m.cvssV3_0.baseSeverity?.toUpperCase() as SeverityLevel) || getSeverityFromScore(m.cvssV3_0.baseScore),
         };
       }
+      if (m.cvssV4_0?.baseScore !== undefined) {
+        return {
+          score: m.cvssV4_0.baseScore,
+          version: "4.0",
+          severity: (m.cvssV4_0.baseSeverity?.toUpperCase() as SeverityLevel) || getSeverityFromScore(m.cvssV4_0.baseScore),
+        };
+      }
       if (m.cvssV2_0?.baseScore !== undefined) {
         return {
           score: m.cvssV2_0.baseScore,

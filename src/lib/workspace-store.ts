@@ -6,6 +6,9 @@ import {
   normalizeTriageRecord,
   TriageRecord,
 } from "./triage-shared";
+import { parseStoredJson } from "./cve-store";
+import { CVESummary } from "./types";
+import { extractCVEId, extractPublishedDate } from "./utils";
 import { AlertRule, InventoryAssetRecord, PromptTemplateRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
 
 export async function listWatchlist(userId: string): Promise<string[]> {
@@ -139,18 +142,34 @@ export async function deletePromptTemplateForUser(userId: string, id: string): P
   return result.changes > 0;
 }
 
-export async function listAlertRulesForUser(userId: string): Promise<AlertRule[]> {
+// cursorPublishedAt is internal evaluation state: the newest published date already evaluated for the rule.
+export async function listAlertRulesForUser(userId: string): Promise<Array<AlertRule & { cursorPublishedAt: string | null }>> {
   const rows = getDb().prepare(`
-    SELECT id, name, search_json as searchJson, created_at as createdAt, last_checked_at as lastCheckedAt
+    SELECT id, name, search_json as searchJson, created_at as createdAt, last_checked_at as lastCheckedAt,
+      cursor_published_at as cursorPublishedAt
     FROM user_alert_rules
     WHERE user_id = ?
     ORDER BY created_at DESC
-  `).all(userId) as Array<{ id: string; name: string; searchJson: string; createdAt: string; lastCheckedAt: string | null }>;
+  `).all(userId) as Array<{
+    id: string;
+    name: string;
+    searchJson: string;
+    createdAt: string;
+    lastCheckedAt: string | null;
+    cursorPublishedAt: string | null;
+  }>;
 
   return rows.flatMap((row) => {
     const search = parseSearchState(row.searchJson);
     return search
-      ? [{ id: row.id, name: row.name, search, createdAt: row.createdAt, lastCheckedAt: row.lastCheckedAt }]
+      ? [{
+          id: row.id,
+          name: row.name,
+          search,
+          createdAt: row.createdAt,
+          lastCheckedAt: row.lastCheckedAt,
+          cursorPublishedAt: row.cursorPublishedAt,
+        }]
       : [];
   });
 }
@@ -188,6 +207,11 @@ export async function markAlertRuleCheckedForUser(userId: string, id: string): P
     SET last_checked_at = ?
     WHERE user_id = ? AND id = ?
   `).run(new Date().toISOString(), userId, id);
+  getDb().prepare(`
+    UPDATE alert_rule_matches
+    SET read_at = ?
+    WHERE read_at IS NULL AND rule_id IN (SELECT id FROM user_alert_rules WHERE user_id = ? AND id = ?)
+  `).run(new Date().toISOString(), userId, id);
 
   return listAlertRulesForUser(userId);
 }
@@ -198,8 +222,56 @@ export async function markAllAlertRulesCheckedForUser(userId: string): Promise<A
     SET last_checked_at = ?
     WHERE user_id = ?
   `).run(new Date().toISOString(), userId);
+  getDb().prepare(`
+    UPDATE alert_rule_matches
+    SET read_at = ?
+    WHERE read_at IS NULL AND rule_id IN (SELECT id FROM user_alert_rules WHERE user_id = ?)
+  `).run(new Date().toISOString(), userId);
 
   return listAlertRulesForUser(userId);
+}
+
+const MAX_STORED_ALERT_MATCHES = 200;
+
+export function recordAlertRuleMatches(ruleId: string, matches: CVESummary[], cursor: string | null): void {
+  withTransaction((db) => {
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO alert_rule_matches (rule_id, cve_id, summary_json, published_at, matched_at, read_at)
+      VALUES (?, ?, ?, ?, ?, NULL)
+    `);
+    const matchedAt = new Date().toISOString();
+    for (const cve of matches) {
+      insert.run(ruleId, extractCVEId(cve), JSON.stringify(cve), extractPublishedDate(cve) ?? null, matchedAt);
+    }
+    if (cursor) {
+      db.prepare("UPDATE user_alert_rules SET cursor_published_at = ? WHERE id = ?").run(cursor, ruleId);
+    }
+    // shortcut: read matches beyond the newest MAX_STORED_ALERT_MATCHES are pruned; if one is still inside the
+    // cursor lookback window it comes back unread once. Fine unless a rule matches hundreds of CVEs within hours.
+    db.prepare(`
+      DELETE FROM alert_rule_matches
+      WHERE rule_id = ? AND read_at IS NOT NULL AND cve_id NOT IN (
+        SELECT cve_id FROM alert_rule_matches WHERE rule_id = ? ORDER BY published_at DESC, matched_at DESC LIMIT ?
+      )
+    `).run(ruleId, ruleId, MAX_STORED_ALERT_MATCHES);
+  });
+}
+
+export function listAlertRuleMatches(ruleId: string): { matching: CVESummary[]; unread: number } {
+  const db = getDb();
+  // shortcut: only the newest MAX_STORED_ALERT_MATCHES are returned; paginate if the alerts UI ever needs older ones.
+  const rows = db.prepare(`
+    SELECT summary_json as summaryJson
+    FROM alert_rule_matches
+    WHERE rule_id = ?
+    ORDER BY published_at DESC, matched_at DESC
+    LIMIT ?
+  `).all(ruleId, MAX_STORED_ALERT_MATCHES) as Array<{ summaryJson: string }>;
+  const unread = db.prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ? AND read_at IS NULL").get(ruleId) as {
+    count: number;
+  };
+
+  return { matching: rows.flatMap((row) => parseStoredJson<CVESummary>(row.summaryJson) ?? []), unread: unread.count };
 }
 
 export async function listInventoryAssetsForUser(userId: string): Promise<InventoryAssetRecord[]> {
