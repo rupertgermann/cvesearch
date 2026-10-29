@@ -5,7 +5,6 @@ import { useCallback, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CVESummary } from "@/lib/types";
 import {
-  applySearchResultPreferences,
   buildSearchParams,
   DEFAULT_PAGE,
   getSearchSummary,
@@ -37,7 +36,6 @@ export default function HomePageClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const state = useMemo(() => normalizeSearchState(initialState), [initialState]);
-  const visibleCves = useMemo(() => applySearchResultPreferences(cves, state), [cves, state]);
   const dashboardHref = useMemo(() => {
     const params = buildSearchParams(state);
     return params.toString() ? `/dashboard?${params.toString()}` : "/dashboard";
@@ -171,9 +169,9 @@ export default function HomePageClient({
             </>
           )}
           <span className="text-white/15">/</span>
-          <span className="font-mono text-cyan-400/60">{visibleCves.length} shown</span>
+          <span className="font-mono text-cyan-400/60">{cves.length} shown</span>
         </div>
-        <ExportResultsButtons cves={visibleCves} search={state} />
+        <ExportResultsButtons cves={cves} search={state} />
       </div>
 
       {hasActiveFilters(state) && (
@@ -193,9 +191,9 @@ export default function HomePageClient({
         </div>
       )}
 
-      <CVEList cves={visibleCves} loading={isPending} />
+      <CVEList cves={cves} loading={isPending} />
 
-      {visibleCves.length > 0 && !error && (
+      {cves.length > 0 && !error && (
         <div className="mt-6">
           <Pagination
             page={state.page}
