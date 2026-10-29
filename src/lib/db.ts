@@ -42,6 +42,7 @@ export function getDb(): DatabaseSync {
 
   if (!currentDb || currentPath !== nextPath) {
     currentDb?.close();
+    currentDb = null;
     currentDb = new DatabaseSync(nextPath);
     currentPath = nextPath;
     initializeDatabase(currentDb);

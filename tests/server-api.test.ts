@@ -157,3 +157,51 @@ test("list results still load when the EPSS API fails", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+// 30 recent upstream rows that all match "widget"; product search returns nothing so the keyword fallback runs.
+async function withKeywordFallback(run: () => Promise<void>) {
+  const recent = Array.from({ length: 30 }, (_, index) => ({
+    id: `CVE-2026-${String(4000 + index)}`,
+    summary: `Widget issue ${index}`,
+    published: new Date(Date.UTC(2026, 5, 1) - index * 3_600_000).toISOString(),
+    cvss3: index === 29 ? 9.9 : 5,
+  }));
+  await withUpstream(recent, async () => {
+    const upstream = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      if (url.includes("product=")) return new Response("[]");
+      if (url.startsWith("https://api.first.org/data/v1/epss")) {
+        const ids = new URL(url).searchParams.get("cve")!.split(",");
+        return jsonResponse({ data: ids.map((cve) => ({ cve, epss: "0.5" })) });
+      }
+      return upstream(input);
+    }) as typeof fetch;
+    await run();
+  });
+}
+
+test("keyword fallback paginates by the requested page", async () => {
+  await withKeywordFallback(async () => {
+    const page2 = await getHomePageResults(normalizeSearchState({ query: "widget", page: 2 }));
+    assert.deepEqual(page2.cves.map((cve) => cve.id), Array.from({ length: 10 }, (_, i) => `CVE-2026-${4020 + i}`));
+  });
+});
+
+test("keyword fallback with a non-default sort mentions both the fallback scope and the sort window", async () => {
+  await withKeywordFallback(async () => {
+    const result = await getHomePageResults(normalizeSearchState({ query: "widget", sort: "cvss_desc" }));
+    assert.equal(result.cves[0].id, "CVE-2026-4029");
+    assert.match(result.totalHint, /recent and locally cached/i);
+    assert.match(result.totalHint, /sorted\/filtered within/i);
+  });
+});
+
+test("keyword fallback enriches locally cached CVEs with EPSS", async () => {
+  await withKeywordFallback(async () => {
+    upsertCVESummaries([{ id: "CVE-2019-0042", summary: "Old widget bug", published: "2019-01-01T00:00:00Z" }]);
+    const result = await getHomePageResults(normalizeSearchState({ query: "widget", page: 2 }));
+    const cached = result.cves.find((cve) => cve.id === "CVE-2019-0042");
+    assert.equal(cached?.epss, 0.5);
+  });
+});
