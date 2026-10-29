@@ -58,7 +58,10 @@ export const parseNpmDependencies = (
     return [];
   }
 
+  // name -> version the manifest resolves to (top-level install)
   const lockVersions = new Map<string, { version: string; isDev: boolean }>();
+  // every installed copy, including nested ones with other versions
+  const lockEntries: { name: string; version: string; isDev: boolean }[] = [];
 
   if (packageLockJsonRaw) {
     let lockJson: PackageLockJson;
@@ -73,18 +76,25 @@ export const parseNpmDependencies = (
         if (!key || !value.version) return;
         const name = extractPackageLockDependencyName(key);
         if (!name) return;
-        lockVersions.set(name, { version: value.version, isDev: !!value.dev });
+        const entry = { version: value.version, isDev: !!value.dev };
+        lockEntries.push({ name, ...entry });
+        if (key === `node_modules/${name}` || !lockVersions.has(name)) {
+          lockVersions.set(name, entry);
+        }
       });
     } else if (lockJson.dependencies) {
       Object.entries(lockJson.dependencies).forEach(([name, value]) => {
         if (!value.version) return;
-        lockVersions.set(name, { version: value.version, isDev: !!value.dev });
+        const entry = { version: value.version, isDev: !!value.dev };
+        lockEntries.push({ name, ...entry });
+        lockVersions.set(name, entry);
       });
     }
   }
 
   const dependencies: ParsedDependency[] = [];
   const seen = new Set<string>();
+  const seenVersions = new Set<string>();
 
   const addFromManifest = (deps: Record<string, string> | undefined, isDev: boolean) => {
     if (!deps) return;
@@ -96,6 +106,7 @@ export const parseNpmDependencies = (
       const version = lockEntry?.version ?? stripSemverPrefix(versionRange);
 
       if (!isConcreteVersion(version)) return;
+      seenVersions.add(`${name}@${version}`);
 
       dependencies.push({
         name,
@@ -112,10 +123,11 @@ export const parseNpmDependencies = (
   addFromManifest(packageJson.dependencies, false);
   addFromManifest(packageJson.devDependencies, true);
 
-  if (packageLockJsonRaw && lockVersions.size > 0) {
-    lockVersions.forEach(({ version, isDev }, name) => {
-      if (seen.has(name)) return;
-      seen.add(name);
+  if (packageLockJsonRaw && lockEntries.length > 0) {
+    lockEntries.forEach(({ name, version, isDev }) => {
+      const key = `${name}@${version}`;
+      if (seenVersions.has(key)) return;
+      seenVersions.add(key);
       dependencies.push({
         name,
         version,

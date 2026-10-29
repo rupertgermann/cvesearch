@@ -1,0 +1,10 @@
+{
+  "name": "app",
+  "lockfileVersion": 3,
+  "packages": {
+    "": { "name": "app", "version": "1.0.0", "dependencies": { "lodash": "^4.17.21", "some-lib": "^1.0.0" } },
+    "node_modules/some-lib/node_modules/lodash": { "version": "4.17.10" },
+    "node_modules/lodash": { "version": "4.17.21" },
+    "node_modules/some-lib": { "version": "1.0.0" }
+  }
+}
