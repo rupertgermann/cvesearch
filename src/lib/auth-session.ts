@@ -2,6 +2,7 @@ import { getDb, withTransaction } from "./db";
 
 const SESSION_COOKIE_NAME = "cvesearch_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const SESSION_REFRESH_THRESHOLD_SECONDS = 60 * 60 * 24 * 29;
 
 export interface WorkspaceSession {
   sessionId: string;
@@ -15,19 +16,32 @@ export function getWorkspaceSession(request: Request): WorkspaceSession | null {
     return null;
   }
 
+  const now = Date.now();
   const existing = getDb().prepare(`
-    SELECT id, user_id as userId
+    SELECT id, user_id as userId, expires_at as expiresAt
     FROM sessions
     WHERE id = ? AND expires_at > ?
-  `).get(existingSessionId, new Date().toISOString()) as { id: string; userId: string } | undefined;
+  `).get(existingSessionId, new Date(now).toISOString()) as { id: string; userId: string; expiresAt: string } | undefined;
 
   if (!existing) {
     return null;
   }
 
+  // Sliding expiry, throttled: only extend once less than 29 days remain.
+  if (Date.parse(existing.expiresAt) - now >= SESSION_REFRESH_THRESHOLD_SECONDS * 1000) {
+    return {
+      sessionId: existing.id,
+      userId: existing.userId,
+    };
+  }
+
+  getDb().prepare(`UPDATE sessions SET expires_at = ? WHERE id = ?`)
+    .run(new Date(now + SESSION_MAX_AGE_SECONDS * 1000).toISOString(), existing.id);
+
   return {
     sessionId: existing.id,
     userId: existing.userId,
+    setCookieHeader: buildSessionCookie(existing.id),
   };
 }
 
@@ -60,8 +74,12 @@ export function getOrCreateWorkspaceSession(request: Request): WorkspaceSession 
   return {
     sessionId,
     userId,
-    setCookieHeader: `${SESSION_COOKIE_NAME}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`,
+    setCookieHeader: buildSessionCookie(sessionId),
   };
+}
+
+function buildSessionCookie(sessionId: string): string {
+  return `${SESSION_COOKIE_NAME}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
 }
 
 export function applyWorkspaceSession(response: Response, session: WorkspaceSession): Response {
