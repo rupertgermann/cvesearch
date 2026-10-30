@@ -12,7 +12,8 @@ export const listMonitoredRepos = async (userId: string): Promise<MonitoredRepo[
       default_branch as defaultBranch,
       added_at as addedAt,
       last_scanned_at as lastScannedAt,
-      last_scan_vulnerability_count as lastScanVulnerabilityCount
+      last_scan_vulnerability_count as lastScanVulnerabilityCount,
+      source_kind as sourceKind
     FROM monitored_repos
     WHERE user_id = ?
     ORDER BY added_at DESC
@@ -27,6 +28,7 @@ export const addMonitoredRepo = async (userId: string, input: {
   htmlUrl: string;
   isPrivate: boolean;
   defaultBranch: string;
+  sourceKind?: MonitoredRepo["sourceKind"];
 }): Promise<MonitoredRepo> => {
   return withTransaction((db) => {
     const existing = db.prepare(`
@@ -39,7 +41,8 @@ export const addMonitoredRepo = async (userId: string, input: {
         default_branch as defaultBranch,
         added_at as addedAt,
         last_scanned_at as lastScannedAt,
-        last_scan_vulnerability_count as lastScanVulnerabilityCount
+        last_scan_vulnerability_count as lastScanVulnerabilityCount,
+        source_kind as sourceKind
       FROM monitored_repos
       WHERE user_id = ? AND full_name = ?
     `).get(userId, input.fullName) as MonitoredRepoRow | undefined;
@@ -58,6 +61,7 @@ export const addMonitoredRepo = async (userId: string, input: {
       addedAt: new Date().toISOString(),
       lastScannedAt: null,
       lastScanVulnerabilityCount: null,
+      sourceKind: input.sourceKind ?? "github",
     };
 
     db.prepare(`
@@ -71,8 +75,9 @@ export const addMonitoredRepo = async (userId: string, input: {
         default_branch,
         added_at,
         last_scanned_at,
-        last_scan_vulnerability_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_scan_vulnerability_count,
+        source_kind
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       repo.id,
       userId,
@@ -83,7 +88,8 @@ export const addMonitoredRepo = async (userId: string, input: {
       repo.defaultBranch,
       repo.addedAt,
       repo.lastScannedAt,
-      repo.lastScanVulnerabilityCount
+      repo.lastScanVulnerabilityCount,
+      repo.sourceKind
     );
 
     return repo;
@@ -118,7 +124,8 @@ export const getMonitoredRepo = async (userId: string, repoIdOrFullName: string)
       default_branch as defaultBranch,
       added_at as addedAt,
       last_scanned_at as lastScannedAt,
-      last_scan_vulnerability_count as lastScanVulnerabilityCount
+      last_scan_vulnerability_count as lastScanVulnerabilityCount,
+      source_kind as sourceKind
     FROM monitored_repos
     WHERE user_id = ? AND (id = ? OR full_name = ?)
     LIMIT 1
@@ -137,6 +144,7 @@ interface MonitoredRepoRow {
   addedAt: string;
   lastScannedAt: string | null;
   lastScanVulnerabilityCount: number | null;
+  sourceKind: string;
 }
 
 function normalizeMonitoredRepoRow(row: MonitoredRepoRow): MonitoredRepo {
@@ -150,5 +158,6 @@ function normalizeMonitoredRepoRow(row: MonitoredRepoRow): MonitoredRepo {
     addedAt: row.addedAt,
     lastScannedAt: row.lastScannedAt,
     lastScanVulnerabilityCount: row.lastScanVulnerabilityCount,
+    sourceKind: row.sourceKind === "upload" ? "upload" : "github",
   };
 }

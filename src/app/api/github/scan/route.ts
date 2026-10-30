@@ -9,12 +9,14 @@ import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
 
 const isRepoFullName = (value: string): boolean => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
+// History is also read for uploaded sources (see /api/sources), whose names have no "/".
+const isSourceName = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,99}$/.test(value);
 
 export const GET = withRouteProtection(async function GET(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
   const fullName = request.nextUrl.searchParams.get("fullName")?.trim() ?? "";
 
-  if (!fullName || !isRepoFullName(fullName)) {
+  if (!isRepoFullName(fullName) && !isSourceName(fullName)) {
     return applyWorkspaceSession(NextResponse.json({ error: "fullName is required" }, { status: 400 }), session);
   }
 

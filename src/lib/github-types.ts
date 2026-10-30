@@ -1,5 +1,5 @@
 import type { AIOverrides } from "./types";
-export type DependencyEcosystem = "npm" | "Packagist";
+export type DependencyEcosystem = "npm" | "Packagist" | "PyPI" | "Go" | "crates.io" | "Maven" | "RubyGems" | "NuGet";
 
 export interface GitHubRepo {
   id: number;
@@ -24,6 +24,8 @@ export interface MonitoredRepo {
   addedAt: string;
   lastScannedAt: string | null;
   lastScanVulnerabilityCount: number | null;
+  /** "upload": a pasted/uploaded lockfile or SBOM, not a GitHub repo (no rescan, no fix PRs). */
+  sourceKind: "github" | "upload";
 }
 
 export interface RepoScanRecord extends DependencyScanResult {
