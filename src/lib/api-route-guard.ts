@@ -131,7 +131,7 @@ export async function listRecentAPIRequestLogs(limit = 50): Promise<APIRequestLo
       error,
       created_at as createdAt
     FROM api_request_logs
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, rowid DESC
     LIMIT ?
   `).all(normalizeLimit(limit)) as APIRequestLogRow[];
 
@@ -267,7 +267,7 @@ async function appendAPIRequestLog(input: Omit<APIRequestLogRecord, "id" | "crea
       const overflow = db.prepare(`
         SELECT id
         FROM api_request_logs
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, rowid DESC
         LIMIT -1 OFFSET ?
       `).all(MAX_STORED_REQUEST_LOGS) as Array<{ id: string }>;
 
