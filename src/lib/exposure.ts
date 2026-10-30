@@ -11,13 +11,26 @@ export interface ExposureRow {
   assetId: string;
   assetLabel: string;
   criticality: InventoryAssetRecord["criticality"] | null;
+  // Inventory rows only.
+  environment: string | null;
+  // Repo rows only: the matched dependency is a devDependency.
+  isDev: boolean | null;
   repoFullName: string | null;
   firstSeenAt: string;
   cve: CVESummary;
 }
 
+export type ExposurePriorityLevel = "P1" | "P2" | "P3";
+
+export interface ExposurePriority {
+  priority: ExposurePriorityLevel;
+  priorityReason: string;
+}
+
+export type PrioritizedExposureRow = ExposureRow & ExposurePriority;
+
 export interface ExposureQueue {
-  rows: ExposureRow[];
+  rows: PrioritizedExposureRow[];
   hasSources: boolean;
   // The feed page cap stopped before every asset's cursor, so some new CVEs were not checked.
   truncated: boolean;
@@ -25,6 +38,46 @@ export interface ExposureQueue {
 
 export function exposureRowKey(vulnerabilityId: string, assetId: string): string {
   return `${vulnerabilityId}::${assetId}`;
+}
+
+export type ExposurePriorityInput = Pick<ExposureRow, "source" | "environment" | "criticality" | "isDev"> & {
+  cve: Pick<CVESummary, "kev" | "epss" | "cvss" | "cvss3">;
+};
+
+// "Fix first" rules (#29), kept as plain rules so users can trust the order:
+//   P1: KEV or EPSS >= 0.5 on an important asset.
+//   P2: CVSS >= 7 on an important asset, or KEV anywhere else.
+//   P3: everything else. A repo devDependency then drops one level.
+// Important asset: an inventory item whose environment mentions "prod" or whose criticality is high/critical,
+// or any monitored repo (repos are monitored because they ship; dev-only deps are handled by the drop instead).
+export function getExposurePriority(row: ExposurePriorityInput): ExposurePriority {
+  const { kev, epss, cvss3, cvss } = row.cve;
+  const score = cvss3 ?? cvss;
+  const isProd = row.source === "repo" || /prod/i.test(row.environment ?? "");
+  const isImportant = isProd || row.criticality === "critical" || row.criticality === "high";
+  const highEpss = epss !== undefined && epss >= 0.5;
+
+  let level = isImportant && (kev || highEpss) ? 1 : (isImportant && score !== undefined && score >= 7) || kev ? 2 : 3;
+  if (row.isDev) level = Math.min(level + 1, 3);
+
+  const signal = kev
+    ? "KEV"
+    : highEpss
+      ? `EPSS ${Math.round(epss * 100)}%`
+      : score !== undefined
+        ? `CVSS ${score.toFixed(1)}`
+        : "no KEV, EPSS or CVSS signal";
+  const context = row.source === "repo"
+    ? ["monitored repo", row.isDev ? "dev dep (down one level)" : "runtime dep"]
+    : [isProd ? "prod" : isImportant ? "high-criticality asset" : "non-prod"];
+  return { priority: `P${level}` as ExposurePriorityLevel, priorityReason: [signal, ...context].join(" + ") };
+}
+
+export function compareExposurePriority(
+  a: { priority: ExposurePriorityLevel; cve: Pick<CVESummary, "epss"> },
+  b: { priority: ExposurePriorityLevel; cve: Pick<CVESummary, "epss"> }
+): number {
+  return a.priority.localeCompare(b.priority) || (b.cve.epss ?? -1) - (a.cve.epss ?? -1);
 }
 
 type AssetMatchFields = Pick<InventoryAssetRecord, "vendor" | "product" | "version">;
@@ -142,6 +195,8 @@ export function buildRepoExposureRows(repo: Pick<MonitoredRepo, "id" | "fullName
       assetId,
       assetLabel: `${dependency.name}@${dependency.version}`,
       criticality: null,
+      environment: null,
+      isDev: dependency.isDev,
       repoFullName: repo.fullName,
       firstSeenAt,
       cve,

@@ -17,6 +17,8 @@ import SeverityBadge from "@/components/SeverityBadge";
 import ProjectPickerButton from "@/components/ProjectPickerButton";
 import { INVENTORY_UPDATED_EVENT } from "@/lib/inventory";
 
+const PRIORITY_CLASSES = { P1: "text-red-300", P2: "text-amber-300", P3: "text-white/50" } as const;
+
 const TRIAGE_STATUSES: TriageStatus[] = ["new", "investigating", "mitigated", "accepted", "closed"];
 
 export default function ExposureQueuePageClient() {
@@ -96,6 +98,7 @@ export default function ExposureQueuePageClient() {
             <caption className="sr-only">Vulnerabilities affecting your assets</caption>
             <thead className="text-xs uppercase tracking-wide text-white/35">
               <tr>
+                <th scope="col" className="px-3 py-2">Priority</th>
                 <th scope="col" className="px-3 py-2">Vulnerability</th>
                 <th scope="col" className="px-3 py-2">Asset</th>
                 <th scope="col" className="px-3 py-2">Severity</th>
@@ -112,6 +115,10 @@ export default function ExposureQueuePageClient() {
                 const status = triage[row.vulnerabilityId]?.status ?? "new";
                 return (
                   <tr key={row.key} className="border-t border-white/[0.06] text-white/70">
+                    <td className="px-3 py-2">
+                      <div className={`font-semibold ${PRIORITY_CLASSES[row.priority]}`}>{row.priority}</div>
+                      <div className="text-xs text-white/35">{row.priorityReason}</div>
+                    </td>
                     <td className="px-3 py-2 font-mono">
                       <Link href={`/cve/${encodeURIComponent(row.vulnerabilityId)}`} className="text-cyan-300 hover:underline">
                         {row.vulnerabilityId}

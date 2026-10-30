@@ -1,4 +1,12 @@
-import { buildRepoExposureRows, ExposureQueue, ExposureRow, exposureRowKey, matchesInventoryAsset } from "./exposure";
+import {
+  buildRepoExposureRows,
+  compareExposurePriority,
+  ExposureQueue,
+  ExposureRow,
+  exposureRowKey,
+  getExposurePriority,
+  matchesInventoryAsset,
+} from "./exposure";
 import { listMonitoredRepos } from "./monitored-repos-store";
 import { listRepoScansForRepo } from "./repo-scans-store";
 import { enrichCVEs } from "./server-api";
@@ -41,6 +49,8 @@ export async function loadExposureQueueForUser(userId: string): Promise<Exposure
       assetId: asset.id,
       assetLabel: `${asset.name} (${[asset.product, asset.version].filter(Boolean).join(" ")})`,
       criticality: asset.criticality,
+      environment: asset.environment,
+      isDev: null,
       repoFullName: null,
       firstSeenAt,
       cve,
@@ -56,8 +66,11 @@ export async function loadExposureQueueForUser(userId: string): Promise<Exposure
   const enriched = await enrichCVEs(rows.map((row) => row.cve));
   return {
     rows: rows
-      .map((row, index) => ({ ...row, cve: enriched[index] }))
-      .sort((a, b) => b.firstSeenAt.localeCompare(a.firstSeenAt)),
+      .map((row, index) => {
+        const next = { ...row, cve: enriched[index] };
+        return { ...next, ...getExposurePriority(next) };
+      })
+      .sort((a, b) => compareExposurePriority(a, b) || b.firstSeenAt.localeCompare(a.firstSeenAt)),
     hasSources: true,
     truncated,
   };

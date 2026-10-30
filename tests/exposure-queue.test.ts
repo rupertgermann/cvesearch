@@ -116,6 +116,7 @@ test("adding inventory asset openssl 3.0.7 puts the matching new CVE in the queu
       assert.equal(row.cve.kev?.cveID, OPENSSL_CVE);
       assert.equal(row.cve.epss, 0.42);
       assert.equal(row.cve.cvss3, 7.4);
+      assert.deepEqual([row.priority, row.priorityReason], ["P1", "KEV + prod"]);
 
       // Second load only pages back to the stored cursor (minus the 3h lookback) and keeps first-seen.
       upstream.requestedPages.length = 0;
