@@ -70,7 +70,7 @@ export interface OSVVulnerability {
   id: string;
   summary: string;
   details: string;
-  aliases: string[];
+  aliases?: string[]; // OSV omits it when there are none
   severity: OSVSeverity[];
   affected: OSVAffectedPackage[];
   references: { type: string; url: string }[];

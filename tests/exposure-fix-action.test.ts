@@ -39,3 +39,11 @@ test("no fix PR action for uploaded sources, unsupported ecosystems, or inventor
   assert.equal(rowsFor("acme/app", [match("GHSA-b", "requests", "PyPI" as DependencyEcosystem)]).some(canOpenFixPR), false);
   assert.equal(canOpenFixPR({ source: "inventory", assetId: "asset-1", repoFullName: null }), false);
 });
+
+test("fix lookup copes with OSV matches that carry no aliases", () => {
+  const bare = match("GHSA-dddd", "next", "npm");
+  delete (bare.vulnerability as { aliases?: string[] }).aliases;
+  const target = match("GHSA-eeee", "next", "npm", ["CVE-2026-0002"]);
+  const row = rowsFor("acme/app", [bare, target]).find((item) => item.vulnerabilityId !== "GHSA-dddd")!;
+  assert.equal(findRepoRowMatch(row, [bare, target]), target);
+});

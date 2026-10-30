@@ -43,6 +43,6 @@ export function findRepoRowMatch(row: Pick<ExposureRow, "assetId" | "vulnerabili
   return matches.find((match) =>
     match.matchedDependency.ecosystem === ecosystem &&
     match.matchedDependency.name === name &&
-    (match.vulnerability.id === row.vulnerabilityId || match.vulnerability.aliases.includes(row.vulnerabilityId))
+    (match.vulnerability.id === row.vulnerabilityId || (match.vulnerability.aliases ?? match.cveIds ?? []).includes(row.vulnerabilityId))
   );
 }
