@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { isGitHubTokenConfigured } from "./github";
+import { matchInventoryForUser } from "./exposure-queue";
 import { scanRepoForUser } from "./repo-scan";
 import { runDueNotificationDigestsForUser } from "./notifications-store";
 import { loadAlertEvaluationsForUser } from "./workspace-context";
@@ -7,6 +8,7 @@ import { loadAlertEvaluationsForUser } from "./workspace-context";
 export interface SchedulerTickResult {
   skipped: boolean;
   alertUsers: number;
+  inventoryUsers: number;
   digestUsers: number;
   rescannedRepos: number;
 }
@@ -47,7 +49,7 @@ export function startScheduler(intervalMs: number): boolean {
 }
 
 export async function runSchedulerTick(): Promise<SchedulerTickResult> {
-  if (state.__cvesearchSchedulerRunning) return { skipped: true, alertUsers: 0, digestUsers: 0, rescannedRepos: 0 };
+  if (state.__cvesearchSchedulerRunning) return { skipped: true, alertUsers: 0, inventoryUsers: 0, digestUsers: 0, rescannedRepos: 0 };
   state.__cvesearchSchedulerRunning = true;
   try {
     const db = getDb();
@@ -57,6 +59,11 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
       SELECT DISTINCT r.user_id as userId
       FROM user_alert_rules r
       JOIN sessions s ON s.user_id = r.user_id AND s.expires_at > ?
+    `).all(now) as Array<{ userId: string }>).map((row) => row.userId);
+    const inventoryUsers = (db.prepare(`
+      SELECT DISTINCT a.user_id as userId
+      FROM user_inventory_assets a
+      JOIN sessions s ON s.user_id = a.user_id AND s.expires_at > ?
     `).all(now) as Array<{ userId: string }>).map((row) => row.userId);
     const digestUsers = (db.prepare(`
       SELECT DISTINCT user_id as userId
@@ -86,11 +93,14 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
     for (const userId of alertUsers) {
       await loadAlertEvaluationsForUser(userId).catch((error) => console.error("[scheduler] alert evaluation failed", userId, error));
     }
+    for (const userId of inventoryUsers) {
+      await matchInventoryForUser(userId).catch((error) => console.error("[scheduler] inventory matching failed", userId, error));
+    }
     for (const userId of digestUsers) {
       await runDueNotificationDigestsForUser(userId).catch((error) => console.error("[scheduler] digest run failed", userId, error));
     }
 
-    return { skipped: false, alertUsers: alertUsers.length, digestUsers: digestUsers.length, rescannedRepos: staleRepos.length };
+    return { skipped: false, alertUsers: alertUsers.length, inventoryUsers: inventoryUsers.length, digestUsers: digestUsers.length, rescannedRepos: staleRepos.length };
   } finally {
     state.__cvesearchSchedulerRunning = false;
   }

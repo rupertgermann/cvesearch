@@ -5,12 +5,15 @@ import { TriageRecord } from "./triage-shared";
 import { ProjectRecord, CVESummary } from "./types";
 import { AlertRule, SavedView } from "./workspace-types";
 import {
+  FeedBackfill,
   listAlertRuleMatches,
   listAlertRulesForUser,
   listSavedViewsForUser,
   listWatchlistEntriesForUser,
+  readFeedBackfill,
   readTriageMapForUser,
   recordAlertRuleMatches,
+  writeFeedBackfill,
 } from "./workspace-store";
 import { listProjects } from "./projects-store";
 import { listUndigestedRepoNotifications, RepoFindingsNotification } from "./repo-scans-store";
@@ -58,7 +61,8 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
   ]);
 
   const cursors = alertRules.map((rule) => rule.cursorPublishedAt);
-  const { cves: latestSample, truncated: latestSampleTruncated } = await fetchLatestCVEsUntil(cursors);
+  const { cves: latestSample, truncated: latestSampleTruncated, backfill } =
+    await fetchLatestCVEsUntil(cursors, readFeedBackfill(userId, "alerts"));
   const newestPublished = latestSample.reduce<string | null>(
     (newest, cve) => (cve.published && (!newest || Date.parse(cve.published) > Date.parse(newest)) ? cve.published : newest),
     null
@@ -77,6 +81,8 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
       unread: stored.unread,
     });
   }
+  // Saved after the matches so a crash in between re-reads the gap rather than losing it.
+  writeFeedBackfill(userId, "alerts", backfill);
 
   return {
     watchlist,
@@ -117,32 +123,50 @@ export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContext
   };
 }
 
-// Pages upstream (newest published first) until every rule's cursor is reached; null cursor means a never-evaluated rule.
-export async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<{ cves: CVESummary[]; truncated: boolean }> {
-  if (cursors.length === 0) return { cves: [], truncated: false };
+// Pages upstream (newest published first) until every cursor is reached; null cursor means a never-evaluated source.
+// When the page cap cuts a run short, the unread gap is returned as `backfill` and the next run pages it after the
+// new records. Records only ever push older ones to later pages, so resuming at `page` overlaps but never skips.
+export async function fetchLatestCVEsUntil(
+  cursors: Array<string | null>,
+  backfill: FeedBackfill | null = null
+): Promise<{ cves: CVESummary[]; truncated: boolean; backfill: FeedBackfill | null }> {
+  if (cursors.length === 0) return { cves: [], truncated: false, backfill };
 
   const oldestCursor = cursors.includes(null)
     ? null
     : cursors.reduce((oldest, cursor) => (Date.parse(cursor!) < Date.parse(oldest!) ? cursor : oldest));
-  const stopBefore = oldestCursor === null ? null : new Date(Date.parse(oldestCursor) - ALERT_CURSOR_LOOKBACK_MS).toISOString();
-  const maxPages = oldestCursor === null ? ALERT_BASELINE_PAGES : ALERT_MAX_PAGES;
+  let budget = oldestCursor === null ? ALERT_BASELINE_PAGES : ALERT_MAX_PAGES;
   const fetched: CVESummary[] = [];
 
-  try {
-    for (let page = 1; page <= maxPages; page += 1) {
+  // Returns null once a page is empty or entirely older than floor - lookback, else the next unread page.
+  const pageDown = async (page: number, floor: string | null): Promise<number | null> => {
+    const stopBefore = floor === null ? null : new Date(Date.parse(floor) - ALERT_CURSOR_LOOKBACK_MS).toISOString();
+    for (; budget > 0; page += 1, budget -= 1) {
       const batch = await getLatestCVESummariesServer(page, ALERT_PAGE_SIZE);
       fetched.push(...batch);
       // Short pages are not the end: the list parser drops duplicate ids, so only an empty page is.
-      if (batch.length === 0 || batch.every((cve) => isBeforeCursor(cve, stopBefore))) {
-        return { cves: fetched, truncated: false };
-      }
+      if (batch.length === 0 || batch.every((cve) => isBeforeCursor(cve, stopBefore))) return null;
     }
+    return page;
+  };
+
+  try {
+    const stoppedAt = await pageDown(1, oldestCursor);
+    // A baseline is never truncated; an older gap waits for a run without new sources.
+    if (oldestCursor === null) return { cves: fetched, truncated: false, backfill };
+
+    let next: FeedBackfill | null = null;
+    if (stoppedAt !== null) {
+      next = { page: stoppedAt, floor: backfill?.floor ?? oldestCursor };
+    } else if (backfill) {
+      const resumedTo = await pageDown(backfill.page, backfill.floor);
+      next = resumedTo === null ? null : { page: resumedTo, floor: backfill.floor };
+    }
+    return { cves: fetched, truncated: next !== null, backfill: next };
   } catch {
     // Partial pages would advance cursors past unseen records, so drop them and retry next time.
-    return { cves: [], truncated: false };
+    return { cves: [], truncated: false, backfill };
   }
-
-  return { cves: fetched, truncated: oldestCursor !== null };
 }
 
 function isBeforeCursor(cve: CVESummary, cursor: string | null): boolean {

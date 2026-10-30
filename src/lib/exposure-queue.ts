@@ -16,12 +16,38 @@ import { fetchLatestCVEsUntil } from "./workspace-context";
 import {
   listInventoryAssetMatchesForUser,
   listInventoryAssetsForUser,
+  readFeedBackfill,
   readInventoryMatchCursors,
   recordInventoryAssetMatches,
+  writeFeedBackfill,
 } from "./workspace-store";
+import { InventoryAssetRecord } from "./workspace-types";
 
 // Scans looked at when working out a repo finding's first-seen date.
 const REPO_SCAN_HISTORY = 20;
+
+// Same incremental paging as alert rules: only CVEs newer than each asset's cursor (plus any unread gap) are matched.
+export async function matchInventoryForUser(
+  userId: string,
+  assets?: InventoryAssetRecord[]
+): Promise<{ truncated: boolean }> {
+  assets ??= await listInventoryAssetsForUser(userId);
+  if (assets.length === 0) return { truncated: false };
+  const cursors = readInventoryMatchCursors(userId);
+  const { cves: sample, truncated, backfill } = await fetchLatestCVEsUntil(
+    assets.map((asset) => cursors.get(asset.id) ?? null),
+    readFeedBackfill(userId, "inventory")
+  );
+  const newestPublished = sample.reduce<string | null>(
+    (newest, cve) => (cve.published && (!newest || Date.parse(cve.published) > Date.parse(newest)) ? cve.published : newest),
+    null
+  );
+  for (const asset of assets) {
+    recordInventoryAssetMatches(asset.id, sample.filter((cve) => matchesInventoryAsset(cve, asset)), newestPublished);
+  }
+  writeFeedBackfill(userId, "inventory", backfill);
+  return { truncated };
+}
 
 export async function loadExposureQueueForUser(
   userId: string,
@@ -32,16 +58,7 @@ export async function loadExposureQueueForUser(
     return { rows: [], hiddenCount: 0, hasSources: false, truncated: false };
   }
 
-  // Same incremental paging as alert rules: only CVEs newer than each asset's cursor are fetched and matched.
-  const cursors = readInventoryMatchCursors(userId);
-  const { cves: sample, truncated } = await fetchLatestCVEsUntil(assets.map((asset) => cursors.get(asset.id) ?? null));
-  const newestPublished = sample.reduce<string | null>(
-    (newest, cve) => (cve.published && (!newest || Date.parse(cve.published) > Date.parse(newest)) ? cve.published : newest),
-    null
-  );
-  for (const asset of assets) {
-    recordInventoryAssetMatches(asset.id, sample.filter((cve) => matchesInventoryAsset(cve, asset)), newestPublished);
-  }
+  const { truncated } = await matchInventoryForUser(userId, assets);
 
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
   const inventoryRows = listInventoryAssetMatchesForUser(userId).flatMap(({ assetId, firstSeenAt, cve }): ExposureRow[] => {

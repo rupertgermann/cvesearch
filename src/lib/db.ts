@@ -343,6 +343,15 @@ function initializeDatabase(db: DatabaseSync): void {
       FOREIGN KEY (asset_id) REFERENCES user_inventory_assets(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS cve_feed_backfill (
+      user_id TEXT NOT NULL,
+      feed TEXT NOT NULL,
+      page INTEGER NOT NULL,
+      floor TEXT NOT NULL,
+      PRIMARY KEY (user_id, feed),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS user_triage_records (
       user_id TEXT NOT NULL,
       cve_id TEXT NOT NULL,
