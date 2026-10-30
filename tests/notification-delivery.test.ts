@@ -11,6 +11,7 @@ import {
   updateNotificationPreferenceForUser,
 } from "../src/lib/notifications-store";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
+import { getDb } from "../src/lib/db";
 
 interface Sent { url: string; body: Record<string, unknown> }
 
@@ -76,7 +77,6 @@ test("a non-2xx response marks the delivery failed with the reason, keeps it due
   await withDeliveryEnv(() => new Response("boom", { status }), async (userId, sent) => {
     const pref = await createNotificationPreferenceForUser(userId, { teamName: "Sec", channel: "webhook", destination: "https://hooks.example.test/a", cadence: "daily" });
     // Make it due without force so the run behaves like the scheduler.
-    const { getDb } = await import("../src/lib/db");
     getDb().prepare("UPDATE user_notification_preferences SET next_run_at = ? WHERE id = ?").run(new Date(Date.now() - 1000).toISOString(), pref.id);
 
     const [failed] = await runDueNotificationDigestsForUser(userId);
@@ -84,6 +84,11 @@ test("a non-2xx response marks the delivery failed with the reason, keeps it due
     assert.match(failed.error ?? "", /500/);
     assert.equal((await listNotificationDeliveriesForUser(userId))[0].error, failed.error);
 
+    const [backedOff] = await listNotificationPreferencesForUser(userId);
+    assert.ok(Date.parse(backedOff.nextRunAt!) > Date.now() + 30 * 60 * 1000, "failed delivery backs off instead of retrying every tick");
+    assert.deepEqual(await runDueNotificationDigestsForUser(userId), []);
+
+    getDb().prepare("UPDATE user_notification_preferences SET next_run_at = ? WHERE id = ?").run(new Date(Date.now() - 1000).toISOString(), pref.id);
     status = 200;
     const [retried] = await runDueNotificationDigestsForUser(userId);
     assert.equal(retried?.status, "sent");
@@ -132,7 +137,6 @@ test("non-HTTPS webhook and Slack destinations are rejected on save", async () =
 test("a stored non-HTTPS destination is skipped at delivery time and marked failed", async () => {
   await withDeliveryEnv(ok, async (userId, sent) => {
     const pref = await createNotificationPreferenceForUser(userId, { teamName: "Sec", channel: "webhook", destination: "https://hooks.example.test/a", cadence: "daily" });
-    const { getDb } = await import("../src/lib/db");
     getDb().prepare("UPDATE user_notification_preferences SET destination = ? WHERE id = ?").run("http://hooks.example.test/a", pref.id);
 
     const [delivery] = await runDueNotificationDigestsForUser(userId, { force: true });
@@ -150,3 +154,34 @@ test("email destinations stay record-only", async () => {
     assert.equal(delivery.status, "sent");
   });
 });
+
+test("redirects are not followed and count as a failed delivery", async () => {
+  await withDeliveryEnv(() => new Response(null, { status: 302, headers: { Location: "http://169.254.169.254/latest/meta-data/" } }), async (userId, sent) => {
+    await createNotificationPreferenceForUser(userId, { teamName: "Sec", channel: "webhook", destination: "https://hooks.example.test/a", cadence: "daily" });
+    const [delivery] = await runDueNotificationDigestsForUser(userId, { force: true });
+    assert.equal(sent.length, 1);
+    assert.equal(delivery.status, "failed");
+    assert.match(delivery.error ?? "", /302/);
+  });
+});
+
+test("a delivery that times out is marked failed", async () => {
+  const abort = Object.assign(new Error("aborted"), { name: "AbortError" });
+  await withDeliveryEnv(() => { throw abort; }, async (userId) => {
+    await createNotificationPreferenceForUser(userId, { teamName: "Sec", channel: "webhook", destination: "https://hooks.example.test/a", cadence: "daily" });
+    const [delivery] = await runDueNotificationDigestsForUser(userId, { force: true });
+    assert.equal(delivery.status, "failed");
+    assert.equal(delivery.error, "Delivery timed out");
+  });
+});
+
+for (const destination of ["https://127.0.0.1/x", "https://localhost/x", "https://169.254.169.254/x", "https://10.0.0.5/x", "https://192.168.1.1/x", "https://172.20.0.1/x", "https://[::1]/x"]) {
+  test(`private destination ${destination} is rejected on save`, async () => {
+    await withDeliveryEnv(ok, async (userId) => {
+      await assert.rejects(
+        createNotificationPreferenceForUser(userId, { teamName: "Sec", channel: "webhook", destination, cadence: "daily" }),
+        /public HTTPS/
+      );
+    });
+  });
+}

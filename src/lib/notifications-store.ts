@@ -6,6 +6,8 @@ import { buildDigestInputFromWorkspaceSnapshot, loadWorkspaceContextSnapshot } f
 import { NotificationCadence, NotificationChannel, NotificationDeliveryRecord, NotificationPreferenceRecord } from "./workspace-types";
 
 const DELIVERY_TIMEOUT_MS = 10_000;
+// A failed delivery stays due but waits this long, so a dead endpoint does not cost a digest run every tick.
+const FAILED_RETRY_DELAY_MS = 60 * 60 * 1000;
 
 interface NotificationPreferenceRow {
   id: string;
@@ -264,7 +266,11 @@ export async function runDueNotificationDigestsForUser(
       delivery.deliveredAt
     );
 
-    // A failed delivery keeps its next_run_at, so the next due run retries it.
+    if (delivery.status === "failed") {
+      getDb().prepare("UPDATE user_notification_preferences SET next_run_at = ? WHERE user_id = ? AND id = ?")
+        .run(new Date(Date.now() + FAILED_RETRY_DELAY_MS).toISOString(), userId, preference.id);
+    }
+
     if (delivery.status === "sent") {
       getDb().prepare(`
         UPDATE user_notification_preferences
@@ -292,7 +298,7 @@ async function deliverDigest(
   digest: AIDigest
 ): Promise<string | null> {
   if (preference.channel !== "webhook" && preference.channel !== "slack") return null;
-  if (!isHttpsUrl(preference.destination)) return "Destination must be an HTTPS URL";
+  if (!isHttpsUrl(preference.destination)) return "Destination must be a public HTTPS URL";
 
   const items = digest.sections.flatMap((section) => section.items);
   const payload = preference.channel === "slack"
@@ -314,6 +320,8 @@ async function deliverDigest(
       method: "POST",
       headers: { "Content-Type": "application/json", "User-Agent": "CVESearch-WebApp/1.0" },
       body: JSON.stringify(payload),
+      // Redirects are not followed: the HTTPS/host check only covers the configured URL.
+      redirect: "manual",
       signal: controller.signal,
     });
     return response.ok ? null : `HTTP ${response.status} ${response.statusText}`.trim();
@@ -327,7 +335,7 @@ async function deliverDigest(
 
 function assertDeliverableDestination(record: Pick<NotificationPreferenceRecord, "channel" | "destination">): void {
   if (requiresHttpsDestination(record.channel) && !isHttpsUrl(record.destination)) {
-    const message = "Webhook and Slack destinations must be HTTPS URLs";
+    const message = "Webhook and Slack destinations must be public HTTPS URLs";
     throw new PublicRouteError(message, message, 400);
   }
 }
@@ -336,12 +344,23 @@ function requiresHttpsDestination(channel: NotificationChannel): boolean {
   return channel === "webhook" || channel === "slack";
 }
 
+// shortcut: checks literal hosts only, not DNS that resolves to private addresses; add a resolving check if exposed to untrusted users at scale.
 function isHttpsUrl(value: string): boolean {
   try {
-    return new URL(value).protocol === "https:";
+    const url = new URL(value);
+    return url.protocol === "https:" && !isPrivateHost(url.hostname);
   } catch {
     return false;
   }
+}
+
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "::" || /^f[cd]|^fe80/.test(host)) return true;
+  const ipv4 = host.match(/^(\d+)\.(\d+)\.\d+\.\d+$/);
+  if (!ipv4) return false;
+  const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
 function normalizePreferenceRow(row: NotificationPreferenceRow): NotificationPreferenceRecord {

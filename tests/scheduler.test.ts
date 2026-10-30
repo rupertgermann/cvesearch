@@ -98,4 +98,16 @@ test("scheduler config is off unless enabled and clamps the interval", async () 
   assert.deepEqual(readSchedulerConfig({ SCHEDULER_ENABLED: "true", SCHEDULER_INTERVAL_MS: "120000" }), { enabled: true, intervalMs: 120000 });
   assert.equal(readSchedulerConfig({ SCHEDULER_ENABLED: "true", SCHEDULER_INTERVAL_MS: "5" }).intervalMs, 30000);
   assert.equal(readSchedulerConfig({ SCHEDULER_INTERVAL_MS: "junk" }).intervalMs, 300000);
+  assert.equal(readSchedulerConfig({ SCHEDULER_INTERVAL_MS: "3000000000" }).intervalMs, 2_147_483_647);
+});
+
+test("alert rules of users without a live session are not evaluated", async () => {
+  await withSchedulerEnv(async () => {
+    const gone = newUser();
+    await createAlertRuleForUser(gone, "OpenSSL", normalizeSearchState({ query: "openssl" }));
+    getDb().prepare("DELETE FROM sessions WHERE user_id = ?").run(gone);
+
+    const result = await runSchedulerTick();
+    assert.equal(result.alertUsers, 0);
+  });
 });
