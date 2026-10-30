@@ -23,7 +23,7 @@ export const GET = withRouteProtection(async function GET(request: NextRequest) 
 }, {
   route: "/api/github/scan",
   errorMessage: "Failed to load repository scan history",
-  rateLimit: API_RATE_LIMITS.githubScans,
+  rateLimit: API_RATE_LIMITS.githubReads,
 });
 
 export const POST = withRouteProtection(async function POST(request: NextRequest) {
