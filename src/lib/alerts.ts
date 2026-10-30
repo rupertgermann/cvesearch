@@ -3,6 +3,8 @@ import { AlertRule } from "./workspace-types";
 import type { EvaluatedAlertRule } from "./workspace-context";
 
 export const ALERT_RULES_UPDATED_EVENT = "cvesearch:alert-rules-updated";
+// Separate from ALERT_RULES_UPDATED_EVENT: the alerts page re-evaluates on that one, so reusing it would loop.
+export const ALERT_UNREAD_UPDATED_EVENT = "cvesearch:alert-unread-updated";
 
 let alertRulesCache: AlertRule[] = [];
 let alertRulesLoaded = false;
@@ -91,8 +93,17 @@ export async function loadAlertEvaluations(): Promise<AlertEvaluationsPayload> {
   }
 
   const data = await res.json().catch(() => null);
+  const evaluations: EvaluatedAlertRule[] = Array.isArray(data?.evaluations) ? data.evaluations.filter(isEvaluatedAlertRule) : [];
+
+  // Evaluation stores new matches, so the cached unread counts are stale now.
+  alertRulesCache = evaluations.map((item) => ({ ...item.rule, unreadCount: item.unread }));
+  alertRulesLoaded = true;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(ALERT_UNREAD_UPDATED_EVENT));
+  }
+
   return {
-    evaluations: Array.isArray(data?.evaluations) ? data.evaluations.filter(isEvaluatedAlertRule) : [],
+    evaluations,
     sampledCount: typeof data?.sampledCount === "number" ? data.sampledCount : 0,
     truncated: data?.truncated === true,
   };

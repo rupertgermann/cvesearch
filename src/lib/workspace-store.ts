@@ -7,6 +7,7 @@ import {
   TriageRecord,
 } from "./triage-shared";
 import { parseStoredJson } from "./cve-store";
+import { parseCVESummaryList } from "./validation";
 import { CVESummary } from "./types";
 import { extractCVEId, extractPublishedDate } from "./utils";
 import { AlertRule, InventoryAssetRecord, PromptTemplateRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
@@ -146,7 +147,8 @@ export async function deletePromptTemplateForUser(userId: string, id: string): P
 export async function listAlertRulesForUser(userId: string): Promise<Array<AlertRule & { cursorPublishedAt: string | null }>> {
   const rows = getDb().prepare(`
     SELECT id, name, search_json as searchJson, created_at as createdAt, last_checked_at as lastCheckedAt,
-      cursor_published_at as cursorPublishedAt
+      cursor_published_at as cursorPublishedAt,
+      (SELECT COUNT(*) FROM alert_rule_matches m WHERE m.rule_id = user_alert_rules.id AND m.read_at IS NULL) as unreadCount
     FROM user_alert_rules
     WHERE user_id = ?
     ORDER BY created_at DESC
@@ -157,6 +159,7 @@ export async function listAlertRulesForUser(userId: string): Promise<Array<Alert
     createdAt: string;
     lastCheckedAt: string | null;
     cursorPublishedAt: string | null;
+    unreadCount: number;
   }>;
 
   return rows.flatMap((row) => {
@@ -169,6 +172,7 @@ export async function listAlertRulesForUser(userId: string): Promise<Array<Alert
           createdAt: row.createdAt,
           lastCheckedAt: row.lastCheckedAt,
           cursorPublishedAt: row.cursorPublishedAt,
+          unreadCount: row.unreadCount,
         }]
       : [];
   });
@@ -271,7 +275,9 @@ export function listAlertRuleMatches(ruleId: string): { matching: CVESummary[]; 
     count: number;
   };
 
-  return { matching: rows.flatMap((row) => parseStoredJson<CVESummary>(row.summaryJson) ?? []), unread: unread.count };
+  // Re-normalize on read: rows stored before list normalization lack flat fields like description and cvss3.
+  const matching = parseCVESummaryList(rows.flatMap((row) => parseStoredJson<CVESummary>(row.summaryJson) ?? []));
+  return { matching, unread: unread.count };
 }
 
 export async function listInventoryAssetsForUser(userId: string): Promise<InventoryAssetRecord[]> {
