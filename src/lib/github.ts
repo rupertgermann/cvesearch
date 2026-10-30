@@ -1,3 +1,4 @@
+import { PublicRouteError } from "./api-route-guard";
 import { GitHubRepo, RepoFileContent } from "./github-types";
 
 const GITHUB_API_BASE = "https://api.github.com";
@@ -26,6 +27,23 @@ interface GitTree {
   tree: GitTreeEntry[];
   truncated: boolean;
 }
+
+// Carries a fixed, client-safe message; the raw upstream text stays in `message` for server logs.
+export class GitHubAPIError extends PublicRouteError {
+  constructor(response: Response, upstreamMessage: string) {
+    super(`GitHub API error: ${upstreamMessage}`, toPublicMessage(response));
+    this.name = "GitHubAPIError";
+  }
+}
+
+const toPublicMessage = (response: Response): string => {
+  if (response.status === 429 || (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0")) {
+    return "GitHub rate limit reached, try again later";
+  }
+  if (response.status === 401 || response.status === 403) return "GitHub token is missing or lacks the required scope";
+  if (response.status === 404) return "Repository not found or not accessible";
+  return "GitHub API request failed";
+};
 
 const getGitHubToken = (): string => {
   const token = process.env.GITHUB_TOKEN;
@@ -64,8 +82,7 @@ export const fetchGitHub = async <T>(
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      const message = body?.message || `${response.status} ${response.statusText}`;
-      throw new Error(`GitHub API error: ${message}`);
+      throw new GitHubAPIError(response, body?.message || `${response.status} ${response.statusText}`);
     }
 
     return response.json();
@@ -120,7 +137,7 @@ export const fetchGitHubRepos = async (): Promise<GitHubRepo[]> => {
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(`GitHub API error: ${body?.message || response.statusText}`);
+        throw new GitHubAPIError(response, body?.message || response.statusText);
       }
 
       const repos: GitHubRepo[] = await response.json();

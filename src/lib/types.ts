@@ -470,3 +470,9 @@ export interface AISettings {
   model: string;
   apiKey: string;
 }
+
+// Client-supplied AI selection: never carries a key.
+export interface AIOverrides {
+  provider?: string;
+  model?: string;
+}

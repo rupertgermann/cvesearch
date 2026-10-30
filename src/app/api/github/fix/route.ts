@@ -37,220 +37,157 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     );
   }
 
+  const body: FixRequestPayload | null = await request.json().catch(() => null);
+  const repoFullName = typeof body?.repoFullName === "string" ? body.repoFullName.trim() : "";
+  const vulnerability = body?.vulnerability;
+  const matchedDependency = body?.matchedDependency;
+  const shouldCreateBranch = body?.createBranch !== false;
+
+  if (!repoFullName || !REPO_FULL_NAME_PATTERN.test(repoFullName) || !vulnerability || !isValidMatchedDependency(matchedDependency)) {
+    return NextResponse.json(
+      { error: "Missing required fields: repoFullName, vulnerability, matchedDependency" },
+      { status: 400 }
+    );
+  }
+
+  const fixedVersion = extractFixedVersion(vulnerability, matchedDependency.name, matchedDependency.version);
+
+  const dependencyFiles = selectRelevantDependencyFiles(
+    await fetchRepoDependencyFiles(repoFullName),
+    matchedDependency
+  );
+
+  if (dependencyFiles.length === 0) {
+    return NextResponse.json(
+      { error: "Could not locate the dependency manifest for this package in the repository." },
+      { status: 422 }
+    );
+  }
+
+  const sourceFiles: RepoFileContent[] = [];
   try {
-    const body: FixRequestPayload | null = await request.json().catch(() => null);
-    const repoFullName = typeof body?.repoFullName === "string" ? body.repoFullName.trim() : "";
-    const vulnerability = body?.vulnerability;
-    const matchedDependency = body?.matchedDependency;
-    const shouldCreateBranch = body?.createBranch !== false;
+    const filePaths = await searchRepoFiles(repoFullName, matchedDependency.name, MAX_SOURCE_FILES);
 
-    if (!repoFullName || !REPO_FULL_NAME_PATTERN.test(repoFullName) || !vulnerability || !isValidMatchedDependency(matchedDependency)) {
-      return NextResponse.json(
-        { error: "Missing required fields: repoFullName, vulnerability, matchedDependency" },
-        { status: 400 }
-      );
-    }
-
-    const fixedVersion = extractFixedVersion(vulnerability, matchedDependency.name, matchedDependency.version);
-
-    const dependencyFiles = selectRelevantDependencyFiles(
-      await fetchRepoDependencyFiles(repoFullName),
-      matchedDependency
+    const depFilePaths = new Set(dependencyFiles.map((f) => f.path));
+    const relevantPaths = filePaths.filter(
+      (p) => !depFilePaths.has(p) && !p.includes("node_modules") && !p.includes("vendor")
     );
 
-    if (dependencyFiles.length === 0) {
-      return NextResponse.json(
-        { error: "Could not locate the dependency manifest for this package in the repository." },
-        { status: 422 }
-      );
-    }
+    const fileContents = await Promise.all(
+      relevantPaths.slice(0, MAX_SOURCE_FILES).map(async (filePath) => {
+        const content = await fetchRepoFile(repoFullName, filePath);
+        if (!content) return null;
+        return { path: filePath, content };
+      })
+    );
 
-    const sourceFiles: RepoFileContent[] = [];
-    try {
-      const filePaths = await searchRepoFiles(repoFullName, matchedDependency.name, MAX_SOURCE_FILES);
+    sourceFiles.push(
+      ...fileContents.filter((f): f is RepoFileContent => f !== null)
+    );
+  } catch {
+    // source file search is best-effort
+  }
 
-      const depFilePaths = new Set(dependencyFiles.map((f) => f.path));
-      const relevantPaths = filePaths.filter(
-        (p) => !depFilePaths.has(p) && !p.includes("node_modules") && !p.includes("vendor")
-      );
+  const fixResult = await generateVulnerabilityFix(
+    {
+      vulnerability,
+      matchedDependency,
+      fixedVersion,
+      dependencyFiles,
+      sourceFiles,
+    },
+    body?.aiSettings,
+  );
 
-      const fileContents = await Promise.all(
-        relevantPaths.slice(0, MAX_SOURCE_FILES).map(async (filePath) => {
-          const content = await fetchRepoFile(repoFullName, filePath);
-          if (!content) return null;
-          return { path: filePath, content };
-        })
-      );
+  try {
+    validateFixFileChanges(
+      fixResult.fileChanges,
+      new Set([...dependencyFiles, ...sourceFiles].map((file) => file.path))
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid generated fix changes";
+    return NextResponse.json(
+      { error: message, analysis: fixResult.analysis },
+      { status: 422 }
+    );
+  }
 
-      sourceFiles.push(
-        ...fileContents.filter((f): f is RepoFileContent => f !== null)
-      );
-    } catch {
-      // source file search is best-effort
-    }
-
-    const fixResult = await generateVulnerabilityFix(
+  if (fixResult.fileChanges.length === 0) {
+    return NextResponse.json(
       {
-        vulnerability,
-        matchedDependency,
-        fixedVersion,
-        dependencyFiles,
-        sourceFiles,
-      },
-    );
-
-    try {
-      validateFixFileChanges(
-        fixResult.fileChanges,
-        new Set([...dependencyFiles, ...sourceFiles].map((file) => file.path))
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Invalid generated fix changes";
-      return NextResponse.json(
-        { error: message, analysis: fixResult.analysis },
-        { status: 422 }
-      );
-    }
-
-    if (fixResult.fileChanges.length === 0) {
-      return NextResponse.json(
-        {
-          error: "No file changes could be generated. Manual intervention required.",
-          analysis: fixResult.analysis,
-        },
-        { status: 422 }
-      );
-    }
-
-    if (!shouldCreateBranch) {
-      const response: FixResponse = {
+        error: "No file changes could be generated. Manual intervention required.",
         analysis: fixResult.analysis,
-        fileChanges: fixResult.fileChanges,
-        previewOnly: true,
-      };
-      return NextResponse.json(response);
-    }
-
-    const repoInfo = await fetchGitHub<{ archived: boolean; default_branch: string; disabled: boolean }>(
-      `/repos/${repoFullName}`
+      },
+      { status: 422 }
     );
+  }
 
-    if (repoInfo.archived) {
-      return NextResponse.json(
-        {
-          error: "This repository is archived and read-only. Unarchive it on GitHub before creating a fix PR.",
-          analysis: fixResult.analysis,
-        },
-        { status: 422 }
-      );
-    }
-
-    if (repoInfo.disabled) {
-      return NextResponse.json(
-        {
-          error: "This repository is disabled. Enable it on GitHub before creating a fix PR.",
-          analysis: fixResult.analysis,
-        },
-        { status: 422 }
-      );
-    }
-
-    const existingPr = await findExistingFixPR(repoFullName, vulnerability.id);
-    if (existingPr) {
-      const response: FixResponse = {
-        prUrl: existingPr.url,
-        analysis: `A fix PR for ${vulnerability.id} already exists (${existingPr.state === "open" ? "open" : "closed/merged"}).`,
-        fileChanges: [],
-        branchName: existingPr.branchName,
-        existingPr: true,
-      };
-      return NextResponse.json(response);
-    }
-
-    const defaultBranch = repoInfo.default_branch;
-
-    let baseSha: string;
-    try {
-      baseSha = await getDefaultBranchSha(repoFullName, defaultBranch);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[fix-route] Failed to get SHA for branch "${defaultBranch}" in ${repoFullName}:`, msg);
-      return NextResponse.json(
-        { error: "Failed to resolve the repository default branch", analysis: fixResult.analysis },
-        { status: 500 }
-      );
-    }
-
-    let branchName: string;
-    try {
-      branchName = await generateBranchName(repoFullName, vulnerability.id);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[fix-route] Failed to generate branch name:`, msg);
-      return NextResponse.json(
-        { error: "Failed to generate a fix branch name", analysis: fixResult.analysis },
-        { status: 500 }
-      );
-    }
-
-    try {
-      await createBranch(repoFullName, branchName, baseSha);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[fix-route] Failed to create branch "${branchName}":`, msg);
-      return NextResponse.json(
-        { error: "Failed to create the fix branch on GitHub", analysis: fixResult.analysis },
-        { status: 500 }
-      );
-    }
-
-    try {
-      await commitFileChanges(
-        repoFullName,
-        branchName,
-        fixResult.fileChanges,
-        fixResult.prTitle
-      );
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[fix-route] Failed to commit file changes:`, msg);
-      return NextResponse.json(
-        { error: "Failed to commit file changes to the fix branch", analysis: fixResult.analysis },
-        { status: 500 }
-      );
-    }
-
-    let prUrl: string;
-    try {
-      prUrl = await createPullRequest(
-        repoFullName,
-        branchName,
-        defaultBranch,
-        fixResult.prTitle,
-        fixResult.prBody
-      );
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[fix-route] Failed to create PR:`, msg);
-      return NextResponse.json(
-        { error: "Failed to create the pull request on GitHub", analysis: fixResult.analysis },
-        { status: 500 }
-      );
-    }
-
+  if (!shouldCreateBranch) {
     const response: FixResponse = {
-      prUrl,
       analysis: fixResult.analysis,
       fileChanges: fixResult.fileChanges,
-      branchName,
+      previewOnly: true,
     };
-
     return NextResponse.json(response);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Fix failed";
-    console.error(`[fix-route] Unexpected error:`, message);
-    return NextResponse.json({ error: "An unexpected error occurred while creating the fix" }, { status: 500 });
   }
+
+  const repoInfo = await fetchGitHub<{ archived: boolean; default_branch: string; disabled: boolean }>(
+    `/repos/${repoFullName}`
+  );
+
+  if (repoInfo.archived) {
+    return NextResponse.json(
+      {
+        error: "This repository is archived and read-only. Unarchive it on GitHub before creating a fix PR.",
+        analysis: fixResult.analysis,
+      },
+      { status: 422 }
+    );
+  }
+
+  if (repoInfo.disabled) {
+    return NextResponse.json(
+      {
+        error: "This repository is disabled. Enable it on GitHub before creating a fix PR.",
+        analysis: fixResult.analysis,
+      },
+      { status: 422 }
+    );
+  }
+
+  const existingPr = await findExistingFixPR(repoFullName, vulnerability.id);
+  if (existingPr) {
+    const response: FixResponse = {
+      prUrl: existingPr.url,
+      analysis: `A fix PR for ${vulnerability.id} already exists (${existingPr.state === "open" ? "open" : "closed/merged"}).`,
+      fileChanges: [],
+      branchName: existingPr.branchName,
+      existingPr: true,
+    };
+    return NextResponse.json(response);
+  }
+
+  const defaultBranch = repoInfo.default_branch;
+  const baseSha = await getDefaultBranchSha(repoFullName, defaultBranch);
+  const branchName = await generateBranchName(repoFullName, vulnerability.id);
+  await createBranch(repoFullName, branchName, baseSha);
+  await commitFileChanges(repoFullName, branchName, fixResult.fileChanges, fixResult.prTitle);
+  const prUrl = await createPullRequest(
+    repoFullName,
+    branchName,
+    defaultBranch,
+    fixResult.prTitle,
+    fixResult.prBody
+  );
+
+  const response: FixResponse = {
+    prUrl,
+    analysis: fixResult.analysis,
+    fileChanges: fixResult.fileChanges,
+    branchName,
+  };
+
+  return NextResponse.json(response);
 }, {
   route: "/api/github/fix",
   errorMessage: "Failed to create GitHub fix pull request",

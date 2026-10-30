@@ -70,3 +70,66 @@ test("withRouteProtection enforces rate limits and records request logs", async 
     await fs.rm(tempDir, { recursive: true, force: true });
   }
 });
+
+async function withTempDatabase(run: () => Promise<void>): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-api-errors-"));
+  const previousDatabaseFile = process.env.DATABASE_FILE;
+  process.env.DATABASE_FILE = path.join(tempDir, "state.db");
+  resetAPIRateLimits();
+  try {
+    await run();
+  } finally {
+    resetAPIRateLimits();
+    if (previousDatabaseFile === undefined) {
+      delete process.env.DATABASE_FILE;
+    } else {
+      process.env.DATABASE_FILE = previousDatabaseFile;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+const errorTestConfig = {
+  route: "/api/error-test",
+  errorMessage: "Failed to load things",
+  rateLimit: { bucket: "error-test", maxRequests: 10, windowMs: 60_000 },
+};
+
+test("withRouteProtection returns only the configured message when a handler throws, and logs the full error server-side", async (t) => {
+  await withTempDatabase(async () => {
+    const consoleError = t.mock.method(console, "error", () => {});
+    const thrown = new Error("connect ECONNREFUSED /var/lib/secret/state.db");
+    const handler = withRouteProtection(async function GET(request: Request) {
+      void request;
+      throw thrown;
+    }, errorTestConfig);
+
+    const response = await handler(new Request("https://example.test/api/error-test"));
+    const text = await response.text();
+
+    assert.equal(response.status, 500);
+    assert.deepEqual(JSON.parse(text), { error: "Failed to load things" });
+    assert.ok(!text.includes("ECONNREFUSED"));
+    assert.ok(!text.includes("/var/lib/secret"));
+    assert.ok(!text.includes(thrown.stack!.split("\n")[1].trim()));
+
+    assert.ok(consoleError.mock.calls.some((call) => (call.arguments as unknown[]).includes(thrown)), "full error object (with stack) is logged");
+    const [log] = await listRecentAPIRequestLogs(1);
+    assert.equal(log.status, 500);
+    assert.match(log.error, /ECONNREFUSED \/var\/lib\/secret\/state\.db/);
+  });
+});
+
+test("withRouteProtection passes intentional 4xx client errors through unchanged", async () => {
+  await withTempDatabase(async () => {
+    const handler = withRouteProtection(async function POST(request: Request) {
+      void request;
+      return NextResponse.json({ error: "fullName is required" }, { status: 400 });
+    }, errorTestConfig);
+
+    const response = await handler(new Request("https://example.test/api/error-test", { method: "POST" }));
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: "fullName is required" });
+  });
+});

@@ -1,4 +1,5 @@
 import { callModel, resolveAISettings } from "./ai";
+import type { AIOverrides } from "./types";
 import {
   AIFixResult,
   FixFileChange,
@@ -17,8 +18,9 @@ interface GenerateFixInput {
 
 export const generateVulnerabilityFix = async (
   input: GenerateFixInput,
+  aiOverrides?: AIOverrides,
 ): Promise<AIFixResult> => {
-  const runtime = resolveAISettings();
+  const runtime = resolveAISettings(aiOverrides);
 
   if (runtime.provider === "heuristic") {
     return buildHeuristicFix(input);

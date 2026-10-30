@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is inspired by Keep a Changelog.
 
+## [Unreleased]
+
+### Changed
+
+- **Session cookie `Secure` flag** — now set when the request is HTTPS (`https` URL or `X-Forwarded-Proto: https`) or when `SESSION_COOKIE_SECURE=true`, instead of following `NODE_ENV=production`. Deployments behind a TLS-terminating proxy that does not send `X-Forwarded-Proto` must set `SESSION_COOKIE_SECURE=true`
+
 ## [v2.0.0] - 2026-03-08
 
 ### Added

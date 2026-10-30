@@ -42,7 +42,7 @@ export function getWorkspaceSession(request: Request, { refresh = true } = {}): 
   return {
     sessionId: existing.id,
     userId: existing.userId,
-    setCookieHeader: buildSessionCookie(existing.id),
+    setCookieHeader: buildSessionCookie(existing.id, request),
   };
 }
 
@@ -75,12 +75,19 @@ export function getOrCreateWorkspaceSession(request: Request): WorkspaceSession 
   return {
     sessionId,
     userId,
-    setCookieHeader: buildSessionCookie(sessionId),
+    setCookieHeader: buildSessionCookie(sessionId, request),
   };
 }
 
-function buildSessionCookie(sessionId: string): string {
-  return `${SESSION_COOKIE_NAME}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+function buildSessionCookie(sessionId: string, request: Request): string {
+  return `${SESSION_COOKIE_NAME}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}${isSecureRequest(request) ? "; Secure" : ""}`;
+}
+
+// Not NODE_ENV: a production build served over plain http://localhost would never get its cookie back.
+function isSecureRequest(request: Request): boolean {
+  return process.env.SESSION_COOKIE_SECURE === "true"
+    || new URL(request.url).protocol === "https:"
+    || request.headers.get("x-forwarded-proto")?.split(",")[0].trim() === "https";
 }
 
 export function applyWorkspaceSession(response: Response, session: WorkspaceSession): Response {

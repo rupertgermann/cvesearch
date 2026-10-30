@@ -1,4 +1,4 @@
-import { AISettings } from "./types";
+import { AIOverrides, AIProvider, AISettings } from "./types";
 import { callAnthropicText } from "./anthropic-client";
 import { callOpenAIText } from "./openai-client";
 
@@ -49,43 +49,32 @@ export async function callModel(prompt: string, settings: AISettings): Promise<s
   return callOpenAI(prompt, settings);
 }
 
-export function resolveAISettings(settings?: Pick<Partial<AISettings>, "provider" | "model">): AISettings {
-  const requestedProvider = settings?.provider ?? normalizeProvider(process.env.AI_PROVIDER);
-  const openAIKey = process.env.OPENAI_API_KEY?.trim() ?? "";
-  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim() ?? "";
+// Overrides may come from a client request: they never carry a key, and only select a provider the server has a key for.
+export function resolveAISettings(overrides?: AIOverrides): AISettings {
+  const keys: Partial<Record<AIProvider, string>> = {
+    openai: process.env.OPENAI_API_KEY?.trim() ?? "",
+    anthropic: process.env.ANTHROPIC_API_KEY?.trim() ?? "",
+  };
+  const overrideProvider = normalizeProvider(overrides?.provider);
+  const honorOverride = !!(overrideProvider && keys[overrideProvider]);
+  const requestedProvider = honorOverride ? overrideProvider : normalizeProvider(process.env.AI_PROVIDER);
+  const overrideModel = honorOverride && typeof overrides?.model === "string" ? overrides.model.trim() : "";
 
-  const provider = requestedProvider === "heuristic"
+  const provider: AIProvider = requestedProvider === "heuristic"
     ? "heuristic"
-    : requestedProvider === "anthropic" && anthropicKey
-      ? "anthropic"
-      : requestedProvider === "openai" && openAIKey
-        ? "openai"
-        : openAIKey
-          ? "openai"
-          : anthropicKey
-            ? "anthropic"
-            : "heuristic";
+    : requestedProvider && keys[requestedProvider]
+      ? requestedProvider
+      : keys.openai ? "openai" : keys.anthropic ? "anthropic" : "heuristic";
 
-  const apiKey = provider === "anthropic" ? anthropicKey : provider === "openai" ? openAIKey : "";
   const model = (
-    settings?.model ??
-    (provider === "anthropic" ? process.env.ANTHROPIC_MODEL : process.env.OPENAI_MODEL) ??
+    overrideModel ||
+    (provider === "anthropic" ? process.env.ANTHROPIC_MODEL : process.env.OPENAI_MODEL) ||
     ""
   ).trim();
 
-  if (provider !== "heuristic" && !apiKey) {
-    return {
-      provider: "heuristic",
-      model: "",
-      apiKey: "",
-    };
-  }
-
-  return {
-    provider,
-    model,
-    apiKey,
-  };
+  return provider === "heuristic"
+    ? { provider, model: "", apiKey: "" }
+    : { provider, model, apiKey: keys[provider] ?? "" };
 }
 
 function normalizeProvider(value: string | undefined): AISettings["provider"] | undefined {

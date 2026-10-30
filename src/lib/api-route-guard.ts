@@ -38,6 +38,13 @@ const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const SESSION_COOKIE_NAME = "cvesearch_session";
 
+// Thrown for failures whose fixed, non-sensitive message the client may see; everything else gets config.errorMessage.
+export class PublicRouteError extends Error {
+  constructor(message: string, readonly publicMessage: string, readonly status = 502) {
+    super(message);
+  }
+}
+
 export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: RouteHandler<T>, config: RouteProtectionConfig): RouteHandler<T> {
   return async (...args: T) => {
     const request = args[0];
@@ -84,12 +91,14 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
       });
       return nextResponse;
     } catch (error) {
-      const internalMessage = error instanceof Error ? error.message : config.errorMessage;
-      console.error(`[${config.route}]`, internalMessage);
+      const logMessage = error instanceof Error ? error.message : config.errorMessage;
+      // Full error (with stack) stays server-side; the client only sees a fixed message.
+      console.error(`[${config.route}]`, error);
+      const status = error instanceof PublicRouteError ? error.status : 500;
       const response = withRateLimitHeaders(
         NextResponse.json(
-          { error: config.errorMessage },
-          { status: 500 }
+          { error: error instanceof PublicRouteError ? error.publicMessage : config.errorMessage },
+          { status }
         ),
         config.rateLimit,
         limit.remaining,
@@ -98,11 +107,11 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
       await appendAPIRequestLog({
         route: config.route,
         method: request.method,
-        status: 500,
+        status,
         durationMs: Date.now() - startedAt,
         limited: false,
         clientId,
-        error: internalMessage,
+        error: logMessage,
       });
       return response;
     }

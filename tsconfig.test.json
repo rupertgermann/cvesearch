@@ -10,7 +10,9 @@
   "include": [
     "src/lib/**/*.ts",
     "src/types/**/*.d.ts",
-    "tests/**/*.ts"
+    "src/app/api/github/fix/route.ts",
+    "tests/**/*.ts",
+    "next.config.ts"
   ],
   "exclude": [
     "node_modules",
