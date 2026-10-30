@@ -46,7 +46,7 @@ async function withScanEnv(run: (osvVulns: string[], calls: string[]) => Promise
     calls.push(`${url.hostname}${url.pathname}`);
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
     if (url.hostname === "api.github.com") {
-      if (url.pathname.endsWith("/branches/main")) return json({ commit: { sha: "abc" } });
+      if (url.pathname.includes("/branches/")) return json({ commit: { sha: "abc" } });
       if (url.pathname.includes("/git/trees/")) return json({ sha: "abc", truncated: false, tree: [{ path: "package.json", mode: "100644", type: "blob", sha: "f" }] });
       if (url.pathname.endsWith("/contents/package.json")) {
         return json({ encoding: "base64", content: Buffer.from(JSON.stringify({ dependencies: { lodash: "4.17.0" } })).toString("base64") });
@@ -102,6 +102,23 @@ test("a rescan with a new finding creates a notification that feeds the next dig
 
     await scanRepoForUser(userId, "acme/api");
     assert.equal(listUndigestedRepoNotifications(userId).length, 1, "an unchanged rescan adds no notification");
+  });
+});
+
+test("a rescan diffs against the previous scan of the same branch", async () => {
+  await withScanEnv(async (osvVulns) => {
+    const userId = newUser();
+    await monitor(userId, "acme/api");
+
+    osvVulns.push("GHSA-a");
+    await scanRepoForUser(userId, "acme/api", "main");
+    osvVulns.splice(0, osvVulns.length, "GHSA-b");
+    assert.equal((await scanRepoForUser(userId, "acme/api", "dev")).diff, null, "a first scan of another branch is a baseline");
+
+    osvVulns.splice(0, osvVulns.length, "GHSA-a");
+    const main = await scanRepoForUser(userId, "acme/api", "main");
+    assert.deepEqual(main.diff, { newFindings: [], fixedFindings: [], openFindings: ["GHSA-a (lodash)"] });
+    assert.equal(listUndigestedRepoNotifications(userId).length, 0);
   });
 });
 

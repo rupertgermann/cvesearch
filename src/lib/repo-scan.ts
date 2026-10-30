@@ -24,9 +24,10 @@ export async function scanRepoForUser(
     vulnerabilities,
   };
 
-  const [previous] = await listRepoScansForRepo(userId, fullName, 1);
+  const branchKey = branch ?? "default";
+  const [previous] = await listRepoScansForRepo(userId, fullName, 1, branchKey);
   await updateLastScan(userId, fullName, vulnerabilities.length);
-  await persistRepoScanResult(userId, fullName, branch ?? "default", result);
+  await persistRepoScanResult(userId, fullName, branchKey, result);
 
   const diff = previous ? diffScanFindings(previous.vulnerabilities, vulnerabilities) : null;
   if (diff && diff.newFindings.length > 0) {

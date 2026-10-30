@@ -15,7 +15,13 @@ interface RepoScanRow {
   error: string;
 }
 
-export async function listRepoScansForRepo(userId: string, repoFullName: string, limit = 6): Promise<RepoScanRecord[]> {
+// branch narrows to scans of that branch; omitted means every branch.
+export async function listRepoScansForRepo(
+  userId: string,
+  repoFullName: string,
+  limit = 6,
+  branch: string | null = null
+): Promise<RepoScanRecord[]> {
   const rows = getDb().prepare(`
     SELECT
       id,
@@ -29,10 +35,10 @@ export async function listRepoScansForRepo(userId: string, repoFullName: string,
       result_json as resultJson,
       error
     FROM monitored_repo_scans
-    WHERE user_id = ? AND repo_full_name = ?
+    WHERE user_id = ? AND repo_full_name = ? AND (? IS NULL OR branch = ?)
     ORDER BY scanned_at DESC
     LIMIT ?
-  `).all(userId, repoFullName, limit) as RepoScanRow[];
+  `).all(userId, repoFullName, branch, branch, limit) as RepoScanRow[];
 
   return rows.map(parseRepoScanRow);
 }
