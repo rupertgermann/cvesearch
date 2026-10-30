@@ -308,20 +308,72 @@ export const parseYarnLockDependencies = (
     const version = versionMatch[1];
     if (!isConcreteVersion(version) || seen.has(`${name}@${version}`)) return;
     seen.add(`${name}@${version}`);
-
-    dependencies.push({
-      name,
-      version,
-      ecosystem: "npm",
-      isDev: false,
-      manifestPath,
-      lockfilePath,
-      sourceDirectory: manifestPath ? getParentDir(manifestPath) : lockfilePath ? getParentDir(lockfilePath) : undefined,
-    });
+    dependencies.push(toDependency(name, version, "npm", manifestPath, lockfilePath));
   });
 
   return dependencies;
 };
+
+const toDependency = (
+  name: string,
+  version: string,
+  ecosystem: DependencyEcosystem,
+  manifestPath?: string,
+  lockfilePath?: string
+): ParsedDependency => ({
+  name,
+  version,
+  ecosystem,
+  isDev: false,
+  manifestPath,
+  lockfilePath,
+  sourceDirectory: getParentDir(manifestPath ?? lockfilePath ?? ""),
+});
+
+const unquote = (value: string | undefined): string | undefined => value?.match(/^"(.*)"$/)?.[1];
+
+// shortcut: reads only top-level `key = value` lines of [[package]] tables (enough for Cargo/poetry/uv lockfiles);
+// switch to a real TOML parser if we ever need nested values.
+const readTomlPackages = (raw: string): Record<string, string>[] => {
+  const packages: Record<string, string>[] = [];
+  let current: Record<string, string> | null = null;
+
+  raw.split(/\r?\n/).forEach((line) => {
+    if (line.startsWith("[")) {
+      const header = line.trim().replace(/^\[+|\]+$/g, "");
+      if (line.trim() === "[[package]]") packages.push((current = {}));
+      else if (!header.startsWith("package.")) current = null;
+      return;
+    }
+    const match = line.match(/^([\w-]+)\s*=\s*(.+)$/);
+    if (current && match && !(match[1] in current)) current[match[1]] = match[2].trim();
+  });
+
+  return packages;
+};
+
+// poetry.lock marks non-PyPI packages with [package.source] type; uv.lock with a non-registry source.
+export const parsePythonLockDependencies = (lockRaw: string, lockfilePath: string): ParsedDependency[] => {
+  return readTomlPackages(lockRaw).flatMap((pkg) => {
+    const name = unquote(pkg.name);
+    const version = unquote(pkg.version);
+    const fromRegistry = (!pkg.source || pkg.source.includes("registry")) && (!pkg.type || pkg.type === '"legacy"');
+    return name && version && fromRegistry ? [toDependency(name, version, "PyPI", undefined, lockfilePath)] : [];
+  });
+};
+
+const REQUIREMENT_PIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*===?\s*([^\s,*]+)$/;
+
+// Only exact `name==version` pins are scanned; ranges cannot be resolved without an index lookup.
+export const parseRequirementsTxtDependencies = (raw: string, manifestPath: string): ParsedDependency[] => {
+  return raw.split(/\r?\n/).flatMap((line) => {
+    const requirement = line.replace(/(^|\s)#.*$/, "").split(";")[0].replace(/\\$/, "").trim();
+    const match = requirement.match(REQUIREMENT_PIN);
+    return match ? [toDependency(match[1], match[2], "PyPI", manifestPath)] : [];
+  });
+};
+
+const normalizePythonName = (name: string): string => name.toLowerCase().replace(/[-_.]+/g, "-");
 
 export interface ParseResult {
   dependencies: ParsedDependency[];
@@ -411,6 +463,20 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
     results.push(...parseComposerDependencies(composerJson, composerJsonPath, composerLock, composerLock ? composerLockPath : undefined));
   }
 
+  const pythonLocked = ["poetry.lock", "uv.lock"].flatMap((fileName) => {
+    const raw = group.files.get(fileName);
+    return raw ? parsePythonLockDependencies(raw, joinDirFile(group.dir, fileName)) : [];
+  });
+  results.push(...pythonLocked);
+
+  const requirementsTxt = group.files.get("requirements.txt");
+  if (requirementsTxt) {
+    // Lockfile versions win; requirements.txt only adds packages the lockfile does not cover.
+    const lockedNames = new Set(pythonLocked.map((dependency) => normalizePythonName(dependency.name)));
+    results.push(...parseRequirementsTxtDependencies(requirementsTxt, joinDirFile(group.dir, "requirements.txt"))
+      .filter((dependency) => !lockedNames.has(normalizePythonName(dependency.name))));
+  }
+
   return results;
 };
 
@@ -446,4 +512,5 @@ const deduplicateDependencies = (dependencies: ParsedDependency[]): ParsedDepend
 export const SUPPORTED_ECOSYSTEMS: { ecosystem: DependencyEcosystem; label: string; files: string[] }[] = [
   { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"] },
   { ecosystem: "Packagist", label: "Composer (PHP)", files: ["composer.json", "composer.lock"] },
+  { ecosystem: "PyPI", label: "Python (PyPI)", files: ["requirements.txt", "poetry.lock", "uv.lock"] },
 ];

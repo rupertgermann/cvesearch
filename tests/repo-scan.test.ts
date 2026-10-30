@@ -74,3 +74,13 @@ test("scan surfaces OSV findings for a vulnerable yarn.lock dependency in a subd
   assert.equal(matches[0].matchedDependency.lockfilePath, "packages/web/yarn.lock");
   assert.deepEqual(matches[0].cveIds, ["CVE-2024-0001"]);
 });
+
+test("scan surfaces OSV findings for a vulnerable pinned Python dependency in a subdirectory", async () => {
+  const matches = await scanFakeRepo(
+    { "services/api/requirements.txt": "Django==4.2.1\n" },
+    { ecosystem: "PyPI", name: "Django", version: "4.2.1" }
+  );
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].matchedDependency.manifestPath, "services/api/requirements.txt");
+});
