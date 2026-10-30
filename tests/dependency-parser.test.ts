@@ -344,3 +344,26 @@ test("parseDependencyFiles discovers Cargo.lock in subdirectories", () => {
   assert.equal(result.dependencies[0].sourceDirectory, "crates/app");
   assert.ok(supportedFiles().includes("Cargo.lock"));
 });
+
+test("yarn.lock npm aliases are reported under the real package name", () => {
+  const classic = `"string-width-cjs@npm:string-width@^4.2.0":\n  version "4.2.3"\n`;
+  const berry = `"string-width-cjs@npm:string-width@^4.2.0":\n  version: 4.2.3\n  resolution: "string-width@npm:4.2.3"\n`;
+  assert.deepEqual(tuples(parseYarnLockDependencies(classic, undefined, "yarn.lock")), ["npm:string-width@4.2.3"]);
+  assert.deepEqual(tuples(parseYarnLockDependencies(berry, undefined, "yarn.lock")), ["npm:string-width@4.2.3"]);
+});
+
+test("yarn.lock dependencies keep the dev flag from package.json", () => {
+  const result = parseDependencyFiles([
+    { path: "package.json", content: JSON.stringify({ dependencies: { lodash: "^4.17.20" }, devDependencies: { jest: "^29.0.0" } }) },
+    { path: "yarn.lock", content: `jest@^29.0.0:\n  version "29.7.0"\n\nlodash@^4.17.20:\n  version "4.17.20"\n` },
+  ]);
+  const byName = Object.fromEntries(result.dependencies.map((dependency) => [dependency.name, dependency.isDev]));
+  assert.deepEqual(byName, { jest: true, lodash: false });
+});
+
+test("requirements.txt pins with hashes on the same line are kept", () => {
+  assert.deepEqual(
+    tuples(parseRequirementsTxtDependencies("requests==2.31.0 --hash=sha256:abc --hash=sha256:def\n", "requirements.txt")),
+    ["PyPI:requests@2.31.0"]
+  );
+});

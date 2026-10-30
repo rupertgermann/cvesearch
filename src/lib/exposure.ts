@@ -173,10 +173,30 @@ function isComparableVersion(value: string | undefined): value is string {
 
 // shortcut: tokenised compare (numbers numerically, letters lexically, shorter prefix first); not full semver
 // pre-release semantics (1.0.0-rc1 sorts after 1.0.0). Swap for a semver/ecosystem comparator if that matters.
+// Release segments compare numerically; a suffix is a pre-release ("-beta", "rc1": before the release)
+// or a post-release letter ("1.1.1t": after it).
 export function compareVersions(a: string, b: string): number {
-  const tokens = (value: string) => (value.trim().replace(/^v/i, "").toLowerCase().match(/\d+|[a-z]+/g) ?? []);
-  const left = trimZeros(tokens(a));
-  const right = trimZeros(tokens(b));
+  const left = splitVersion(a);
+  const right = splitVersion(b);
+  const release = compareTokens(trimZeros(left.release), trimZeros(right.release));
+  if (release !== 0) return release;
+  if (left.rank !== right.rank) return Math.sign(left.rank - right.rank);
+  return compareTokens(left.suffix, right.suffix);
+}
+
+const PRE_RELEASE = /^[-.~_]?(alpha|beta|rc|pre|preview|dev|snapshot)|^-/;
+
+function splitVersion(value: string): { release: string[]; suffix: string[]; rank: number } {
+  const normalized = value.trim().replace(/^v/i, "").toLowerCase();
+  const [, releasePart = "", rest = ""] = normalized.match(/^((?:\d+\.)*\d+)?(.*)$/) ?? [];
+  return {
+    release: releasePart ? releasePart.split(".") : [],
+    suffix: rest.match(/\d+|[a-z]+/g) ?? [],
+    rank: rest === "" ? 0 : PRE_RELEASE.test(rest) ? -1 : 1,
+  };
+}
+
+function compareTokens(left: string[], right: string[]): number {
   for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
     const l = left[index];
     const r = right[index];

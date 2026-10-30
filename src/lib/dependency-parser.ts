@@ -288,18 +288,24 @@ const YARN_NON_REGISTRY_PROTOCOL = /^(workspace|link|portal|file|patch|exec|git\
 export const parseYarnLockDependencies = (
   yarnLockRaw: string,
   manifestPath?: string,
-  lockfilePath?: string
+  lockfilePath?: string,
+  devOnlyNames: ReadonlySet<string> = new Set()
 ): ParsedDependency[] => {
   const dependencies: ParsedDependency[] = [];
   const seen = new Set<string>();
   let name: string | null = null;
+  let isDev = false;
 
   yarnLockRaw.split(/\r?\n/).forEach((line) => {
     if (/^[^\s#]/.test(line)) {
       const descriptor = line.replace(/:$/, "").split(",")[0].trim().replace(/^"|"$/g, "");
       const at = descriptor.indexOf("@", 1);
       const range = descriptor.slice(at + 1);
-      name = at > 0 && !YARN_NON_REGISTRY_PROTOCOL.test(range) ? descriptor.slice(0, at) : null;
+      const declaredName = descriptor.slice(0, at);
+      // "alias@npm:real-name@range" installs real-name; advisories are filed under that name.
+      const aliasTarget = range.match(/^npm:((?:@[^/]+\/)?[^@]+)@/)?.[1];
+      name = at > 0 && !YARN_NON_REGISTRY_PROTOCOL.test(range) ? aliasTarget ?? declaredName : null;
+      isDev = devOnlyNames.has(declaredName);
       return;
     }
 
@@ -308,10 +314,21 @@ export const parseYarnLockDependencies = (
     const version = versionMatch[1];
     if (!isConcreteVersion(version) || seen.has(`${name}@${version}`)) return;
     seen.add(`${name}@${version}`);
-    dependencies.push(toDependency(name, version, "npm", manifestPath, lockfilePath));
+    dependencies.push({ ...toDependency(name, version, "npm", manifestPath, lockfilePath), isDev });
   });
 
   return dependencies;
+};
+
+// Names only in devDependencies; a package in both is needed at runtime.
+const readDevOnlyNames = (packageJsonRaw: string | undefined): Set<string> => {
+  try {
+    const manifest = packageJsonRaw ? JSON.parse(packageJsonRaw) : {};
+    const runtime = new Set(Object.keys(manifest.dependencies ?? {}));
+    return new Set(Object.keys(manifest.devDependencies ?? {}).filter((dependencyName) => !runtime.has(dependencyName)));
+  } catch {
+    return new Set();
+  }
 };
 
 const toDependency = (
@@ -377,7 +394,7 @@ const REQUIREMENT_PIN =/^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*===?\s
 // Only exact `name==version` pins are scanned; ranges cannot be resolved without an index lookup.
 export const parseRequirementsTxtDependencies = (raw: string, manifestPath: string): ParsedDependency[] => {
   return raw.split(/\r?\n/).flatMap((line) => {
-    const requirement = line.replace(/(^|\s)#.*$/, "").split(";")[0].replace(/\\$/, "").trim();
+    const requirement = line.replace(/(^|\s)#.*$/, "").split(";")[0].replace(/\\$/, "").replace(/\s+--\S.*$/, "").trim();
     const match = requirement.match(REQUIREMENT_PIN);
     return match ? [toDependency(match[1], match[2], "PyPI", manifestPath)] : [];
   });
@@ -487,7 +504,8 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
     results.push(...parseYarnLockDependencies(
       yarnLock,
       group.files.has("package.json") ? packageJsonPath : undefined,
-      joinDirFile(group.dir, "yarn.lock")
+      joinDirFile(group.dir, "yarn.lock"),
+      readDevOnlyNames(group.files.get("package.json"))
     ));
   }
 

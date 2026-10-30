@@ -17,6 +17,14 @@ test("compareVersions orders numeric segments numerically and suffixes after the
   assert.ok(compareVersions("1.1.1", "1.1.1t") < 0);
 });
 
+test("compareVersions orders pre-releases before their release", () => {
+  assert.ok(compareVersions("2.0.0-beta", "2.0.0") < 0);
+  assert.ok(compareVersions("2.0.0-rc.1", "2.0.0-rc.2") < 0);
+  assert.ok(compareVersions("2.0.0rc1", "2.0.0") < 0);
+  assert.ok(compareVersions("2.0.0-beta", "1.9.9") > 0);
+  assert.ok(compareVersions("1.1.1t", "1.1.1-beta") > 0);
+});
+
 test("CVE 5 range entries match an asset version inside the range only", () => {
   const cve = cna([{ vendor: "OpenSSL", product: "OpenSSL", versions: [{ version: "3.0.0", lessThan: "3.0.8", status: "affected", versionType: "semver" }] }]);
   assert.equal(matchesInventoryAsset(cve, asset("openssl", "openssl", "3.0.7")), true);
