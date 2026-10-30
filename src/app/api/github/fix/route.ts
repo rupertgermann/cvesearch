@@ -97,6 +97,7 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
         dependencyFiles,
         sourceFiles,
       },
+      body?.aiSettings,
     );
 
     try {

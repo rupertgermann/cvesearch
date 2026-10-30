@@ -2,6 +2,7 @@ import { callModel, resolveAISettings } from "./ai";
 import {
   AIFixResult,
   FixFileChange,
+  FixRequestPayload,
   OSVVulnerability,
   ParsedDependency,
   RepoFileContent,
@@ -17,8 +18,9 @@ interface GenerateFixInput {
 
 export const generateVulnerabilityFix = async (
   input: GenerateFixInput,
+  aiOverrides?: FixRequestPayload["aiSettings"],
 ): Promise<AIFixResult> => {
-  const runtime = resolveAISettings();
+  const runtime = resolveAISettings(aiOverrides);
 
   if (runtime.provider === "heuristic") {
     return buildHeuristicFix(input);

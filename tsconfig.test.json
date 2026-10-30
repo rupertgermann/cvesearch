@@ -10,6 +10,7 @@
   "include": [
     "src/lib/**/*.ts",
     "src/types/**/*.d.ts",
+    "src/app/api/github/fix/route.ts",
     "tests/**/*.ts"
   ],
   "exclude": [
