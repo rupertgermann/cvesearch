@@ -127,3 +127,6 @@ export interface FixResponse {
   existingPr?: boolean;
   previewOnly?: boolean;
 }
+
+// Real SBOMs (e.g. syft CycloneDX) run 3-15 MB before JSON-escaping into the upload body.
+export const SOURCE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;

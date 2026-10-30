@@ -7,6 +7,7 @@ import {
   MonitoredRepo,
   DependencyScanResult,
   RepoScanRecord,
+  SOURCE_UPLOAD_MAX_BYTES,
   VulnerabilityMatch,
 } from "@/lib/github-types";
 import { getSeverityLabel } from "@/lib/osv";
@@ -603,7 +604,7 @@ const UploadSourceForm = ({ onUploaded }: { onUploaded: () => Promise<void> }) =
       <div>
         <h2 className="text-sm font-semibold text-white">Scan a lockfile or SBOM</h2>
         <p className="mt-0.5 text-xs text-white/30">
-          Upload or paste a lockfile or a CycloneDX / SPDX JSON SBOM. No GitHub token needed.
+          Upload or paste a lockfile or a CycloneDX / SPDX JSON SBOM (max {SOURCE_UPLOAD_MAX_BYTES / (1024 * 1024)} MB). No GitHub token needed.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
