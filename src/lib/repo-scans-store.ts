@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import { DependencyScanResult, RepoScanRecord } from "./github-types";
 import { getMonitoredRepo } from "./monitored-repos-store";
+import { findingKey } from "./repo-scan-diff";
 
 interface RepoScanRow {
   id: string;
@@ -51,6 +52,14 @@ export async function persistRepoScanResult(
   error: string | null = null
 ): Promise<RepoScanRecord> {
   const repo = await getMonitoredRepo(userId, repoFullName);
+  const [previous] = await listRepoScansForRepo(userId, repoFullName, 1, branch);
+  const firstSeenAt: Record<string, string> = {};
+  for (const match of result.vulnerabilities) {
+    const key = findingKey(match);
+    // Scans stored before first-seen was recorded only tell us the finding was there at the previous scan.
+    firstSeenAt[key] = previous?.firstSeenAt?.[key]
+      ?? (previous?.vulnerabilities.some((item) => findingKey(item) === key) ? previous.scannedAt : result.scannedAt);
+  }
   const record: RepoScanRecord = {
     id: crypto.randomUUID(),
     repoId: repo?.id ?? null,
@@ -61,6 +70,7 @@ export async function persistRepoScanResult(
     locationCount: result.locationCount,
     vulnerabilityCount: result.vulnerabilities.length,
     vulnerabilities: result.vulnerabilities,
+    firstSeenAt,
     error,
   };
 
@@ -94,6 +104,7 @@ export async function persistRepoScanResult(
       dependencyCount: record.dependencyCount,
       locationCount: record.locationCount,
       vulnerabilities: record.vulnerabilities,
+      firstSeenAt,
     } satisfies DependencyScanResult),
     error ?? ""
   );
@@ -114,6 +125,7 @@ function parseRepoScanRow(row: RepoScanRow): RepoScanRecord {
     locationCount: row.locationCount,
     vulnerabilityCount: row.vulnerabilityCount,
     vulnerabilities: parsed.vulnerabilities,
+    firstSeenAt: parsed.firstSeenAt,
     error: row.error || null,
   };
 }
@@ -127,6 +139,7 @@ function parseResult(value: string): DependencyScanResult {
       dependencyCount: typeof parsed.dependencyCount === "number" ? parsed.dependencyCount : 0,
       locationCount: typeof parsed.locationCount === "number" ? parsed.locationCount : 0,
       vulnerabilities: Array.isArray(parsed.vulnerabilities) ? parsed.vulnerabilities : [],
+      firstSeenAt: parsed.firstSeenAt && typeof parsed.firstSeenAt === "object" ? parsed.firstSeenAt : undefined,
     };
   } catch {
     return {

@@ -209,7 +209,16 @@ test("findings from the latest scan of each monitored repo are queue rows", asyn
         [`${OPENSSL_CVE}::${repo.id}:npm:lodash`, "acme/web", "2026-09-01T00:00:00.000Z", 0.42],
       ]);
 
-      await scan("2026-10-02T00:00:00.000Z", []);
+      // First-seen is recorded per finding at scan time, so it survives any number of later scans.
+      for (let day = 2; day <= 22; day += 1) {
+        await scan(`2026-10-${String(day).padStart(2, "0")}T00:00:00.000Z`, [finding]);
+      }
+      assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows.map((row) => row.firstSeenAt), ["2026-09-01T00:00:00.000Z"]);
+      // Another branch keeps its own history.
+      await persistRepoScanResult(session.userId, repo.fullName, "dev", { repoFullName: repo.fullName, scannedAt: "2026-10-23T00:00:00.000Z", dependencyCount: 1, locationCount: 1, vulnerabilities: [finding] });
+      assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows.map((row) => row.firstSeenAt), ["2026-10-23T00:00:00.000Z"]);
+
+      await scan("2026-10-24T00:00:00.000Z", []);
       assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows, [], "fixed findings leave the queue");
     } finally {
       upstream.restore();

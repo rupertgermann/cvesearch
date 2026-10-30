@@ -23,9 +23,6 @@ import {
 } from "./workspace-store";
 import { InventoryAssetRecord } from "./workspace-types";
 
-// Scans looked at when working out a repo finding's first-seen date.
-const REPO_SCAN_HISTORY = 20;
-
 // Same incremental paging as alert rules: only CVEs newer than each asset's cursor (plus any unread gap) are matched.
 export async function matchInventoryForUser(
   userId: string,
@@ -80,7 +77,7 @@ export async function loadExposureQueueForUser(
   });
 
   const repoRows = (
-    await Promise.all(repos.map(async (repo) => buildRepoExposureRows(repo, await listRepoScansForRepo(userId, repo.fullName, REPO_SCAN_HISTORY))))
+    await Promise.all(repos.map(async (repo) => buildRepoExposureRows(repo, (await listRepoScansForRepo(userId, repo.fullName, 1))[0])))
   ).flat();
 
   // KEV/EPSS move daily, so enrich on read instead of trusting what was stored at match time.

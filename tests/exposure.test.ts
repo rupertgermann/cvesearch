@@ -71,7 +71,7 @@ test("CPE vulnerable_product entries match exact or wildcard versions", () => {
   assert.equal(matchesInventoryAsset(cve, asset("zlib", "zlib", "1.3")), true);
 });
 
-test("repo rows come from the latest scan with first-seen from the oldest scan that had the finding", () => {
+test("repo rows come from the latest scan with first-seen recorded at scan time", () => {
   const repo = { id: "repo-1", fullName: "acme/web" } as MonitoredRepo;
   const finding = (id: string, aliases: string[], name: string) => ({
     vulnerability: {
@@ -88,16 +88,15 @@ test("repo rows come from the latest scan with first-seen from the oldest scan t
     matchedDependency: { name, version: "4.17.0", ecosystem: "npm" as const, isDev: false, manifestPath: "package.json" },
     cveIds: aliases,
   });
-  const scan = (scannedAt: string, vulnerabilities: ReturnType<typeof finding>[]) =>
-    ({ scannedAt, vulnerabilities } as unknown as RepoScanRecord);
   const lodash = finding("GHSA-aaaa-bbbb-cccc", ["CVE-2026-1111"], "lodash");
   const minimist = finding("GHSA-dddd-eeee-ffff", [], "minimist");
 
-  const rows = buildRepoExposureRows(repo, [
-    scan("2026-03-01T00:00:00Z", [lodash, minimist, lodash]),
-    scan("2026-02-01T00:00:00Z", [lodash]),
-    scan("2026-01-01T00:00:00Z", []),
-  ]);
+  // First-seen comes from the map recorded at scan time; findings missing from it fall back to scannedAt.
+  const rows = buildRepoExposureRows(repo, {
+    scannedAt: "2026-03-01T00:00:00Z",
+    vulnerabilities: [lodash, minimist, lodash],
+    firstSeenAt: { "GHSA-aaaa-bbbb-cccc (lodash)": "2026-02-01T00:00:00Z" },
+  } as unknown as RepoScanRecord);
 
   assert.deepEqual(rows.map((row) => [row.key, row.firstSeenAt]), [
     [exposureRowKey("CVE-2026-1111", "repo-1:npm:lodash"), "2026-02-01T00:00:00Z"],
@@ -106,5 +105,5 @@ test("repo rows come from the latest scan with first-seen from the oldest scan t
   assert.equal(rows[0].cve.cvss3, 9.8);
   assert.equal(rows[0].repoFullName, "acme/web");
   assert.equal(rows[0].criticality, null);
-  assert.deepEqual(buildRepoExposureRows(repo, []), []);
+  assert.deepEqual(buildRepoExposureRows(repo, undefined), []);
 });
