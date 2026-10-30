@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isGitHubTokenConfigured, fetchRepoDependencyFiles } from "@/lib/github";
-import { parseDependencyFiles } from "@/lib/dependency-parser";
-import { queryOSVBatch } from "@/lib/osv";
-import { updateLastScan } from "@/lib/monitored-repos-store";
-import { DependencyScanResult } from "@/lib/github-types";
-import { listRepoScansForRepo, persistRepoScanResult } from "@/lib/repo-scans-store";
+import { isGitHubTokenConfigured } from "@/lib/github";
+import { listRepoScansForRepo } from "@/lib/repo-scans-store";
+import { scanRepoForUser } from "@/lib/repo-scan";
 import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
 
@@ -46,36 +43,7 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     ), session);
   }
 
-  const files = await fetchRepoDependencyFiles(fullName, branch);
-
-  if (files.length === 0) {
-    const emptyResult: DependencyScanResult = {
-      repoFullName: fullName,
-      scannedAt: new Date().toISOString(),
-      dependencyCount: 0,
-      locationCount: 0,
-      vulnerabilities: [],
-    };
-
-    await updateLastScan(session.userId, fullName, 0);
-    await persistRepoScanResult(session.userId, fullName, branch ?? "default", emptyResult);
-    return applyWorkspaceSession(NextResponse.json(emptyResult), session);
-  }
-
-  const { dependencies, locationCount } = parseDependencyFiles(files);
-  const vulnerabilities = await queryOSVBatch(dependencies);
-
-  const result: DependencyScanResult = {
-    repoFullName: fullName,
-    scannedAt: new Date().toISOString(),
-    dependencyCount: dependencies.length,
-    locationCount,
-    vulnerabilities,
-  };
-
-  await updateLastScan(session.userId, fullName, vulnerabilities.length);
-  await persistRepoScanResult(session.userId, fullName, branch ?? "default", result);
-
+  const { result } = await scanRepoForUser(session.userId, fullName, branch);
   return applyWorkspaceSession(NextResponse.json(result), session);
 }, {
   route: "/api/github/scan",

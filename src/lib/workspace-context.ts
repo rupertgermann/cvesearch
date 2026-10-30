@@ -13,6 +13,7 @@ import {
   recordAlertRuleMatches,
 } from "./workspace-store";
 import { listProjects } from "./projects-store";
+import { listUndigestedRepoNotifications, RepoFindingsNotification } from "./repo-scans-store";
 
 const ALERT_PAGE_SIZE = 100;
 // ~4 days of feed (~1,100 records/day) for rules that already have a cursor.
@@ -35,6 +36,7 @@ export interface WorkspaceContextSnapshot {
   alertEvaluations: EvaluatedAlertRule[];
   triage: Record<string, TriageRecord>;
   projects: ProjectRecord[];
+  repoNotifications: RepoFindingsNotification[];
   latestSample: CVESummary[];
   // The page cap stopped before reaching every rule's cursor, so older new CVEs were not evaluated.
   latestSampleTruncated: boolean;
@@ -83,6 +85,7 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
     alertEvaluations,
     triage,
     projects,
+    repoNotifications: listUndigestedRepoNotifications(userId),
     latestSample,
     latestSampleTruncated,
   };
@@ -110,6 +113,7 @@ export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContext
       items: project.items,
       updatedAt: project.updatedAt,
     })),
+    repoFindings: snapshot.repoNotifications.map((item) => ({ repo: item.repoFullName, findings: item.findings })),
   };
 }
 

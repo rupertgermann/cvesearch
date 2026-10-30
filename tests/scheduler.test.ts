@@ -95,7 +95,7 @@ test("a tick entered while another is running returns without duplicate work", a
 test("scheduler config is off unless enabled and clamps the interval", async () => {
   const { readSchedulerConfig } = await import("../src/lib/scheduler");
   assert.equal(readSchedulerConfig({}).enabled, false);
-  assert.deepEqual(readSchedulerConfig({ SCHEDULER_ENABLED: "true", SCHEDULER_INTERVAL_MS: "120000" }), { enabled: true, intervalMs: 120000 });
+  assert.deepEqual(readSchedulerConfig({ SCHEDULER_ENABLED: "true", SCHEDULER_INTERVAL_MS: "120000" }), { enabled: true, intervalMs: 120000, rescanIntervalMs: 86_400_000 });
   assert.equal(readSchedulerConfig({ SCHEDULER_ENABLED: "true", SCHEDULER_INTERVAL_MS: "5" }).intervalMs, 30000);
   assert.equal(readSchedulerConfig({ SCHEDULER_INTERVAL_MS: "junk" }).intervalMs, 300000);
   assert.equal(readSchedulerConfig({ SCHEDULER_INTERVAL_MS: "3000000000" }).intervalMs, 2_147_483_647);

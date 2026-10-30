@@ -304,6 +304,18 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_notification_deliveries_user_id ON user_notification_deliveries(user_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS user_repo_notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      repo_full_name TEXT NOT NULL,
+      findings_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      digested_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_repo_notifications_user_id ON user_repo_notifications(user_id, digested_at);
+
     CREATE TABLE IF NOT EXISTS user_inventory_assets (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
