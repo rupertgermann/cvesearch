@@ -114,7 +114,7 @@ export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContext
 }
 
 // Pages upstream (newest published first) until every rule's cursor is reached; null cursor means a never-evaluated rule.
-async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<{ cves: CVESummary[]; truncated: boolean }> {
+export async function fetchLatestCVEsUntil(cursors: Array<string | null>): Promise<{ cves: CVESummary[]; truncated: boolean }> {
   if (cursors.length === 0) return { cves: [], truncated: false };
 
   const oldestCursor = cursors.includes(null)

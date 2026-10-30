@@ -321,6 +321,16 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_inventory_assets_user_id ON user_inventory_assets(user_id, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS inventory_asset_matches (
+      asset_id TEXT NOT NULL,
+      cve_id TEXT NOT NULL,
+      summary_json TEXT NOT NULL,
+      published_at TEXT,
+      first_seen_at TEXT NOT NULL,
+      PRIMARY KEY (asset_id, cve_id),
+      FOREIGN KEY (asset_id) REFERENCES user_inventory_assets(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS user_triage_records (
       user_id TEXT NOT NULL,
       cve_id TEXT NOT NULL,
@@ -382,6 +392,7 @@ function initializeDatabase(db: DatabaseSync): void {
   ensureColumn(db, "ai_runs", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "user_alert_rules", "cursor_published_at", "TEXT");
   ensureColumn(db, "alert_rule_matches", "published_at", "TEXT");
+  ensureColumn(db, "user_inventory_assets", "match_cursor_published_at", "TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_alert_rule_matches_rule_id ON alert_rule_matches(rule_id, published_at DESC, matched_at DESC)");
 
   migrateMonitoredRepoScope(db);
