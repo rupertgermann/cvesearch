@@ -11,6 +11,5 @@ test("every route gets the security headers, with CSP in report-only mode", asyn
   assert.ok(headers["Referrer-Policy"]);
   assert.equal(headers["X-Frame-Options"], "DENY");
   assert.ok(headers["Permissions-Policy"]);
-  assert.match(headers["Content-Security-Policy-Report-Only"] ?? "", /frame-ancestors 'none'/);
-  assert.equal(headers["Content-Security-Policy"], undefined);
+  assert.match(headers["Content-Security-Policy"] ?? "", /frame-ancestors 'none'/);
 });
