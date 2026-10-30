@@ -10,7 +10,8 @@
   "include": [
     "src/lib/**/*.ts",
     "src/types/**/*.d.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "next.config.ts"
   ],
   "exclude": [
     "node_modules",
