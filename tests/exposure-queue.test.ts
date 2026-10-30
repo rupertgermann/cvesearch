@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { NextRequest } from "next/server";
 import { GET } from "../src/app/api/exposure/route";
+import { PUT as PUT_TRIAGE } from "../src/app/api/exposure/triage/route";
 import { resetAPIRateLimits } from "../src/lib/api-route-guard";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
 import type { ExposureQueue } from "../src/lib/exposure";
@@ -101,7 +102,7 @@ test("adding inventory asset openssl 3.0.7 puts the matching new CVE in the queu
     try {
       const empty = await getQueue(session.sessionId);
       assert.equal(empty.status, 200);
-      assert.deepEqual(empty.body, { rows: [], hasSources: false, truncated: false });
+      assert.deepEqual(empty.body, { rows: [], hiddenCount: 0, hasSources: false, truncated: false });
       assert.deepEqual(upstream.requestedPages, [], "no sources means no feed paging");
 
       const asset = await createInventoryAssetForUser(session.userId, opensslAsset);
@@ -175,6 +176,82 @@ test("findings from the latest scan of each monitored repo are queue rows", asyn
 
       await scan("2026-10-02T00:00:00.000Z", []);
       assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows, [], "fixed findings leave the queue");
+    } finally {
+      upstream.restore();
+    }
+  });
+});
+
+async function putFindingTriage(sessionId: string, body: unknown) {
+  const response = await PUT_TRIAGE(new NextRequest("https://example.test/api/exposure/triage", {
+    method: "PUT",
+    headers: { cookie: `cvesearch_session=${sessionId}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+  return { status: response.status, body: await response.json() };
+}
+
+test("a repo finding accepted until 2027-01-01 stays out of the queue across rescans and returns after that date", async () => {
+  await withTempDb(async (session) => {
+    const upstream = installFakeUpstream([]);
+    try {
+      const repo = await addMonitoredRepo(session.userId, {
+        githubId: 2, fullName: "acme/api", htmlUrl: "https://github.com/acme/api", isPrivate: false, defaultBranch: "main",
+      });
+      const finding = {
+        vulnerability: {
+          id: "GHSA-dddd-eeee-ffff", aliases: [OPENSSL_CVE], summary: "", details: "Type confusion",
+          severity: [], affected: [], references: [], published: "2026-01-01T00:00:00Z", modified: "2026-01-01T00:00:00Z",
+        },
+        matchedDependency: { name: "openssl-wrapper", version: "1.0.0", ecosystem: "npm" as const, isDev: false },
+        cveIds: [OPENSSL_CVE],
+      };
+      const scan = (scannedAt: string) =>
+        persistRepoScanResult(session.userId, repo.fullName, "main", { repoFullName: repo.fullName, scannedAt, dependencyCount: 1, locationCount: 1, vulnerabilities: [finding] });
+      await scan("2026-10-01T00:00:00.000Z");
+
+      const before = new Date("2026-10-30T12:00:00.000Z");
+      const [row] = (await loadExposureQueueForUser(session.userId, { now: before })).rows;
+      assert.equal(row.triage, null);
+      assert.equal(Boolean(row.cve.kev), true);
+      const accept = { key: row.key, status: "accepted_risk", reason: "Not reachable from user input", acceptedUntil: "2027-01-01", kev: true, severity: "UNKNOWN" };
+
+      for (const invalid of [
+        { ...accept, reason: " " },
+        { ...accept, acceptedUntil: "2027-02-30" },
+        { ...accept, acceptedUntil: "01/01/2027" },
+        { ...accept, severity: undefined },
+        { ...accept, status: "ignored" },
+        { ...accept, key: "no-separator" },
+      ]) {
+        assert.equal((await putFindingTriage(session.sessionId, invalid)).status, 400, JSON.stringify(invalid));
+      }
+
+      const saved = await putFindingTriage(session.sessionId, accept);
+      assert.equal(saved.status, 200);
+      assert.equal(saved.body.status, "accepted_risk");
+
+      await scan("2026-10-15T00:00:00.000Z");
+      const hidden = await loadExposureQueueForUser(session.userId, { now: before });
+      assert.deepEqual([hidden.rows.length, hidden.hiddenCount], [0, 1], "rescan keeps the acceptance");
+      const shown = await loadExposureQueueForUser(session.userId, { now: before, includeHidden: true });
+      assert.deepEqual(shown.rows.map((item) => [item.key, item.hidden, item.triage?.acceptedUntil]), [[row.key, true, "2027-01-01"]]);
+      assert.equal((await loadExposureQueueForUser(session.userId, { now: new Date("2027-01-01T23:59:00.000Z") })).rows.length, 0);
+
+      const after = await loadExposureQueueForUser(session.userId, { now: new Date("2027-01-02T00:00:00.000Z") });
+      assert.deepEqual(after.rows.map((item) => [item.key, item.hidden, item.triage?.status]), [[row.key, false, "accepted_risk"]]);
+
+      // Accepted before it was KEV-listed (or at another severity): the change brings it back.
+      await putFindingTriage(session.sessionId, { ...accept, kev: false });
+      assert.equal((await loadExposureQueueForUser(session.userId, { now: before })).rows.length, 1);
+      await putFindingTriage(session.sessionId, { ...accept, severity: "LOW" });
+      assert.equal((await loadExposureQueueForUser(session.userId, { now: before })).rows.length, 1);
+
+      await putFindingTriage(session.sessionId, { key: row.key, status: "false_positive", reason: "Wrong package" });
+      assert.equal((await loadExposureQueueForUser(session.userId, { now: before })).hiddenCount, 1);
+      await putFindingTriage(session.sessionId, { key: row.key, status: "in_progress" });
+      const reopened = await loadExposureQueueForUser(session.userId, { now: before });
+      assert.deepEqual(reopened.rows.map((item) => [item.triage?.status, item.triage?.acceptedUntil]), [["in_progress", null]]);
     } finally {
       upstream.restore();
     }

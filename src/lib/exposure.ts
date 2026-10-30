@@ -1,5 +1,6 @@
 import type { MonitoredRepo, RepoScanRecord } from "./github-types";
-import type { AffectedProduct, CVESummary } from "./types";
+import type { AffectedProduct, CVESummary, SeverityLevel } from "./types";
+import { getSeverityFromScore } from "./utils";
 import { parseCVESummaryList } from "./validation";
 import type { InventoryAssetRecord } from "./workspace-types";
 
@@ -29,8 +30,27 @@ export interface ExposurePriority {
 
 export type PrioritizedExposureRow = ExposureRow & ExposurePriority;
 
+export const FINDING_TRIAGE_STATUSES = ["open", "in_progress", "fixed", "accepted_risk", "false_positive"] as const;
+export type FindingTriageStatus = (typeof FINDING_TRIAGE_STATUSES)[number];
+
+// Triage for one finding, keyed by the exposure row key so it survives rescans. CVE-only triage lives in triage-shared.
+export interface FindingTriage {
+  key: string;
+  status: FindingTriageStatus;
+  reason: string;
+  // accepted_risk only: last day (YYYY-MM-DD, UTC) the acceptance holds, and what the finding looked like when accepted.
+  acceptedUntil: string | null;
+  kevAtAcceptance: boolean | null;
+  severityAtAcceptance: SeverityLevel | null;
+  updatedAt: string;
+}
+
+export type ExposureQueueRow = PrioritizedExposureRow & { triage: FindingTriage | null; hidden: boolean };
+
 export interface ExposureQueue {
-  rows: PrioritizedExposureRow[];
+  rows: ExposureQueueRow[];
+  // Accepted-risk / false-positive rows left out of `rows` (included, flagged hidden, when asked for).
+  hiddenCount: number;
   hasSources: boolean;
   // The feed page cap stopped before every asset's cursor, so some new CVEs were not checked.
   truncated: boolean;
@@ -78,6 +98,23 @@ export function compareExposurePriority(
   b: { priority: ExposurePriorityLevel; cve: Pick<CVESummary, "epss"> }
 ): number {
   return a.priority.localeCompare(b.priority) || (b.cve.epss ?? -1) - (a.cve.epss ?? -1);
+}
+
+export function exposureSeverity(cve: Pick<CVESummary, "cvss" | "cvss3">): SeverityLevel {
+  return getSeverityFromScore(cve.cvss3 ?? cve.cvss);
+}
+
+// An accepted risk stays hidden through its last day, and only while KEV status and severity match the acceptance.
+export function isFindingTriageHidden(
+  triage: FindingTriage | null,
+  cve: Pick<CVESummary, "kev" | "cvss" | "cvss3">,
+  now: Date
+): boolean {
+  if (triage?.status === "false_positive") return true;
+  if (triage?.status !== "accepted_risk" || !triage.acceptedUntil) return false;
+  return now.toISOString().slice(0, 10) <= triage.acceptedUntil
+    && triage.kevAtAcceptance === Boolean(cve.kev)
+    && triage.severityAtAcceptance === exposureSeverity(cve);
 }
 
 type AssetMatchFields = Pick<InventoryAssetRecord, "vendor" | "product" | "version">;

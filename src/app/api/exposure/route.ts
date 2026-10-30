@@ -5,7 +5,9 @@ import { loadExposureQueueForUser } from "@/lib/exposure-queue";
 
 export const GET = withRouteProtection(async function GET(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
-  const response = NextResponse.json(await loadExposureQueueForUser(session.userId));
+  const response = NextResponse.json(await loadExposureQueueForUser(session.userId, {
+    includeHidden: request.nextUrl.searchParams.get("showHidden") === "1",
+  }));
   return applyWorkspaceSession(response, session);
 }, {
   route: "/api/exposure",

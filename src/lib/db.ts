@@ -346,6 +346,19 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_triage_records_user_id ON user_triage_records(user_id, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS user_finding_triage (
+      user_id TEXT NOT NULL,
+      finding_key TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      accepted_until TEXT,
+      kev_at_acceptance INTEGER,
+      severity_at_acceptance TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, finding_key),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS user_workspace_conversations (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
