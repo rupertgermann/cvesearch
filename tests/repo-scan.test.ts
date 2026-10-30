@@ -84,3 +84,13 @@ test("scan surfaces OSV findings for a vulnerable pinned Python dependency in a 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].matchedDependency.manifestPath, "services/api/requirements.txt");
 });
+
+test("scan surfaces OSV findings for a vulnerable Go module in a subdirectory", async () => {
+  const matches = await scanFakeRepo(
+    { "tools/cli/go.mod": "module example.com/cli\n\nrequire golang.org/x/net v0.17.0 // indirect\n" },
+    { ecosystem: "Go", name: "golang.org/x/net", version: "0.17.0" }
+  );
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].matchedDependency.manifestPath, "tools/cli/go.mod");
+});

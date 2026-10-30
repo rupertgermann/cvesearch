@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   parseDependencyFiles,
+  parseGoModDependencies,
   parseNpmDependencies,
   parsePythonLockDependencies,
   parseRequirementsTxtDependencies,
@@ -260,4 +261,45 @@ test("parseDependencyFiles prefers Python lockfile versions over requirements.tx
   ]);
   assert.equal(result.dependencies.find((dependency) => dependency.name === "django")?.lockfilePath, "services/api/poetry.lock");
   assert.ok(["requirements.txt", "poetry.lock", "uv.lock"].every((file) => supportedFiles().includes(file)));
+});
+
+const GO_MOD = `module github.com/acme/service
+
+go 1.22
+
+toolchain go1.22.1
+
+require github.com/gin-gonic/gin v1.9.0
+
+require (
+	golang.org/x/net v0.17.0 // indirect
+	github.com/acme/internal v0.0.0-20240101000000-abcdef123456
+	github.com/old/thing v1.0.0
+	github.com/local/lib v1.2.0
+)
+
+exclude github.com/bad/mod v1.0.0
+
+replace github.com/old/thing => github.com/new/thing v1.1.0
+
+replace (
+	github.com/local/lib => ../lib
+)
+`;
+
+test("parseGoModDependencies reads require directives and honors replace directives", () => {
+  assert.deepEqual(tuples(parseGoModDependencies(GO_MOD, "go.mod")), [
+    "Go:github.com/acme/internal@0.0.0-20240101000000-abcdef123456",
+    "Go:github.com/gin-gonic/gin@1.9.0",
+    "Go:github.com/new/thing@1.1.0",
+    "Go:golang.org/x/net@0.17.0",
+  ]);
+});
+
+test("parseDependencyFiles discovers go.mod in subdirectories", () => {
+  const result = parseDependencyFiles([{ path: "tools/cli/go.mod", content: GO_MOD }]);
+
+  assert.equal(result.dependencies.length, 4);
+  assert.equal(result.dependencies[0].sourceDirectory, "tools/cli");
+  assert.ok(supportedFiles().includes("go.mod"));
 });

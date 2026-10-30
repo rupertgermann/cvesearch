@@ -1,5 +1,5 @@
 import type { AIOverrides } from "./types";
-export type DependencyEcosystem = "npm" | "Packagist" | "PyPI";
+export type DependencyEcosystem = "npm" | "Packagist" | "PyPI" | "Go";
 
 export interface GitHubRepo {
   id: number;

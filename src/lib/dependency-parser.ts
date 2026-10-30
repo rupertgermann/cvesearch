@@ -373,7 +373,38 @@ export const parseRequirementsTxtDependencies = (raw: string, manifestPath: stri
   });
 };
 
-const normalizePythonName = (name: string): string => name.toLowerCase().replace(/[-_.]+/g, "-");
+// Includes `// indirect` requires; a replace to a local path drops the module (nothing to look up in OSV).
+export const parseGoModDependencies = (goModRaw: string, manifestPath: string): ParsedDependency[] => {
+  const requires: [string, string][] = [];
+  const replaces = new Map<string, [string, string] | null>();
+  let block: string | null = null;
+
+  goModRaw.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.replace(/\/\/.*$/, "").trim();
+    const opening = line.match(/^(\w+)\s*\($/);
+    if (opening) return void (block = opening[1]);
+    if (line === ")") return void (block = null);
+
+    const statement = block ? [block, line] : (line.match(/^(\w+)\s+(.+)$/)?.slice(1) ?? []);
+    const [directive, args] = statement;
+    if (directive === "require") {
+      const [path, version] = args.split(/\s+/);
+      if (path && version) requires.push([path, version]);
+    } else if (directive === "replace") {
+      const [from, to] = args.split("=>").map((side) => side.trim().split(/\s+/));
+      if (from?.[0] && to?.[0]) replaces.set(from.join(" "), to[1] ? [to[0], to[1]] : null);
+    }
+  });
+
+  return requires.flatMap(([path, version]) => {
+    const replaced = [`${path} ${version}`, path].map((key) => replaces.get(key)).find((entry) => entry !== undefined);
+    if (replaced === null) return [];
+    const [name, resolvedVersion] = replaced ?? [path, version];
+    return [toDependency(name, resolvedVersion.replace(/^v/, ""), "Go", manifestPath)];
+  });
+};
+
+const normalizePythonName =(name: string): string => name.toLowerCase().replace(/[-_.]+/g, "-");
 
 export interface ParseResult {
   dependencies: ParsedDependency[];
@@ -469,6 +500,9 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
   });
   results.push(...pythonLocked);
 
+  const goMod = group.files.get("go.mod");
+  if (goMod) results.push(...parseGoModDependencies(goMod, joinDirFile(group.dir, "go.mod")));
+
   const requirementsTxt = group.files.get("requirements.txt");
   if (requirementsTxt) {
     // Lockfile versions win; requirements.txt only adds packages the lockfile does not cover.
@@ -513,4 +547,5 @@ export const SUPPORTED_ECOSYSTEMS: { ecosystem: DependencyEcosystem; label: stri
   { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"] },
   { ecosystem: "Packagist", label: "Composer (PHP)", files: ["composer.json", "composer.lock"] },
   { ecosystem: "PyPI", label: "Python (PyPI)", files: ["requirements.txt", "poetry.lock", "uv.lock"] },
+  { ecosystem: "Go", label: "Go modules", files: ["go.mod"] },
 ];
