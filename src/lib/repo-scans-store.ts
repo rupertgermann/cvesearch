@@ -132,3 +132,35 @@ function parseResult(value: string): DependencyScanResult {
     };
   }
 }
+
+// In-app notification for findings a rescan found that the previous scan did not; feeds the next digest once.
+export interface RepoFindingsNotification {
+  id: string;
+  repoFullName: string;
+  findings: string[];
+  createdAt: string;
+}
+
+export function createRepoFindingsNotification(userId: string, repoFullName: string, findings: string[]): void {
+  getDb().prepare(`
+    INSERT INTO user_repo_notifications (id, user_id, repo_full_name, findings_json, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(crypto.randomUUID(), userId, repoFullName, JSON.stringify(findings), new Date().toISOString());
+}
+
+export function listUndigestedRepoNotifications(userId: string): RepoFindingsNotification[] {
+  const rows = getDb().prepare(`
+    SELECT id, repo_full_name as repoFullName, findings_json as findingsJson, created_at as createdAt
+    FROM user_repo_notifications
+    WHERE user_id = ? AND digested_at IS NULL
+    ORDER BY created_at ASC
+  `).all(userId) as Array<Omit<RepoFindingsNotification, "findings"> & { findingsJson: string }>;
+
+  return rows.map(({ findingsJson, ...row }) => ({ ...row, findings: JSON.parse(findingsJson) as string[] }));
+}
+
+export function markRepoNotificationsDigested(userId: string, ids: string[]): void {
+  const statement = getDb().prepare("UPDATE user_repo_notifications SET digested_at = ? WHERE user_id = ? AND id = ?");
+  const now = new Date().toISOString();
+  for (const id of ids) statement.run(now, userId, id);
+}

@@ -80,6 +80,8 @@ export interface DigestInput {
   watchlist: Array<{ id: string; summary?: string; severity?: string }>;
   alerts: Array<{ name: string; unread: number; topMatches: string[] }>;
   projects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[];
+  // New findings from repo rescans since the last digest.
+  repoFindings?: Array<{ repo: string; findings: string[] }>;
 }
 
 export interface CveInsightInput {
@@ -877,6 +879,7 @@ function redactCveInsightInput(input: CveInsightInput): CveInsightInput {
 function redactDigestInput(input: DigestInput): DigestInput {
   return {
     ...input,
+    repoFindings: input.repoFindings?.map((entry, index) => ({ repo: `Repository ${index + 1}`, findings: entry.findings })),
     projects: input.projects.map((project, index) => ({
       name: maskProjectName(index),
       updatedAt: project.updatedAt,
@@ -1311,6 +1314,13 @@ export function buildHeuristicDigest(input: DigestInput): AIDigest {
             : "No projects contain tracked CVEs yet.",
         items: activeProjects.slice(0, 5).map((project) => `${project.name}: ${project.items.length} CVEs`),
       },
+      ...(input.repoFindings?.length
+        ? [{
+          title: "Repositories",
+          body: `Rescans found new vulnerabilities in ${new Set(input.repoFindings.map((entry) => entry.repo)).size} repositories.`,
+          items: input.repoFindings.flatMap((entry) => entry.findings.map((finding) => `${entry.repo}: ${finding}`)).slice(0, 10),
+        }]
+        : []),
     ],
   };
 }

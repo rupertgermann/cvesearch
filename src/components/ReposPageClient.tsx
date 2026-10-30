@@ -10,6 +10,7 @@ import {
   VulnerabilityMatch,
 } from "@/lib/github-types";
 import { getSeverityLabel } from "@/lib/osv";
+import { diffScanFindings } from "@/lib/repo-scan-diff";
 import ConfirmationDialog from "./ConfirmationDialog";
 import VulnerabilityFixModal from "./VulnerabilityFixModal";
 
@@ -428,6 +429,7 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
   const isScanning = effectiveScanState?.state === "scanning";
   const hasResults = effectiveScanState?.state === "done" && effectiveScanState.result;
   const hasError = effectiveScanState?.state === "error";
+  const diff = history.length >= 2 ? diffScanFindings(history[1].vulnerabilities, history[0].vulnerabilities) : null;
 
   return (
     <section className="glass rounded-2xl p-5">
@@ -465,6 +467,14 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
               </span>
             )}
             {!repo.lastScannedAt && <span className="text-amber-400">Not yet scanned</span>}
+            {diff && (
+              <span
+                className={`badge badge-xs ${diff.newFindings.length > 0 ? "border-red-500/20 bg-red-500/8 text-red-300" : "border-white/10 text-white/40"}`}
+                title={[...diff.newFindings.map((f) => `new: ${f}`), ...diff.fixedFindings.map((f) => `fixed: ${f}`)].join("\n") || undefined}
+              >
+                +{diff.newFindings.length} new, {diff.fixedFindings.length} fixed since {new Date(history[1].scannedAt).toLocaleDateString()}
+              </span>
+            )}
           </div>
         </div>
 
