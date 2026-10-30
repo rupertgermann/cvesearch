@@ -13,7 +13,8 @@ import type { ExposureQueue } from "../src/lib/exposure";
 import { loadExposureQueueForUser } from "../src/lib/exposure-queue";
 import { addMonitoredRepo } from "../src/lib/monitored-repos-store";
 import { persistRepoScanResult } from "../src/lib/repo-scans-store";
-import { createInventoryAssetForUser, updateInventoryAssetForUser } from "../src/lib/workspace-store";
+import { runSchedulerTick } from "../src/lib/scheduler";
+import { createInventoryAssetForUser, listInventoryAssetMatchesForUser, updateInventoryAssetForUser } from "../src/lib/workspace-store";
 
 const BASE_TS = Date.parse("2026-10-01T00:00:00.000Z");
 const OPENSSL_CVE = "CVE-2026-200150";
@@ -148,6 +149,40 @@ test("changing an asset's version re-matches it from a fresh baseline", async ()
   });
 });
 
+test("a scheduler tick matches inventory without the queue being opened, and a truncated run keeps the gap", async () => {
+  await withTempDb(async (session) => {
+    const old = buildFeed();
+    const first = installFakeUpstream(old);
+    try {
+      await createInventoryAssetForUser(session.userId, opensslAsset);
+      const tick = await runSchedulerTick();
+      assert.equal(tick.inventoryUsers, 1);
+      assert.deepEqual(listInventoryAssetMatchesForUser(session.userId).map((match) => match.cve.id), [OPENSSL_CVE]);
+    } finally {
+      first.restore();
+    }
+
+    // 4100 newer records; the 40-page cap stops at 4000, so the OpenSSL record at 4050 is in the gap.
+    const opensslRecord = old.find((record) => record.id === OPENSSL_CVE)!;
+    const newer = Array.from({ length: 4100 }, (_, index) => ({
+      id: `CVE-2026-${300000 + 4100 - index}`,
+      summary: "Unrelated issue",
+      published: new Date(BASE_TS + (300 + 4100 - index) * 60_000).toISOString(),
+    }));
+    const gapId = newer[4050].id;
+    newer[4050] = { ...opensslRecord, id: gapId, published: newer[4050].published } as typeof newer[number];
+    const upstream = installFakeUpstream([...newer, ...old]);
+    try {
+      assert.equal((await loadExposureQueueForUser(session.userId)).truncated, true);
+      const next = await loadExposureQueueForUser(session.userId);
+      assert.equal(next.truncated, false);
+      assert.deepEqual(next.rows.map((row) => row.vulnerabilityId).sort(), [OPENSSL_CVE, gapId].sort());
+    } finally {
+      upstream.restore();
+    }
+  });
+});
+
 test("findings from the latest scan of each monitored repo are queue rows", async () => {
   await withTempDb(async (session) => {
     const upstream = installFakeUpstream([]);
@@ -174,7 +209,16 @@ test("findings from the latest scan of each monitored repo are queue rows", asyn
         [`${OPENSSL_CVE}::${repo.id}:npm:lodash`, "acme/web", "2026-09-01T00:00:00.000Z", 0.42],
       ]);
 
-      await scan("2026-10-02T00:00:00.000Z", []);
+      // First-seen is recorded per finding at scan time, so it survives any number of later scans.
+      for (let day = 2; day <= 22; day += 1) {
+        await scan(`2026-10-${String(day).padStart(2, "0")}T00:00:00.000Z`, [finding]);
+      }
+      assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows.map((row) => row.firstSeenAt), ["2026-09-01T00:00:00.000Z"]);
+      // Another branch keeps its own history.
+      await persistRepoScanResult(session.userId, repo.fullName, "dev", { repoFullName: repo.fullName, scannedAt: "2026-10-23T00:00:00.000Z", dependencyCount: 1, locationCount: 1, vulnerabilities: [finding] });
+      assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows.map((row) => row.firstSeenAt), ["2026-10-23T00:00:00.000Z"]);
+
+      await scan("2026-10-24T00:00:00.000Z", []);
       assert.deepEqual((await loadExposureQueueForUser(session.userId)).rows, [], "fixed findings leave the queue");
     } finally {
       upstream.restore();

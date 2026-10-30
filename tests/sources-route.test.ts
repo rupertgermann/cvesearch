@@ -9,9 +9,13 @@ import { POST } from "../src/app/api/sources/route";
 import { GET as getScanHistory } from "../src/app/api/github/scan/route";
 import { GET as listMonitored } from "../src/app/api/github/monitored/route";
 import { resetAPIRateLimits } from "../src/lib/api-route-guard";
+import { getDb } from "../src/lib/db";
+import { listUndigestedRepoNotifications } from "../src/lib/repo-scans-store";
+import { runSchedulerTick } from "../src/lib/scheduler";
 
 // Unknown session ids get a fresh user, so reuse the cookie the first response issues.
 const headers: Record<string, string> = { "content-type": "application/json" };
+const osv = { lodashVulnerable: true };
 
 async function withEnv(run: (osvBodies: unknown[]) => Promise<void>) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-sources-"));
@@ -21,6 +25,7 @@ async function withEnv(run: (osvBodies: unknown[]) => Promise<void>) {
   delete process.env.GITHUB_TOKEN;
   resetAPIRateLimits();
   delete headers.cookie;
+  osv.lodashVulnerable = true;
   const osvBodies: unknown[] = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -28,7 +33,7 @@ async function withEnv(run: (osvBodies: unknown[]) => Promise<void>) {
       const body = JSON.parse(String(init?.body)) as { queries: { package: { name: string } }[] };
       osvBodies.push(body);
       return Response.json({
-        results: body.queries.map((query) => query.package.name === "lodash"
+        results: body.queries.map((query) => query.package.name === "lodash" && osv.lodashVulnerable
           ? { vulns: [{ id: "GHSA-35jh-r3h4-6jhm", modified: "" }] }
           : {}),
       });
@@ -120,6 +125,28 @@ test("an uploaded lockfile is parsed by the dependency parser using its filename
     assert.equal(result.dependencyCount, 1);
     assert.equal(result.vulnerabilities.length, 1);
     assert.equal(osvBodies.length, 1);
+  });
+});
+
+test("the scheduler rescans a stale uploaded source from its stored dependencies without a GitHub token", async () => {
+  await withEnv(async (osvBodies) => {
+    osv.lodashVulnerable = false;
+    const sbom = JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.5", components: [{ purl: "pkg:npm/lodash@4.17.20" }] });
+    const response = await post({ name: "appliance", filename: "bom.json", content: sbom });
+    assert.equal((await response.json()).vulnerabilities.length, 0);
+
+    getDb().prepare("UPDATE monitored_repos SET last_scanned_at = ?").run(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
+    osv.lodashVulnerable = true;
+    osvBodies.length = 0;
+    const tick = await runSchedulerTick();
+
+    assert.equal(tick.rescannedRepos, 1);
+    assert.equal(osvBodies.length, 1, "OSV is queried with the stored dependency list");
+    const { userId } = getDb().prepare("SELECT user_id as userId FROM monitored_repos").get() as { userId: string };
+    assert.deepEqual(
+      listUndigestedRepoNotifications(userId).map((item) => [item.repoFullName, item.findings]),
+      [["appliance", ["GHSA-35jh-r3h4-6jhm (lodash)"]]]
+    );
   });
 });
 

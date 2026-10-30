@@ -46,7 +46,7 @@ async function withScanEnv(run: (osvVulns: string[], calls: string[]) => Promise
     calls.push(`${url.hostname}${url.pathname}`);
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
     if (url.hostname === "api.github.com") {
-      if (url.pathname.endsWith("/branches/main")) return json({ commit: { sha: "abc" } });
+      if (url.pathname.includes("/branches/")) return json({ commit: { sha: "abc" } });
       if (url.pathname.includes("/git/trees/")) return json({ sha: "abc", truncated: false, tree: [{ path: "package.json", mode: "100644", type: "blob", sha: "f" }] });
       if (url.pathname.endsWith("/contents/package.json")) {
         return json({ encoding: "base64", content: Buffer.from(JSON.stringify({ dependencies: { lodash: "4.17.0" } })).toString("base64") });
@@ -105,6 +105,23 @@ test("a rescan with a new finding creates a notification that feeds the next dig
   });
 });
 
+test("a rescan diffs against the previous scan of the same branch", async () => {
+  await withScanEnv(async (osvVulns) => {
+    const userId = newUser();
+    await monitor(userId, "acme/api");
+
+    osvVulns.push("GHSA-a");
+    await scanRepoForUser(userId, "acme/api", "main");
+    osvVulns.splice(0, osvVulns.length, "GHSA-b");
+    assert.equal((await scanRepoForUser(userId, "acme/api", "dev")).diff, null, "a first scan of another branch is a baseline");
+
+    osvVulns.splice(0, osvVulns.length, "GHSA-a");
+    const main = await scanRepoForUser(userId, "acme/api", "main");
+    assert.deepEqual(main.diff, { newFindings: [], fixedFindings: [], openFindings: ["GHSA-a (lodash)"] });
+    assert.equal(listUndigestedRepoNotifications(userId).length, 0);
+  });
+});
+
 test("a scheduler tick rescans only repos whose last scan is older than the rescan interval", async () => {
   await withScanEnv(async (_osvVulns, calls) => {
     const userId = newUser();
@@ -142,7 +159,7 @@ test("readSchedulerConfig reads the repo rescan interval with a daily default", 
   assert.equal(readSchedulerConfig({ REPO_RESCAN_INTERVAL_MS: "3600000" }).rescanIntervalMs, 3_600_000);
 });
 
-test("scheduler rescans skip uploaded sources and back off after a failed rescan", async () => {
+test("scheduler rescans skip uploaded sources without a stored dependency list and back off after a failed rescan", async () => {
   await withScanEnv(async (_osvVulns, calls) => {
     const userId = newUser();
     await monitor(userId, "acme/broken");

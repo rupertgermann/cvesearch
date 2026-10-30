@@ -91,6 +91,8 @@ export interface DependencyScanResult {
   dependencyCount: number;
   locationCount: number;
   vulnerabilities: VulnerabilityMatch[];
+  // Finding key (see findingKey) → scannedAt of the first scan of this branch that had it; set when persisted.
+  firstSeenAt?: Record<string, string>;
 }
 
 export interface RepoFileContent {

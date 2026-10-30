@@ -114,6 +114,40 @@ test("alert evaluation reports truncation when more new CVEs arrived than the pa
   });
 });
 
+test("a truncated evaluation leaves the unread gap for the next run instead of skipping it", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "Gap", normalizeSearchState({ query: "gapmarker" }));
+    const first = installFakeUpstream(buildFeed(300));
+    try {
+      await loadAlertEvaluationsForUser(userId);
+    } finally {
+      first.restore();
+    }
+
+    // 4100 newer records: the 40-page cap reads 4000, so record 4050 sits in the unread gap.
+    const newer = buildFeed(4100, 300);
+    newer[4050] = { ...newer[4050], summary: "gapmarker in the gap" };
+    const feed = [...newer, ...buildFeed(300)];
+    const upstream = installFakeUpstream(feed);
+    try {
+      assert.equal((await loadAlertEvaluationsForUser(userId)).truncated, true);
+      assert.deepEqual(listAlertRuleMatches(rule.id).matching.map((cve) => cve.id), []);
+
+      upstream.requestedPages.length = 0;
+      const next = await loadAlertEvaluationsForUser(userId);
+      assert.equal(next.truncated, false);
+      assert.deepEqual(upstream.requestedPages, [1, 2, 3, 41, 42, 43, 44], "new records first, then the gap");
+      assert.deepEqual(listAlertRuleMatches(rule.id).matching.map((cve) => cve.id), [newer[4050].id]);
+
+      upstream.requestedPages.length = 0;
+      await loadAlertEvaluationsForUser(userId);
+      assert.deepEqual(upstream.requestedPages, [1, 2, 3], "a closed gap is not paged again");
+    } finally {
+      upstream.restore();
+    }
+  });
+});
+
 test("stored alert matches are the newest published, survive a corrupt row and dedupe by CVE id", async () => {
   await withAlertDb(async (userId) => {
     const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));

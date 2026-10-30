@@ -14,7 +14,7 @@ function match(vulnId: string, pkg: string, ecosystem: DependencyEcosystem, alia
 
 function rowsFor(fullName: string, matches: VulnerabilityMatch[]) {
   const scan = { scannedAt: "2026-10-01T00:00:00Z", vulnerabilities: matches } as RepoScanRecord;
-  return buildRepoExposureRows({ id: "repo-1", fullName }, [scan]);
+  return buildRepoExposureRows({ id: "repo-1", fullName }, scan);
 }
 
 test("repo exposure rows map back to the scan match the fix flow needs", () => {

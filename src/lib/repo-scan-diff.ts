@@ -18,8 +18,12 @@ export function diffScanFindings(previous: VulnerabilityMatch[], current: Vulner
   };
 }
 
+export function findingKey(match: VulnerabilityMatch): string {
+  return `${match.vulnerability.id} (${match.matchedDependency.name})`;
+}
+
 function findingKeys(matches: VulnerabilityMatch[]): Set<string> {
-  return new Set(matches.map((match) => `${match.vulnerability.id} (${match.matchedDependency.name})`));
+  return new Set(matches.map(findingKey));
 }
 
 // Repo exposure rows key their asset as `${repoId}:${ecosystem}:${name}` (see buildRepoExposureRows).

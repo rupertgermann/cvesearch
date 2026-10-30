@@ -1,6 +1,7 @@
 import type { MonitoredRepo, RepoScanRecord } from "./github-types";
 import type { AffectedProduct, CVESummary, SeverityLevel } from "./types";
 import { getSeverityFromScore } from "./utils";
+import { findingKey } from "./repo-scan-diff";
 import { parseCVESummaryList } from "./validation";
 import type { InventoryAssetRecord } from "./workspace-types";
 
@@ -222,9 +223,7 @@ function normalizeName(value: string): string {
   return normalized === "n/a" ? "" : normalized;
 }
 
-// scans: newest first, as listRepoScansForRepo returns them.
-export function buildRepoExposureRows(repo: Pick<MonitoredRepo, "id" | "fullName">, scans: RepoScanRecord[]): ExposureRow[] {
-  const [latest] = scans;
+export function buildRepoExposureRows(repo: Pick<MonitoredRepo, "id" | "fullName">, latest: RepoScanRecord | undefined): ExposureRow[] {
   if (!latest) return [];
 
   const rows = new Map<string, ExposureRow>();
@@ -235,15 +234,7 @@ export function buildRepoExposureRows(repo: Pick<MonitoredRepo, "id" | "fullName
     const assetId = `${repo.id}:${dependency.ecosystem}:${dependency.name}`;
     const key = exposureRowKey(cve.id, assetId);
     if (rows.has(key)) continue;
-
-    // shortcut: first-seen only looks as far back as the scans passed in.
-    const firstSeenAt = scans.reduce(
-      (oldest, scan) =>
-        scan.vulnerabilities.some((item) => item.vulnerability.id === match.vulnerability.id && item.matchedDependency.name === dependency.name)
-          ? scan.scannedAt
-          : oldest,
-      latest.scannedAt
-    );
+    const firstSeenAt = latest.firstSeenAt?.[findingKey(match)] ?? latest.scannedAt;
 
     rows.set(key, {
       key,

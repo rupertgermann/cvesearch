@@ -386,6 +386,31 @@ export async function updateInventoryAssetForUser(
   return next;
 }
 
+export type CVEFeed = "alerts" | "inventory";
+
+// Where a truncated feed run stopped: `page` is the next unread page, `floor` the oldest cursor still owed.
+export interface FeedBackfill {
+  page: number;
+  floor: string;
+}
+
+export function readFeedBackfill(userId: string, feed: CVEFeed): FeedBackfill | null {
+  const row = getDb().prepare("SELECT page, floor FROM cve_feed_backfill WHERE user_id = ? AND feed = ?")
+    .get(userId, feed) as FeedBackfill | undefined;
+  return row ? { page: row.page, floor: row.floor } : null;
+}
+
+export function writeFeedBackfill(userId: string, feed: CVEFeed, backfill: FeedBackfill | null): void {
+  if (!backfill) {
+    getDb().prepare("DELETE FROM cve_feed_backfill WHERE user_id = ? AND feed = ?").run(userId, feed);
+    return;
+  }
+  getDb().prepare(`
+    INSERT INTO cve_feed_backfill (user_id, feed, page, floor) VALUES (?, ?, ?, ?)
+    ON CONFLICT (user_id, feed) DO UPDATE SET page = excluded.page, floor = excluded.floor
+  `).run(userId, feed, backfill.page, backfill.floor);
+}
+
 // Newest published date already matched per asset; null means the asset still needs a baseline.
 export function readInventoryMatchCursors(userId: string): Map<string, string | null> {
   const rows = getDb().prepare(`

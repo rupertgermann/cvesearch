@@ -343,6 +343,15 @@ function initializeDatabase(db: DatabaseSync): void {
       FOREIGN KEY (asset_id) REFERENCES user_inventory_assets(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS cve_feed_backfill (
+      user_id TEXT NOT NULL,
+      feed TEXT NOT NULL,
+      page INTEGER NOT NULL,
+      floor TEXT NOT NULL,
+      PRIMARY KEY (user_id, feed),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS user_triage_records (
       user_id TEXT NOT NULL,
       cve_id TEXT NOT NULL,
@@ -425,6 +434,8 @@ function initializeDatabase(db: DatabaseSync): void {
   ensureColumn(db, "monitored_repos", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "monitored_repo_scans", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "monitored_repos", "source_kind", "TEXT NOT NULL DEFAULT 'github'");
+  // Parsed dependency list of an uploaded source, so it can be rescanned without the original file.
+  ensureColumn(db, "monitored_repos", "upload_dependencies_json", "TEXT");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id, updated_at DESC);
