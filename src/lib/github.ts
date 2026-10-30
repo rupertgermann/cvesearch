@@ -8,6 +8,7 @@ const DEPENDENCY_FILE_NAMES = new Set([
   "package.json",
   "package-lock.json",
   "pnpm-lock.yaml",
+  "yarn.lock",
   "composer.json",
   "composer.lock",
 ]);

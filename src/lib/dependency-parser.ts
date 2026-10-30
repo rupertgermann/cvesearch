@@ -282,6 +282,47 @@ export const parsePnpmLockDependencies = (
   return dependencies;
 };
 
+const YARN_NON_REGISTRY_PROTOCOL = /^(workspace|link|portal|file|patch|exec|git\+?\w*|github|https?):/;
+
+// Handles both classic ("name@range":\n  version "x") and berry ("name@npm:range":\n  version: x) formats.
+export const parseYarnLockDependencies = (
+  yarnLockRaw: string,
+  manifestPath?: string,
+  lockfilePath?: string
+): ParsedDependency[] => {
+  const dependencies: ParsedDependency[] = [];
+  const seen = new Set<string>();
+  let name: string | null = null;
+
+  yarnLockRaw.split(/\r?\n/).forEach((line) => {
+    if (/^[^\s#]/.test(line)) {
+      const descriptor = line.replace(/:$/, "").split(",")[0].trim().replace(/^"|"$/g, "");
+      const at = descriptor.indexOf("@", 1);
+      const range = descriptor.slice(at + 1);
+      name = at > 0 && !YARN_NON_REGISTRY_PROTOCOL.test(range) ? descriptor.slice(0, at) : null;
+      return;
+    }
+
+    const versionMatch = line.match(/^\s+version:?\s+"?([^"\s]+)"?\s*$/);
+    if (!name || !versionMatch) return;
+    const version = versionMatch[1];
+    if (!isConcreteVersion(version) || seen.has(`${name}@${version}`)) return;
+    seen.add(`${name}@${version}`);
+
+    dependencies.push({
+      name,
+      version,
+      ecosystem: "npm",
+      isDev: false,
+      manifestPath,
+      lockfilePath,
+      sourceDirectory: manifestPath ? getParentDir(manifestPath) : lockfilePath ? getParentDir(lockfilePath) : undefined,
+    });
+  });
+
+  return dependencies;
+};
+
 export interface ParseResult {
   dependencies: ParsedDependency[];
   locationCount: number;
@@ -348,8 +389,18 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
     ));
   }
 
+  const yarnLock = group.files.get("yarn.lock");
+  if (yarnLock) {
+    results.push(...parseYarnLockDependencies(
+      yarnLock,
+      group.files.has("package.json") ? packageJsonPath : undefined,
+      joinDirFile(group.dir, "yarn.lock")
+    ));
+  }
+
   const packageJson = group.files.get("package.json");
-  if (packageJson) {
+  // yarn.lock pins every manifest dependency, so manifest ranges would only add guessed versions.
+  if (packageJson && !yarnLock) {
     const packageLock = group.files.get("package-lock.json");
     results.push(...parseNpmDependencies(packageJson, packageJsonPath, packageLock, packageLock ? packageLockPath : undefined));
   }
@@ -393,6 +444,6 @@ const deduplicateDependencies = (dependencies: ParsedDependency[]): ParsedDepend
 };
 
 export const SUPPORTED_ECOSYSTEMS: { ecosystem: DependencyEcosystem; label: string; files: string[] }[] = [
-  { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml"] },
+  { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"] },
   { ecosystem: "Packagist", label: "Composer (PHP)", files: ["composer.json", "composer.lock"] },
 ];
