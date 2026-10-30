@@ -287,6 +287,10 @@ export function getServerAIConfigurationSummary(): ServerAIConfigurationSummary 
   };
 }
 
+export function isAIFeatureConfigured(feature: AIFeature): boolean {
+  return resolveAIRuntime(feature).mode === "configured";
+}
+
 export async function getRecentAIRuns(userId: string, limit = 25): Promise<AIRunRecord[]> {
   return listRecentAIRuns(userId, limit);
 }

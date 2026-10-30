@@ -261,6 +261,12 @@ export function recordAlertRuleMatches(ruleId: string, matches: CVESummary[], cu
   });
 }
 
+export function countAlertRuleMatchesSince(ruleId: string, since: string): number {
+  const row = getDb().prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ? AND matched_at > ?")
+    .get(ruleId, since) as { count: number };
+  return row.count;
+}
+
 export function listAlertRuleMatches(ruleId: string): { matching: CVESummary[]; unread: number } {
   const db = getDb();
   // shortcut: only the newest MAX_STORED_ALERT_MATCHES are returned; paginate if the alerts UI ever needs older ones.
