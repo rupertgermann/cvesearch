@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import nextConfig from "../next.config";
 
-test("every route gets the security headers, with CSP in report-only mode", async () => {
+test("every route gets the security headers, including the enforced CSP", async () => {
   const rules = await nextConfig.headers!();
   const catchAll = rules.find((rule) => rule.source === "/(.*)");
   const headers = Object.fromEntries((catchAll?.headers ?? []).map(({ key, value }) => [key, value]));
