@@ -1,7 +1,13 @@
 import { generateDigest } from "./ai-service";
+import { PublicRouteError } from "./api-route-guard";
 import { getDb } from "./db";
+import { AIDigest } from "./types";
 import { buildDigestInputFromWorkspaceSnapshot, loadWorkspaceContextSnapshot } from "./workspace-context";
-import { NotificationCadence, NotificationDeliveryRecord, NotificationPreferenceRecord } from "./workspace-types";
+import { NotificationCadence, NotificationChannel, NotificationDeliveryRecord, NotificationPreferenceRecord } from "./workspace-types";
+
+const DELIVERY_TIMEOUT_MS = 10_000;
+// A failed delivery stays due but waits this long, so a dead endpoint does not cost a digest run every tick.
+const FAILED_RETRY_DELAY_MS = 60 * 60 * 1000;
 
 interface NotificationPreferenceRow {
   id: string;
@@ -26,6 +32,7 @@ interface NotificationDeliveryRow {
   headline: string;
   summary: string;
   status: string;
+  error: string;
   itemCount: number;
   createdAt: string;
   deliveredAt: string | null;
@@ -69,6 +76,7 @@ export async function createNotificationPreferenceForUser(
     lastSentAt: null,
     nextRunAt: scheduleNextRun(now, input.cadence),
   });
+  assertDeliverableDestination(record);
 
   getDb().prepare(`
     INSERT INTO user_notification_preferences (
@@ -116,6 +124,10 @@ export async function updateNotificationPreferenceForUser(
     updatedAt: now,
     nextRunAt,
   });
+  // Only on target changes, so a legacy non-HTTPS row can still be paused or renamed.
+  if (input.channel !== undefined || input.destination !== undefined) {
+    assertDeliverableDestination(record);
+  }
 
   getDb().prepare(`
     UPDATE user_notification_preferences
@@ -173,6 +185,7 @@ export async function listNotificationDeliveriesForUser(userId: string, limit = 
       headline,
       summary,
       status,
+      error,
       item_count as itemCount,
       created_at as createdAt,
       delivered_at as deliveredAt
@@ -219,16 +232,23 @@ export async function runDueNotificationDigestsForUser(
       cadence: preference.cadence,
       headline: digest.headline,
       summary: digest.sections.map((section) => `${section.title}: ${section.body}`).join("\n"),
-      status: input?.preview ? "preview" : "sent",
+      status: "preview",
       itemCount: digest.sections.reduce((sum, section) => sum + section.items.length, 0),
       createdAt,
       deliveredAt: createdAt,
     };
 
+    if (!input?.preview) {
+      const error = await deliverDigest(preference, delivery, digest);
+      delivery.status = error ? "failed" : "sent";
+      delivery.error = error ?? undefined;
+      delivery.deliveredAt = error ? null : new Date().toISOString();
+    }
+
     getDb().prepare(`
       INSERT INTO user_notification_deliveries (
-        id, user_id, preference_id, team_name, channel, destination, cadence, headline, summary, status, item_count, created_at, delivered_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, preference_id, team_name, channel, destination, cadence, headline, summary, status, error, item_count, created_at, delivered_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       delivery.id,
       userId,
@@ -240,12 +260,18 @@ export async function runDueNotificationDigestsForUser(
       delivery.headline,
       delivery.summary,
       delivery.status,
+      delivery.error ?? "",
       delivery.itemCount,
       delivery.createdAt,
       delivery.deliveredAt
     );
 
-    if (!input?.preview) {
+    if (delivery.status === "failed") {
+      getDb().prepare("UPDATE user_notification_preferences SET next_run_at = ? WHERE user_id = ? AND id = ?")
+        .run(new Date(Date.now() + FAILED_RETRY_DELAY_MS).toISOString(), userId, preference.id);
+    }
+
+    if (delivery.status === "sent") {
       getDb().prepare(`
         UPDATE user_notification_preferences
         SET last_sent_at = ?, next_run_at = ?, updated_at = ?
@@ -263,6 +289,78 @@ export async function runDueNotificationDigestsForUser(
   }
 
   return deliveries;
+}
+
+// Returns the failure reason, or null when delivered. Email and in-app channels are record-only.
+async function deliverDigest(
+  preference: NotificationPreferenceRecord,
+  delivery: NotificationDeliveryRecord,
+  digest: AIDigest
+): Promise<string | null> {
+  if (preference.channel !== "webhook" && preference.channel !== "slack") return null;
+  if (!isHttpsUrl(preference.destination)) return "Destination must be a public HTTPS URL";
+
+  const items = digest.sections.flatMap((section) => section.items);
+  const payload = preference.channel === "slack"
+    ? { text: `*${delivery.headline}*\n${digest.sections.map((section) => `*${section.title}*: ${section.body}`).join("\n")}` }
+    : {
+      headline: delivery.headline,
+      summary: delivery.summary,
+      items,
+      sections: digest.sections,
+      teamName: delivery.teamName,
+      cadence: delivery.cadence,
+      createdAt: delivery.createdAt,
+    };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+  try {
+    const response = await fetch(preference.destination, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": "CVESearch-WebApp/1.0" },
+      body: JSON.stringify(payload),
+      // Redirects are not followed: the HTTPS/host check only covers the configured URL.
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    return response.ok ? null : `HTTP ${response.status} ${response.statusText}`.trim();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") return "Delivery timed out";
+    return error instanceof Error ? error.message : "Delivery failed";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function assertDeliverableDestination(record: Pick<NotificationPreferenceRecord, "channel" | "destination">): void {
+  if (requiresHttpsDestination(record.channel) && !isHttpsUrl(record.destination)) {
+    const message = "Webhook and Slack destinations must be public HTTPS URLs";
+    throw new PublicRouteError(message, message, 400);
+  }
+}
+
+function requiresHttpsDestination(channel: NotificationChannel): boolean {
+  return channel === "webhook" || channel === "slack";
+}
+
+// shortcut: checks literal hosts only, not DNS that resolves to private addresses; add a resolving check if exposed to untrusted users at scale.
+function isHttpsUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !isPrivateHost(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "::" || /^f[cd]|^fe80/.test(host)) return true;
+  const ipv4 = host.match(/^(\d+)\.(\d+)\.\d+\.\d+$/);
+  if (!ipv4) return false;
+  const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
 function normalizePreferenceRow(row: NotificationPreferenceRow): NotificationPreferenceRecord {
@@ -320,7 +418,8 @@ function normalizeDeliveryRow(row: NotificationDeliveryRow): NotificationDeliver
     cadence: row.cadence === "weekly" ? "weekly" : "daily",
     headline: row.headline,
     summary: row.summary,
-    status: row.status === "preview" ? "preview" : "sent",
+    status: row.status === "preview" || row.status === "failed" ? row.status : "sent",
+    ...(row.error ? { error: row.error } : {}),
     itemCount: row.itemCount,
     createdAt: row.createdAt,
     deliveredAt: row.deliveredAt,

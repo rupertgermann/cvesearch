@@ -52,7 +52,8 @@ export interface NotificationDeliveryRecord {
   cadence: NotificationCadence;
   headline: string;
   summary: string;
-  status: "sent" | "preview";
+  status: "sent" | "failed" | "preview";
+  error?: string;
   itemCount: number;
   createdAt: string;
   deliveredAt: string | null;
