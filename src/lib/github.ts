@@ -1,3 +1,4 @@
+import { PublicRouteError } from "./api-route-guard";
 import { GitHubRepo, RepoFileContent } from "./github-types";
 
 const GITHUB_API_BASE = "https://api.github.com";
@@ -28,13 +29,10 @@ interface GitTree {
 }
 
 // Carries a fixed, client-safe message; the raw upstream text stays in `message` for server logs.
-export class GitHubAPIError extends Error {
-  readonly publicMessage: string;
-
+export class GitHubAPIError extends PublicRouteError {
   constructor(response: Response, upstreamMessage: string) {
-    super(`GitHub API error: ${upstreamMessage}`);
+    super(`GitHub API error: ${upstreamMessage}`, toPublicMessage(response));
     this.name = "GitHubAPIError";
-    this.publicMessage = toPublicMessage(response);
   }
 }
 
