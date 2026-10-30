@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseDependencyFiles } from "@/lib/dependency-parser";
 import { parseSbom } from "@/lib/sbom-parser";
-import { queryOSVBatch } from "@/lib/osv";
-import { addMonitoredRepo, updateLastScan } from "@/lib/monitored-repos-store";
-import { persistRepoScanResult } from "@/lib/repo-scans-store";
-import { DependencyScanResult } from "@/lib/github-types";
+import { addMonitoredRepo, saveUploadedDependencies } from "@/lib/monitored-repos-store";
+import { scanRepoForUser } from "@/lib/repo-scan";
 import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
 
@@ -42,15 +40,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     return fail("No dependencies found. Upload a CycloneDX/SPDX JSON SBOM or a supported lockfile.");
   }
 
-  const vulnerabilities = await queryOSVBatch(dependencies);
-  const result: DependencyScanResult = {
-    repoFullName: name,
-    scannedAt: new Date().toISOString(),
-    dependencyCount: dependencies.length,
-    locationCount: 1,
-    vulnerabilities,
-  };
-
   await addMonitoredRepo(session.userId, {
     githubId: 0,
     fullName: name,
@@ -59,8 +48,9 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     defaultBranch: filename,
     sourceKind: "upload",
   });
-  await updateLastScan(session.userId, name, vulnerabilities.length);
-  await persistRepoScanResult(session.userId, name, filename, result);
+  // Stored so the scheduler can rescan the source; the scan itself takes the same path as a GitHub rescan.
+  saveUploadedDependencies(session.userId, name, filename, dependencies);
+  const { result } = await scanRepoForUser(session.userId, name);
 
   return applyWorkspaceSession(NextResponse.json(result), session);
 }, {

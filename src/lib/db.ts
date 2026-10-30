@@ -434,6 +434,8 @@ function initializeDatabase(db: DatabaseSync): void {
   ensureColumn(db, "monitored_repos", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "monitored_repo_scans", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "monitored_repos", "source_kind", "TEXT NOT NULL DEFAULT 'github'");
+  // Parsed dependency list of an uploaded source, so it can be rescanned without the original file.
+  ensureColumn(db, "monitored_repos", "upload_dependencies_json", "TEXT");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id, updated_at DESC);

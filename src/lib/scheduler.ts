@@ -71,14 +71,15 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
       WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
     `).all(now) as Array<{ userId: string }>).map((row) => row.userId);
     const rescanBefore = new Date(Date.now() - readSchedulerConfig().rescanIntervalMs).toISOString();
-    const staleRepos = isGitHubTokenConfigured()
-      ? (db.prepare(`
-        SELECT DISTINCT r.user_id as userId, r.full_name as fullName
-        FROM monitored_repos r
-        JOIN sessions s ON s.user_id = r.user_id AND s.expires_at > ?
-        WHERE r.source_kind = 'github' AND (r.last_scanned_at IS NULL OR r.last_scanned_at <= ?)
-      `).all(now, rescanBefore) as Array<{ userId: string; fullName: string }>).filter((repo) => !isInRescanBackoff(repo))
-      : [];
+    // Uploaded sources rescan their stored dependency list, so they need no GitHub token.
+    const staleRepos = (db.prepare(`
+      SELECT DISTINCT r.user_id as userId, r.full_name as fullName
+      FROM monitored_repos r
+      JOIN sessions s ON s.user_id = r.user_id AND s.expires_at > ?
+      WHERE (r.last_scanned_at IS NULL OR r.last_scanned_at <= ?)
+        AND ((r.source_kind = 'github' AND ? = 1) OR (r.source_kind = 'upload' AND r.upload_dependencies_json IS NOT NULL))
+    `).all(now, rescanBefore, isGitHubTokenConfigured() ? 1 : 0) as Array<{ userId: string; fullName: string }>)
+      .filter((repo) => !isInRescanBackoff(repo));
 
     // Rescans run first so their new-finding notifications reach digests due in this same tick.
     for (const repo of staleRepos) {

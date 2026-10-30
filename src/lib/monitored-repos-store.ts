@@ -1,4 +1,4 @@
-import { MonitoredRepo } from "./github-types";
+import { MonitoredRepo, ParsedDependency } from "./github-types";
 import { getDb, withTransaction } from "./db";
 
 export const listMonitoredRepos = async (userId: string): Promise<MonitoredRepo[]> => {
@@ -112,6 +112,22 @@ export const updateLastScan = async (
     WHERE user_id = ? AND full_name = ?
   `).run(new Date().toISOString(), vulnerabilityCount, userId, repoFullName);
 };
+
+// The upload's filename is kept as its branch, like the scans of it.
+export function saveUploadedDependencies(userId: string, fullName: string, filename: string, dependencies: ParsedDependency[]): void {
+  getDb().prepare(`
+    UPDATE monitored_repos SET upload_dependencies_json = ?, default_branch = ?
+    WHERE user_id = ? AND full_name = ? AND source_kind = 'upload'
+  `).run(JSON.stringify(dependencies), filename, userId, fullName);
+}
+
+export function readUploadedDependencies(userId: string, fullName: string): { filename: string; dependencies: ParsedDependency[] } | null {
+  const row = getDb().prepare(`
+    SELECT default_branch as filename, upload_dependencies_json as json FROM monitored_repos
+    WHERE user_id = ? AND full_name = ? AND source_kind = 'upload' AND upload_dependencies_json IS NOT NULL
+  `).get(userId, fullName) as { filename: string; json: string } | undefined;
+  return row ? { filename: row.filename, dependencies: JSON.parse(row.json) as ParsedDependency[] } : null;
+}
 
 export const getMonitoredRepo = async (userId: string, repoIdOrFullName: string): Promise<MonitoredRepo | null> => {
   const row = getDb().prepare(`

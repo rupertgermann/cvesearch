@@ -159,7 +159,7 @@ test("readSchedulerConfig reads the repo rescan interval with a daily default", 
   assert.equal(readSchedulerConfig({ REPO_RESCAN_INTERVAL_MS: "3600000" }).rescanIntervalMs, 3_600_000);
 });
 
-test("scheduler rescans skip uploaded sources and back off after a failed rescan", async () => {
+test("scheduler rescans skip uploaded sources without a stored dependency list and back off after a failed rescan", async () => {
   await withScanEnv(async (_osvVulns, calls) => {
     const userId = newUser();
     await monitor(userId, "acme/broken");
