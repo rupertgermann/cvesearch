@@ -411,6 +411,7 @@ function initializeDatabase(db: DatabaseSync): void {
   migrateMonitoredRepoScope(db);
   ensureColumn(db, "monitored_repos", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "monitored_repo_scans", "user_id", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "monitored_repos", "source_kind", "TEXT NOT NULL DEFAULT 'github'");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id, updated_at DESC);

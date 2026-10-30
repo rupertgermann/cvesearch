@@ -141,3 +141,36 @@ test("readSchedulerConfig reads the repo rescan interval with a daily default", 
   assert.equal(readSchedulerConfig({}).rescanIntervalMs, 24 * 60 * 60 * 1000);
   assert.equal(readSchedulerConfig({ REPO_RESCAN_INTERVAL_MS: "3600000" }).rescanIntervalMs, 3_600_000);
 });
+
+test("scheduler rescans skip uploaded sources and back off after a failed rescan", async () => {
+  await withScanEnv(async (_osvVulns, calls) => {
+    const userId = newUser();
+    await monitor(userId, "acme/broken");
+    await monitor(userId, "uploaded-sbom");
+    getDb().prepare("UPDATE monitored_repos SET source_kind = 'upload' WHERE full_name = ?").run("uploaded-sbom");
+    const stubbed = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/repos/acme/broken")) {
+        calls.push("broken");
+        return new Response("{}", { status: 500 });
+      }
+      return stubbed(input, init);
+    }) as typeof fetch;
+    const originalError = console.error;
+    console.error = () => {};
+    try {
+      const first = await runSchedulerTick();
+      assert.equal(first.rescannedRepos, 1, "only the GitHub repo is rescanned");
+      assert.ok(calls.includes("broken"));
+      assert.ok(!calls.some((call) => call.includes("uploaded-sbom")));
+
+      calls.length = 0;
+      const second = await runSchedulerTick();
+      assert.equal(second.rescannedRepos, 0, "a failed rescan waits before retrying");
+      assert.equal(calls.length, 0);
+    } finally {
+      console.error = originalError;
+      globalThis.fetch = stubbed;
+    }
+  });
+});

@@ -20,7 +20,23 @@ const MAX_INTERVAL_MS = 2_147_483_647; // setInterval overflows above this and f
 // shortcut: in-process guard only; several app instances on one database would each tick. Move to a DB lease when scaling out.
 // Kept on globalThis so a dev hot-reload that re-evaluates this module still shares one guard and one interval.
 // A manual POST /api/notifications/run is forced on purpose and is not guarded against a running tick.
-const state = globalThis as typeof globalThis & { __cvesearchSchedulerRunning?: boolean; __cvesearchSchedulerInterval?: ReturnType<typeof setInterval> };
+const state = globalThis as typeof globalThis & {
+  __cvesearchSchedulerRunning?: boolean;
+  __cvesearchSchedulerInterval?: ReturnType<typeof setInterval>;
+  __cvesearchRescanFailures?: Map<string, number>;
+};
+
+// shortcut: failure backoff lives in memory and resets on restart; persist it if restarts get frequent.
+const RESCAN_FAILURE_BACKOFF_MS = 60 * 60 * 1000;
+
+function rescanKey(repo: { userId: string; fullName: string }): string {
+  return `${repo.userId}:${repo.fullName}`;
+}
+
+function isInRescanBackoff(repo: { userId: string; fullName: string }): boolean {
+  const failedAt = state.__cvesearchRescanFailures?.get(rescanKey(repo));
+  return failedAt !== undefined && Date.now() - failedAt < RESCAN_FAILURE_BACKOFF_MS;
+}
 
 export function startScheduler(intervalMs: number): boolean {
   if (state.__cvesearchSchedulerInterval) return false;
@@ -49,18 +65,21 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
     `).all(now) as Array<{ userId: string }>).map((row) => row.userId);
     const rescanBefore = new Date(Date.now() - readSchedulerConfig().rescanIntervalMs).toISOString();
     const staleRepos = isGitHubTokenConfigured()
-      ? db.prepare(`
+      ? (db.prepare(`
         SELECT DISTINCT r.user_id as userId, r.full_name as fullName
         FROM monitored_repos r
         JOIN sessions s ON s.user_id = r.user_id AND s.expires_at > ?
-        WHERE r.last_scanned_at IS NULL OR r.last_scanned_at <= ?
-      `).all(now, rescanBefore) as Array<{ userId: string; fullName: string }>
+        WHERE r.source_kind = 'github' AND (r.last_scanned_at IS NULL OR r.last_scanned_at <= ?)
+      `).all(now, rescanBefore) as Array<{ userId: string; fullName: string }>).filter((repo) => !isInRescanBackoff(repo))
       : [];
 
     // Rescans run first so their new-finding notifications reach digests due in this same tick.
-    // shortcut: a failing repo is retried every tick; add a failure backoff if GitHub rate limits become a problem.
     for (const repo of staleRepos) {
-      await scanRepoForUser(repo.userId, repo.fullName).catch((error) => console.error("[scheduler] repo rescan failed", repo.fullName, error));
+      await scanRepoForUser(repo.userId, repo.fullName).catch((error) => {
+        state.__cvesearchRescanFailures ??= new Map();
+        state.__cvesearchRescanFailures.set(rescanKey(repo), Date.now());
+        console.error("[scheduler] repo rescan failed", repo.fullName, error);
+      });
     }
 
     // One user's failure must not stop the others; the next tick retries.

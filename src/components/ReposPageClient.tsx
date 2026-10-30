@@ -175,7 +175,9 @@ export default function ReposPageClient() {
   };
 
   const handleScanAll = async () => {
-    const scanPromises = monitoredRepos.map((repo) => handleScanRepo(repo.fullName));
+    const scanPromises = monitoredRepos
+      .filter((repo) => repo.sourceKind === "github")
+      .map((repo) => handleScanRepo(repo.fullName));
     await Promise.allSettled(scanPromises);
   };
 
@@ -195,7 +197,7 @@ export default function ReposPageClient() {
           <span className="hidden text-sm text-white/25 sm:inline">Monitor GitHub repos for dependency vulnerabilities</span>
         </div>
         <div className="flex gap-2">
-          {monitoredRepos.length > 0 && (
+          {monitoredRepos.some((repo) => repo.sourceKind === "github") && (
             <button
               type="button"
               onClick={handleScanAll}
@@ -364,6 +366,8 @@ export default function ReposPageClient() {
             {githubError}
           </div>
         )}
+
+        <UploadSourceForm onUploaded={loadMonitoredRepos} />
       </section>
 
       {/* Monitored Repos */}
@@ -374,7 +378,7 @@ export default function ReposPageClient() {
         </div>
       ) : monitoredRepos.length === 0 ? (
         <div className="glass rounded-xl px-6 py-10 text-center text-white/25">
-          No repositories monitored yet. Click &quot;Browse GitHub Repositories&quot; to add repos.
+          No repositories monitored yet. Browse GitHub repositories or upload a lockfile / SBOM.
         </div>
       ) : (
         <div className="space-y-4">
@@ -425,6 +429,7 @@ interface MonitoredRepoCardProps {
 }
 
 const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: MonitoredRepoCardProps) => {
+  const isUpload = repo.sourceKind === "upload";
   const effectiveScanState = scanState ?? getPersistedScanState(history[0]);
   const isScanning = effectiveScanState?.state === "scanning";
   const hasResults = effectiveScanState?.state === "done" && effectiveScanState.result;
@@ -436,14 +441,23 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
       <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <a
-              href={repo.htmlUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-lg font-semibold text-white hover:text-cyan-400"
-            >
-              {repo.fullName}
-            </a>
+            {isUpload ? (
+              <span className="text-lg font-semibold text-white">{repo.fullName}</span>
+            ) : (
+              <a
+                href={repo.htmlUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg font-semibold text-white hover:text-cyan-400"
+              >
+                {repo.fullName}
+              </a>
+            )}
+            {isUpload && (
+              <span className="badge badge-xs border-cyan-500/20 bg-cyan-500/8 text-cyan-300">
+                uploaded
+              </span>
+            )}
             {repo.isPrivate && (
               <span className="badge badge-xs border-amber-500/20 bg-amber-500/8 text-amber-300">
                 private
@@ -451,7 +465,7 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
             )}
           </div>
           <div className="mt-1 flex flex-wrap gap-3 text-xs text-white/25">
-            <span>Branch: {repo.defaultBranch}</span>
+            <span>{isUpload ? "File" : "Branch"}: {repo.defaultBranch}</span>
             {repo.lastScannedAt && (
               <span>
                 Last scan: {new Date(repo.lastScannedAt).toLocaleString()}
@@ -479,24 +493,26 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onScan}
-            disabled={isScanning}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-50"
-          >
-            {isScanning ? (
-              <>
-                <SpinnerIcon />
-                Scanning...
-              </>
-            ) : (
-              <>
-                <ScanIcon />
-                Scan
-              </>
-            )}
-          </button>
+          {!isUpload && (
+            <button
+              type="button"
+              onClick={onScan}
+              disabled={isScanning}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-50"
+            >
+              {isScanning ? (
+                <>
+                  <SpinnerIcon />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <ScanIcon />
+                  Scan
+                </>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={onRemove}
@@ -514,7 +530,7 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
       )}
 
       {hasResults && effectiveScanState?.result && (
-        <ScanResults result={effectiveScanState.result} repoFullName={repo.fullName} />
+        <ScanResults result={effectiveScanState.result} repoFullName={repo.fullName} canFix={!isUpload} />
       )}
 
       {history.length > 0 && (
@@ -529,7 +545,7 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
                 <div className="flex flex-wrap items-center gap-2 text-white/50">
                   <span>{new Date(entry.scannedAt).toLocaleString()}</span>
                   <span className="text-white/15">/</span>
-                  <span>branch {entry.branch}</span>
+                  <span>{isUpload ? entry.branch : `branch ${entry.branch}`}</span>
                   <span className="text-white/15">/</span>
                   <span>{entry.dependencyCount} deps</span>
                 </div>
@@ -542,6 +558,108 @@ const MonitoredRepoCard = ({ repo, scanState, history, onScan, onRemove }: Monit
         </div>
       )}
     </section>
+  );
+};
+
+const UploadSourceForm = ({ onUploaded }: { onUploaded: () => Promise<void> }) => {
+  const [name, setName] = useState("");
+  const [filename, setFilename] = useState("bom.json");
+  const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setFilename(file.name);
+    setContent(await file.text());
+    if (!name) setName(file.name.replace(/\.[^.]+$/, ""));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, filename, content }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Upload scan failed");
+      }
+      setContent("");
+      await onUploaded();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Upload scan failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="glass mt-4 space-y-3 rounded-2xl p-5">
+      <div>
+        <h2 className="text-sm font-semibold text-white">Scan a lockfile or SBOM</h2>
+        <p className="mt-0.5 text-xs text-white/30">
+          Upload or paste a lockfile or a CycloneDX / SPDX JSON SBOM. No GitHub token needed.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="text-xs text-white/40">
+          Source name
+          <input
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. vendor-appliance"
+            required
+            className="input-base mt-1 w-full px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-xs text-white/40">
+          Filename
+          <input
+            type="text"
+            value={filename}
+            onChange={(event) => setFilename(event.target.value)}
+            placeholder="bom.json, package-lock.json, ..."
+            required
+            className="input-base mt-1 w-full px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-xs text-white/40">
+          File
+          <input
+            type="file"
+            onChange={(event) => void handleFile(event.target.files?.[0])}
+            className="mt-1 block w-full text-xs text-white/50"
+          />
+        </label>
+      </div>
+      <label className="block text-xs text-white/40">
+        Contents
+        <textarea
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          rows={4}
+          placeholder="Paste file contents here"
+          required
+          className="input-base mt-1 w-full px-3 py-2 font-mono text-xs"
+        />
+      </label>
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm text-red-300">{error}</div>
+      )}
+      <button
+        type="submit"
+        disabled={submitting}
+        className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
+      >
+        {submitting ? <><SpinnerIcon />Scanning...</> : <><ScanIcon />Scan upload</>}
+      </button>
+    </form>
   );
 };
 
@@ -574,9 +692,10 @@ function getPersistedScanState(record: RepoScanRecord | undefined): RepoScanStat
 interface ScanResultsProps {
   result: DependencyScanResult;
   repoFullName: string;
+  canFix: boolean;
 }
 
-const ScanResults = ({ result, repoFullName }: ScanResultsProps) => {
+const ScanResults = ({ result, repoFullName, canFix }: ScanResultsProps) => {
   const [showAll, setShowAll] = useState(false);
   const [fixingMatch, setFixingMatch] = useState<VulnerabilityMatch | null>(null);
 
@@ -631,7 +750,7 @@ const ScanResults = ({ result, repoFullName }: ScanResultsProps) => {
             <VulnerabilityRow
               key={`${match.vulnerability.id}-${match.matchedDependency.name}@${match.matchedDependency.version}-${match.matchedDependency.manifestPath ?? "root"}`}
               match={match}
-              onFix={() => setFixingMatch(match)}
+              onFix={canFix ? () => setFixingMatch(match) : undefined}
             />
           ))}
 
@@ -660,7 +779,7 @@ const ScanResults = ({ result, repoFullName }: ScanResultsProps) => {
 
 interface VulnerabilityRowProps {
   match: VulnerabilityMatch;
-  onFix: () => void;
+  onFix?: () => void;
 }
 
 const getVulnerabilityDetailUrl = (match: VulnerabilityMatch): string => {
@@ -741,18 +860,20 @@ const VulnerabilityRow = ({ match, onFix }: VulnerabilityRowProps) => {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onFix();
-          }}
-          className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-2.5 py-1 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/15"
-        >
-          <WrenchIcon />
-          AI Fix
-        </button>
+        {onFix && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onFix();
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-2.5 py-1 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/15"
+          >
+            <WrenchIcon />
+            AI Fix
+          </button>
+        )}
         <span className="flex items-center gap-1 text-xs text-white/25">
           {match.cveIds.length > 0 ? "CVE" : "OSV"}
           <ChevronRightIcon />
