@@ -116,7 +116,6 @@ export interface FixRequestPayload {
   aiSettings?: {
     provider?: string;
     model?: string;
-    apiKey?: string;
   };
 }
 
