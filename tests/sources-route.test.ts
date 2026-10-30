@@ -135,14 +135,14 @@ test("the scheduler rescans a stale uploaded source from its stored dependencies
     const response = await post({ name: "appliance", filename: "bom.json", content: sbom });
     assert.equal((await response.json()).vulnerabilities.length, 0);
 
-    getDb().prepare("UPDATE monitored_repos SET last_scanned_at = ?").run(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
+    getDb().prepare("UPDATE monitored_repos SET last_scanned_at = ? WHERE full_name = 'appliance'").run(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
     osv.lodashVulnerable = true;
     osvBodies.length = 0;
     const tick = await runSchedulerTick();
 
     assert.equal(tick.rescannedRepos, 1);
     assert.equal(osvBodies.length, 1, "OSV is queried with the stored dependency list");
-    const { userId } = getDb().prepare("SELECT user_id as userId FROM monitored_repos").get() as { userId: string };
+    const { userId } = getDb().prepare("SELECT user_id as userId FROM monitored_repos WHERE full_name = ?").get("appliance") as { userId: string };
     assert.deepEqual(
       listUndigestedRepoNotifications(userId).map((item) => [item.repoFullName, item.findings]),
       [["appliance", ["GHSA-35jh-r3h4-6jhm (lodash)"]]]
