@@ -35,53 +35,48 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     ), session);
   }
 
-  try {
-    const body = await request.json().catch(() => null);
-    const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
-    const branch = typeof body?.branch === "string" && body.branch.trim() ? body.branch : undefined;
+  const body = await request.json().catch(() => null);
+  const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
+  const branch = typeof body?.branch === "string" && body.branch.trim() ? body.branch : undefined;
 
-    if (!fullName || !isRepoFullName(fullName)) {
-      return applyWorkspaceSession(NextResponse.json(
-        { error: "Missing required field: fullName" },
-        { status: 400 }
-      ), session);
-    }
+  if (!fullName || !isRepoFullName(fullName)) {
+    return applyWorkspaceSession(NextResponse.json(
+      { error: "Missing required field: fullName" },
+      { status: 400 }
+    ), session);
+  }
 
-    const files = await fetchRepoDependencyFiles(fullName, branch);
+  const files = await fetchRepoDependencyFiles(fullName, branch);
 
-    if (files.length === 0) {
-      const emptyResult: DependencyScanResult = {
-        repoFullName: fullName,
-        scannedAt: new Date().toISOString(),
-        dependencyCount: 0,
-        locationCount: 0,
-        vulnerabilities: [],
-      };
-
-      await updateLastScan(session.userId, fullName, 0);
-      await persistRepoScanResult(session.userId, fullName, branch ?? "default", emptyResult);
-      return applyWorkspaceSession(NextResponse.json(emptyResult), session);
-    }
-
-    const { dependencies, locationCount } = parseDependencyFiles(files);
-    const vulnerabilities = await queryOSVBatch(dependencies);
-
-    const result: DependencyScanResult = {
+  if (files.length === 0) {
+    const emptyResult: DependencyScanResult = {
       repoFullName: fullName,
       scannedAt: new Date().toISOString(),
-      dependencyCount: dependencies.length,
-      locationCount,
-      vulnerabilities,
+      dependencyCount: 0,
+      locationCount: 0,
+      vulnerabilities: [],
     };
 
-    await updateLastScan(session.userId, fullName, vulnerabilities.length);
-    await persistRepoScanResult(session.userId, fullName, branch ?? "default", result);
-
-    return applyWorkspaceSession(NextResponse.json(result), session);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Scan failed";
-    return applyWorkspaceSession(NextResponse.json({ error: message }, { status: 502 }), session);
+    await updateLastScan(session.userId, fullName, 0);
+    await persistRepoScanResult(session.userId, fullName, branch ?? "default", emptyResult);
+    return applyWorkspaceSession(NextResponse.json(emptyResult), session);
   }
+
+  const { dependencies, locationCount } = parseDependencyFiles(files);
+  const vulnerabilities = await queryOSVBatch(dependencies);
+
+  const result: DependencyScanResult = {
+    repoFullName: fullName,
+    scannedAt: new Date().toISOString(),
+    dependencyCount: dependencies.length,
+    locationCount,
+    vulnerabilities,
+  };
+
+  await updateLastScan(session.userId, fullName, vulnerabilities.length);
+  await persistRepoScanResult(session.userId, fullName, branch ?? "default", result);
+
+  return applyWorkspaceSession(NextResponse.json(result), session);
 }, {
   route: "/api/github/scan",
   errorMessage: "Failed to scan GitHub repository",

@@ -22,14 +22,11 @@ export const GET = withRouteProtection(async function GET(request: NextRequest) 
     const data = await fetchVulnerabilityAPIUpstream<unknown>(path);
     return NextResponse.json(data);
   } catch (err) {
-    if (err instanceof VulnerabilityAPIError) {
+    if (err instanceof VulnerabilityAPIError && err.status < 500) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
 
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Proxy error" },
-      { status: 502 }
-    );
+    throw err;
   }
 }, {
   route: "/api/proxy",

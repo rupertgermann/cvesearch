@@ -11,17 +11,12 @@ export const GET = withRouteProtection(async function GET(_request: NextRequest)
     );
   }
 
-  try {
-    const [repos, scopes] = await Promise.all([
-      fetchGitHubRepos(),
-      fetchTokenScopes(),
-    ]);
+  const [repos, scopes] = await Promise.all([
+    fetchGitHubRepos(),
+    fetchTokenScopes(),
+  ]);
 
-    return NextResponse.json({ repos, scopes });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to fetch GitHub repos";
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
+  return NextResponse.json({ repos, scopes });
 }, {
   route: "/api/github/repos",
   errorMessage: "Failed to fetch GitHub repositories",
