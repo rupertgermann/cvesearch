@@ -370,6 +370,7 @@ function initializeDatabase(db: DatabaseSync): void {
   `);
 
   ensureColumn(db, "projects", "owner", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "user_notification_deliveries", "error", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "projects", "due_at", "TEXT");
   ensureColumn(db, "projects", "labels_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, "projects", "status", "TEXT NOT NULL DEFAULT 'active'");

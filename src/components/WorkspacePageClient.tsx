@@ -448,6 +448,9 @@ export default function WorkspacePageClient() {
                         <p>{delivery.teamName}</p>
                         <p>{new Date(delivery.createdAt).toLocaleString("en-US")}</p>
                         <p>{delivery.itemCount} items</p>
+                        <p className={delivery.status === "failed" ? "text-red-400" : undefined} title={delivery.error}>
+                          {delivery.status === "failed" ? `Failed: ${delivery.error ?? "unknown error"}` : delivery.status === "preview" ? "Preview" : `Sent via ${delivery.channel}`}
+                        </p>
                       </div>
                     </div>
                   </div>
