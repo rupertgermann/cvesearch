@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getDb, withTransaction } from "./db";
+import { GitHubAPIError } from "./github";
 
 interface RateLimitWindow {
   count: number;
@@ -84,13 +85,14 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
       });
       return nextResponse;
     } catch (error) {
-      const internalMessage = error instanceof Error ? error.message : config.errorMessage;
-      // Full error (with stack) stays server-side; the client only sees config.errorMessage.
+      const logMessage = error instanceof Error ? error.message : config.errorMessage;
+      // Full error (with stack) stays server-side; the client only sees a fixed message.
       console.error(`[${config.route}]`, error);
+      const status = error instanceof GitHubAPIError ? 502 : 500;
       const response = withRateLimitHeaders(
         NextResponse.json(
-          { error: config.errorMessage },
-          { status: 500 }
+          { error: error instanceof GitHubAPIError ? error.publicMessage : config.errorMessage },
+          { status }
         ),
         config.rateLimit,
         limit.remaining,
@@ -99,11 +101,11 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
       await appendAPIRequestLog({
         route: config.route,
         method: request.method,
-        status: 500,
+        status,
         durationMs: Date.now() - startedAt,
         limited: false,
         clientId,
-        error: internalMessage,
+        error: logMessage,
       });
       return response;
     }

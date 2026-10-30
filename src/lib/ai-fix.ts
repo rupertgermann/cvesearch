@@ -1,8 +1,8 @@
 import { callModel, resolveAISettings } from "./ai";
+import type { AIOverrides } from "./types";
 import {
   AIFixResult,
   FixFileChange,
-  FixRequestPayload,
   OSVVulnerability,
   ParsedDependency,
   RepoFileContent,
@@ -18,7 +18,7 @@ interface GenerateFixInput {
 
 export const generateVulnerabilityFix = async (
   input: GenerateFixInput,
-  aiOverrides?: FixRequestPayload["aiSettings"],
+  aiOverrides?: AIOverrides,
 ): Promise<AIFixResult> => {
   const runtime = resolveAISettings(aiOverrides);
 

@@ -22,7 +22,8 @@ interface AICall {
 async function postFix(
   aiSettings: Record<string, unknown>,
   env: Record<string, string | undefined>,
-): Promise<{ status: number; aiCalls: AICall[] }> {
+  createBranch = false,
+): Promise<{ status: number; body: { error?: string }; aiCalls: AICall[] }> {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-fix-route-"));
   const envOverrides: Record<string, string | undefined> = {
     GITHUB_TOKEN: "test-github-token",
@@ -77,7 +78,7 @@ async function postFix(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         repoFullName: "acme/app",
-        createBranch: false,
+        createBranch,
         vulnerability: {
           id: "GHSA-test",
           summary: "Prototype pollution",
@@ -96,7 +97,7 @@ async function postFix(
         aiSettings,
       }),
     }));
-    return { status: response.status, aiCalls };
+    return { status: response.status, body: await response.json(), aiCalls };
   } finally {
     globalThis.fetch = originalFetch;
     resetAPIRateLimits();
@@ -144,4 +145,21 @@ test("fix route honors a client model override for a server-configured provider"
   assert.ok(aiCalls[0].url.startsWith("https://api.anthropic.com"));
   assert.equal(aiCalls[0].headers["x-api-key"], "server-anthropic-key");
   assert.equal(aiCalls[0].body.model, "claude-client-pick");
+});
+
+test("fix route logs the full GitHub failure server-side and returns a generic 500", async () => {
+  const originalError = console.error;
+  const logged: unknown[][] = [];
+  console.error = (...args: unknown[]) => { logged.push(args); };
+  try {
+    // The fetch mock has no handler for /git/refs, so branch creation throws.
+    const { status, body } = await postFix({}, { OPENAI_API_KEY: "server-openai-key" }, true);
+
+    assert.equal(status, 500);
+    assert.ok(!JSON.stringify(body).includes("Unexpected fetch"));
+    const loggedError = logged.flat().find((arg): arg is Error => arg instanceof Error);
+    assert.ok(loggedError?.stack?.includes("Unexpected fetch"));
+  } finally {
+    console.error = originalError;
+  }
 });

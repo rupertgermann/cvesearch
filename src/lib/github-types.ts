@@ -1,3 +1,4 @@
+import type { AIOverrides } from "./types";
 export type DependencyEcosystem = "npm" | "Packagist";
 
 export interface GitHubRepo {
@@ -113,10 +114,7 @@ export interface FixRequestPayload {
   vulnerability: OSVVulnerability;
   matchedDependency: ParsedDependency;
   createBranch?: boolean;
-  aiSettings?: {
-    provider?: string;
-    model?: string;
-  };
+  aiSettings?: AIOverrides;
 }
 
 export interface FixResponse {
