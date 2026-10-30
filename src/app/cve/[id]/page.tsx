@@ -17,6 +17,7 @@ import ProjectPickerButton from "@/components/ProjectPickerButton";
 import AICveInsightPanel from "@/components/AICveInsightPanel";
 import AIExposurePanel from "@/components/AIExposurePanel";
 import AIRemediationPlanPanel from "@/components/AIRemediationPlanPanel";
+import CachedDataNotice from "@/components/CachedDataNotice";
 
 export default async function CVEDetailPage({ params }: { params: Promise<{ id: string }> }) {
   let cve: CVEDetail | null = null;
@@ -87,6 +88,8 @@ export default async function CVEDetailPage({ params }: { params: Promise<{ id: 
         </svg>
         Back to search
       </Link>
+
+      {cve.source === "cache" && <CachedDataNotice storedAt={cve.storedAt} />}
 
       {/* Header */}
       <div className="page-header">

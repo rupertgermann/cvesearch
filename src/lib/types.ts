@@ -20,6 +20,8 @@ export interface CVESummary {
   kev?: KnownExploitedVulnerability;
 }
 
+export type DataSource = "live" | "cache";
+
 export interface CVEDetail {
   id: string;
   sourceId?: string;
@@ -42,6 +44,9 @@ export interface CVEDetail {
   linkedVulnerabilities?: LinkedVulnerability[];
   capec?: CAPECItem[];
   state?: string;
+  // Set by the server API: "cache" means served from the local store during an upstream outage.
+  source?: DataSource;
+  storedAt?: string;
   // vulnerability.circl.lu fields
   containers?: {
     cna?: {

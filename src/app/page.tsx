@@ -11,7 +11,7 @@ export default async function Home({
 }) {
   const resolvedSearchParams = await searchParams;
   const state = parseSearchState(resolvedSearchParams);
-  const { cves, error, totalHint } = await getHomePageResults(state);
+  const { cves, error, totalHint, source, storedAt } = await getHomePageResults(state);
 
   return (
     <HomePageClient
@@ -19,6 +19,8 @@ export default async function Home({
       cves={cves}
       error={error}
       totalHint={totalHint}
+      source={source}
+      storedAt={storedAt}
     />
   );
 }
