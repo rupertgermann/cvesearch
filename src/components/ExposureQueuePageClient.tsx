@@ -6,7 +6,10 @@ import type { ExposureQueue, ExposureQueueRow, FindingTriageStatus } from "@/lib
 import { formatDate, getSeverityFromScore } from "@/lib/utils";
 import SeverityBadge from "@/components/SeverityBadge";
 import ProjectPickerButton from "@/components/ProjectPickerButton";
+import VulnerabilityFixModal from "@/components/VulnerabilityFixModal";
 import { INVENTORY_UPDATED_EVENT } from "@/lib/inventory";
+import type { RepoScanRecord, VulnerabilityMatch } from "@/lib/github-types";
+import { canOpenFixPR, findRepoRowMatch } from "@/lib/repo-scan-diff";
 
 const PRIORITY_CLASSES = { P1: "text-red-300", P2: "text-amber-300", P3: "text-white/50" } as const;
 
@@ -19,7 +22,8 @@ const FINDING_STATUS_LABELS: Record<FindingTriageStatus, string> = {
 };
 
 export default function ExposureQueuePageClient() {
-  const [queue, setQueue] = useState<ExposureQueue | null>(null);
+  const [queue, setQueue] = useState<(ExposureQueue & { githubConfigured: boolean }) | null>(null);
+  const [fixing, setFixing] = useState<{ match: VulnerabilityMatch; repoFullName: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -31,7 +35,7 @@ export default function ExposureQueuePageClient() {
         const res = await fetch(`/api/exposure${showHidden ? "?showHidden=1" : ""}`, { cache: "no-store" });
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || "Failed to load exposure queue");
-        if (!cancelled) setQueue(body as ExposureQueue);
+        if (!cancelled) setQueue(body);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load exposure queue");
       }
@@ -66,6 +70,21 @@ export default function ExposureQueuePageClient() {
       setReloadToken((token) => token + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save triage status");
+    }
+  }
+
+  async function openFix(row: ExposureQueueRow) {
+    const repoFullName = row.repoFullName!;
+    try {
+      const res = await fetch(`/api/github/scan?fullName=${encodeURIComponent(repoFullName)}`);
+      if (!res.ok) throw new Error("Failed to load the repo scan for this finding");
+      const [latest] = (await res.json()) as RepoScanRecord[];
+      const match = latest && findRepoRowMatch(row, latest.vulnerabilities);
+      if (!match) throw new Error("This finding is no longer in the latest repo scan");
+      setError(null);
+      setFixing({ match, repoFullName });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load the repo scan for this finding");
     }
   }
 
@@ -166,8 +185,14 @@ export default function ExposureQueuePageClient() {
                           <span className="text-[11px] text-white/35" title={row.triage.reason}>until {row.triage.acceptedUntil}</span>
                         )}
                         <ProjectPickerButton cveId={row.vulnerabilityId} />
-                        {row.source === "repo" && (
-                          <Link href="/repos" className="btn-ghost inline-flex h-7 items-center px-2.5 text-[11px]">Fix PR</Link>
+                        {queue.githubConfigured && canOpenFixPR(row) && (
+                          <button
+                            type="button"
+                            onClick={() => void openFix(row)}
+                            className="btn-ghost inline-flex h-7 items-center px-2.5 text-[11px]"
+                          >
+                            Open fix PR
+                          </button>
                         )}
                       </div>
                     </td>
@@ -177,6 +202,10 @@ export default function ExposureQueuePageClient() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {fixing && (
+        <VulnerabilityFixModal match={fixing.match} repoFullName={fixing.repoFullName} onClose={() => setFixing(null)} />
       )}
     </div>
   );

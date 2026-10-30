@@ -102,7 +102,7 @@ test("adding inventory asset openssl 3.0.7 puts the matching new CVE in the queu
     try {
       const empty = await getQueue(session.sessionId);
       assert.equal(empty.status, 200);
-      assert.deepEqual(empty.body, { rows: [], hiddenCount: 0, hasSources: false, truncated: false });
+      assert.deepEqual(empty.body, { rows: [], hiddenCount: 0, hasSources: false, truncated: false, githubConfigured: Boolean(process.env.GITHUB_TOKEN) });
       assert.deepEqual(upstream.requestedPages, [], "no sources means no feed paging");
 
       const asset = await createInventoryAssetForUser(session.userId, opensslAsset);
