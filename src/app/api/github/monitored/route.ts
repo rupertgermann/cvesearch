@@ -11,13 +11,8 @@ const isRepoFullName = (value: string): boolean => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9
 
 export const GET = withRouteProtection(async function GET(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
-  try {
-    const repos = await listMonitoredRepos(session.userId);
-    return applyWorkspaceSession(NextResponse.json(repos), session);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to list monitored repos";
-    return applyWorkspaceSession(NextResponse.json({ error: message }, { status: 500 }), session);
-  }
+  const repos = await listMonitoredRepos(session.userId);
+  return applyWorkspaceSession(NextResponse.json(repos), session);
 }, {
   route: "/api/github/monitored",
   errorMessage: "Failed to list monitored repositories",
@@ -26,27 +21,22 @@ export const GET = withRouteProtection(async function GET(request: NextRequest) 
 
 export const POST = withRouteProtection(async function POST(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
-  try {
-    const body = await request.json().catch(() => null);
-    const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
+  const body = await request.json().catch(() => null);
+  const fullName = typeof body?.fullName === "string" ? body.fullName.trim() : "";
 
-    if (!fullName || !isRepoFullName(fullName)) {
-      return applyWorkspaceSession(NextResponse.json({ error: "Missing required field: fullName" }, { status: 400 }), session);
-    }
-
-    const repo = await addMonitoredRepo(session.userId, {
-      githubId: typeof body?.githubId === "number" ? body.githubId : 0,
-      fullName,
-      htmlUrl: typeof body?.htmlUrl === "string" ? body.htmlUrl : "",
-      isPrivate: body?.isPrivate === true,
-      defaultBranch: typeof body?.defaultBranch === "string" && body.defaultBranch.trim() ? body.defaultBranch : "main",
-    });
-
-    return applyWorkspaceSession(NextResponse.json(repo, { status: 201 }), session);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to add monitored repo";
-    return applyWorkspaceSession(NextResponse.json({ error: message }, { status: 500 }), session);
+  if (!fullName || !isRepoFullName(fullName)) {
+    return applyWorkspaceSession(NextResponse.json({ error: "Missing required field: fullName" }, { status: 400 }), session);
   }
+
+  const repo = await addMonitoredRepo(session.userId, {
+    githubId: typeof body?.githubId === "number" ? body.githubId : 0,
+    fullName,
+    htmlUrl: typeof body?.htmlUrl === "string" ? body.htmlUrl : "",
+    isPrivate: body?.isPrivate === true,
+    defaultBranch: typeof body?.defaultBranch === "string" && body.defaultBranch.trim() ? body.defaultBranch : "main",
+  });
+
+  return applyWorkspaceSession(NextResponse.json(repo, { status: 201 }), session);
 }, {
   route: "/api/github/monitored",
   errorMessage: "Failed to add monitored repository",
@@ -55,25 +45,20 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
 
 export const DELETE = withRouteProtection(async function DELETE(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
-  try {
-    const { searchParams } = new URL(request.url);
-    const repoId = searchParams.get("id");
+  const { searchParams } = new URL(request.url);
+  const repoId = searchParams.get("id");
 
-    if (!repoId) {
-      return applyWorkspaceSession(NextResponse.json({ error: "Missing query parameter: id" }, { status: 400 }), session);
-    }
-
-    const removed = await removeMonitoredRepo(session.userId, repoId);
-
-    if (!removed) {
-      return applyWorkspaceSession(NextResponse.json({ error: "Repo not found" }, { status: 404 }), session);
-    }
-
-    return applyWorkspaceSession(NextResponse.json({ success: true }), session);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to remove monitored repo";
-    return applyWorkspaceSession(NextResponse.json({ error: message }, { status: 500 }), session);
+  if (!repoId) {
+    return applyWorkspaceSession(NextResponse.json({ error: "Missing query parameter: id" }, { status: 400 }), session);
   }
+
+  const removed = await removeMonitoredRepo(session.userId, repoId);
+
+  if (!removed) {
+    return applyWorkspaceSession(NextResponse.json({ error: "Repo not found" }, { status: 404 }), session);
+  }
+
+  return applyWorkspaceSession(NextResponse.json({ success: true }), session);
 }, {
   route: "/api/github/monitored",
   errorMessage: "Failed to remove monitored repository",

@@ -746,7 +746,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-const SAFE_SQL_IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
+const SAFE_SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const SAFE_COLUMN_DEFINITION = /^[A-Z ]+(?:DEFAULT (?:'[^']*'|[0-9]+|NULL))?$/;
 
 function assertSafeSQLIdentifier(value: string, label: string): void {
@@ -755,7 +755,7 @@ function assertSafeSQLIdentifier(value: string, label: string): void {
   }
 }
 
-function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
+export function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
   assertSafeSQLIdentifier(table, "table");
   assertSafeSQLIdentifier(column, "column");
   if (!SAFE_COLUMN_DEFINITION.test(definition)) {

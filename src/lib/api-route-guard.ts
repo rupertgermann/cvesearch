@@ -85,7 +85,8 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
       return nextResponse;
     } catch (error) {
       const internalMessage = error instanceof Error ? error.message : config.errorMessage;
-      console.error(`[${config.route}]`, internalMessage);
+      // Full error (with stack) stays server-side; the client only sees config.errorMessage.
+      console.error(`[${config.route}]`, error);
       const response = withRateLimitHeaders(
         NextResponse.json(
           { error: config.errorMessage },
