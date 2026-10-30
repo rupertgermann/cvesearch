@@ -11,6 +11,7 @@ import {
   createAlertRuleForUser,
   deleteAlertRuleForUser,
   importWorkspaceStateForUser,
+  listAlertRulesForUser,
   listAlertRuleMatches,
   markAlertRuleCheckedForUser,
   recordAlertRuleMatches,
@@ -214,5 +215,31 @@ test("read alert matches beyond the newest 200 are pruned", async () => {
 
     const count = getDb().prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ?").get(rule.id) as { count: number };
     assert.equal(count.count, 200);
+  });
+});
+
+test("stored alert matches from before list normalization read back with description and score", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));
+    recordAlertRuleMatches(rule.id, [{
+      id: "GHSA-aaaa-bbbb-cccc",
+      details: "Prototype pollution in example-lib",
+      severity: [{ type: "CVSS_V3", score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" }],
+    } as never], null);
+
+    const [stored] = listAlertRuleMatches(rule.id).matching;
+    assert.equal(stored.description, "Prototype pollution in example-lib");
+    assert.equal(stored.cvss3, 9.8);
+  });
+});
+
+test("alert rules list their unread match count", async () => {
+  await withAlertDb(async (userId) => {
+    const rule = await createAlertRuleForUser(userId, "All", normalizeSearchState({}));
+    recordAlertRuleMatches(rule.id, buildFeed(3), null);
+    assert.equal((await listAlertRulesForUser(userId))[0].unreadCount, 3);
+
+    const afterCheck = await markAlertRuleCheckedForUser(userId, rule.id);
+    assert.equal(afterCheck[0].unreadCount, 0);
   });
 });

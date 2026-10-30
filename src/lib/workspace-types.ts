@@ -23,6 +23,8 @@ export interface AlertRule {
   search: SearchState;
   createdAt: string;
   lastCheckedAt: string | null;
+  // Only set when read from the store; imports and new rules omit it.
+  unreadCount?: number;
 }
 
 export type NotificationChannel = "in_app" | "email" | "slack" | "webhook";

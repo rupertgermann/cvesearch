@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { loadWatchlist, WATCHLIST_UPDATED_EVENT } from "@/lib/watchlist";
-import { ALERT_RULES_UPDATED_EVENT, loadAlertRules } from "@/lib/alerts";
+import { ALERT_RULES_UPDATED_EVENT, ALERT_UNREAD_UPDATED_EVENT, loadAlertRules } from "@/lib/alerts";
 import { loadTriageMap, TRIAGE_UPDATED_EVENT } from "@/lib/triage";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -22,7 +22,7 @@ const NAV_ITEMS = [
 export default function Header() {
   const pathname = usePathname();
   const [watchlistCount, setWatchlistCount] = useState(0);
-  const [alertRuleCount, setAlertRuleCount] = useState(0);
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
   const [investigatingCount, setInvestigatingCount] = useState(0);
 
   useEffect(() => {
@@ -33,10 +33,15 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    const sync = async () => setAlertRuleCount((await loadAlertRules()).length);
+    const sync = async () =>
+      setUnreadAlertCount((await loadAlertRules()).reduce((sum, rule) => sum + (rule.unreadCount ?? 0), 0));
     void sync();
     window.addEventListener(ALERT_RULES_UPDATED_EVENT, sync);
-    return () => window.removeEventListener(ALERT_RULES_UPDATED_EVENT, sync);
+    window.addEventListener(ALERT_UNREAD_UPDATED_EVENT, sync);
+    return () => {
+      window.removeEventListener(ALERT_RULES_UPDATED_EVENT, sync);
+      window.removeEventListener(ALERT_UNREAD_UPDATED_EVENT, sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -54,8 +59,8 @@ export default function Header() {
       if (investigatingCount > 0) return { count: investigatingCount, label: "active", color: "amber" as const };
       if (watchlistCount > 0) return { count: watchlistCount, label: "", color: "cyan" as const };
     }
-    if (href === "/alerts" && alertRuleCount > 0) {
-      return { count: alertRuleCount, label: "", color: "red" as const };
+    if (href === "/alerts" && unreadAlertCount > 0) {
+      return { count: unreadAlertCount, label: "", color: "red" as const };
     }
     return null;
   }
