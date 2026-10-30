@@ -15,6 +15,7 @@ const DEPENDENCY_FILE_NAMES = new Set([
   "poetry.lock",
   "uv.lock",
   "go.mod",
+  "Cargo.lock",
 ]);
 
 const IGNORED_PATH_SEGMENTS = ["node_modules", "vendor", ".git", "dist", "build"];

@@ -362,7 +362,17 @@ export const parsePythonLockDependencies = (lockRaw: string, lockfilePath: strin
   });
 };
 
-const REQUIREMENT_PIN = /^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*===?\s*([^\s,*]+)$/;
+// Workspace members and path crates have no source; git crates have a non-registry source. Neither is on crates.io.
+export const parseCargoLockDependencies = (cargoLockRaw: string, lockfilePath: string): ParsedDependency[] => {
+  return readTomlPackages(cargoLockRaw).flatMap((pkg) => {
+    const name = unquote(pkg.name);
+    const version = unquote(pkg.version);
+    const fromRegistry = unquote(pkg.source)?.startsWith("registry+") ?? false;
+    return name && version && fromRegistry ? [toDependency(name, version, "crates.io", undefined, lockfilePath)] : [];
+  });
+};
+
+const REQUIREMENT_PIN =/^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*===?\s*([^\s,*]+)$/;
 
 // Only exact `name==version` pins are scanned; ranges cannot be resolved without an index lookup.
 export const parseRequirementsTxtDependencies = (raw: string, manifestPath: string): ParsedDependency[] => {
@@ -503,6 +513,9 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
   const goMod = group.files.get("go.mod");
   if (goMod) results.push(...parseGoModDependencies(goMod, joinDirFile(group.dir, "go.mod")));
 
+  const cargoLock = group.files.get("Cargo.lock");
+  if (cargoLock) results.push(...parseCargoLockDependencies(cargoLock, joinDirFile(group.dir, "Cargo.lock")));
+
   const requirementsTxt = group.files.get("requirements.txt");
   if (requirementsTxt) {
     // Lockfile versions win; requirements.txt only adds packages the lockfile does not cover.
@@ -548,4 +561,5 @@ export const SUPPORTED_ECOSYSTEMS: { ecosystem: DependencyEcosystem; label: stri
   { ecosystem: "Packagist", label: "Composer (PHP)", files: ["composer.json", "composer.lock"] },
   { ecosystem: "PyPI", label: "Python (PyPI)", files: ["requirements.txt", "poetry.lock", "uv.lock"] },
   { ecosystem: "Go", label: "Go modules", files: ["go.mod"] },
+  { ecosystem: "crates.io", label: "Rust (crates.io)", files: ["Cargo.lock"] },
 ];

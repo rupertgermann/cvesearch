@@ -94,3 +94,16 @@ test("scan surfaces OSV findings for a vulnerable Go module in a subdirectory", 
   assert.equal(matches.length, 1);
   assert.equal(matches[0].matchedDependency.manifestPath, "tools/cli/go.mod");
 });
+
+test("scan surfaces OSV findings for a vulnerable crate in a subdirectory", async () => {
+  const matches = await scanFakeRepo(
+    {
+      "crates/app/Cargo.lock":
+        '[[package]]\nname = "smallvec"\nversion = "1.6.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n',
+    },
+    { ecosystem: "crates.io", name: "smallvec", version: "1.6.0" }
+  );
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].matchedDependency.lockfilePath, "crates/app/Cargo.lock");
+});
