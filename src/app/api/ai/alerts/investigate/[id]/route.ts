@@ -2,10 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { applySearchResultPreferences } from "@/lib/search";
 import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
-import { generateAlertInvestigation } from "@/lib/ai-service";
+import { generateAlertInvestigation, isAIFeatureConfigured } from "@/lib/ai-service";
 import { getSeverityFromScore } from "@/lib/utils";
-import { getAlertRuleForUser, listAlertRuleMatches } from "@/lib/workspace-store";
+import { countAlertRuleMatchesSince, getAlertRuleForUser, listAlertRuleMatches } from "@/lib/workspace-store";
 import { getAICacheEntry, setAICacheEntry } from "@/lib/ai-cache-store";
+
+// Cache-only read: never calls the model, so the alerts page can render without spending AI calls.
+export const GET = withRouteProtection(async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const session = getOrCreateWorkspaceSession(request);
+  const { id } = await context.params;
+  const cached = getAICacheEntry(session.userId, "alert_investigation", id);
+  const investigation = cached
+    ? { ...JSON.parse(cached.outputJson), _cachedAt: cached.createdAt, _newMatches: countAlertRuleMatchesSince(id, cached.createdAt) }
+    : null;
+  return applyWorkspaceSession(NextResponse.json({ configured: isAIFeatureConfigured("alert_investigation"), investigation }), session);
+}, {
+  route: "/api/ai/alerts/investigate/[id]",
+  errorMessage: "Failed to load cached alert investigation",
+  rateLimit: API_RATE_LIMITS.aiRead,
+});
 
 export const POST = withRouteProtection(async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const session = getOrCreateWorkspaceSession(request);
