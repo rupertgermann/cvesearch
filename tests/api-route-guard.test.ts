@@ -29,7 +29,8 @@ test("withRouteProtection enforces rate limits and records request logs", async 
       rateLimit: {
         bucket: "test",
         maxRequests: 1,
-        windowMs: 60_000,
+        // Fixed windows start on multiples of windowMs; a long window keeps both requests in one window.
+        windowMs: 365 * 24 * 60 * 60 * 1000,
       },
     }
   );
