@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CVESummary, DataSource } from "@/lib/types";
 import {
   buildSearchParams,
@@ -39,6 +39,8 @@ export default function HomePageClient({
   storedAt,
 }: HomePageClientProps) {
   const router = useRouter();
+  // Rendered at /search and, for users without inventory or repos, at /.
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const state = useMemo(() => normalizeSearchState(initialState), [initialState]);
   const dashboardHref = useMemo(() => {
@@ -49,13 +51,13 @@ export default function HomePageClient({
   const navigate = useCallback(
     (nextState: SearchState) => {
       const params = buildSearchParams(nextState);
-      const href = params.toString() ? `/?${params.toString()}` : "/";
+      const href = params.toString() ? `${pathname}?${params.toString()}` : pathname;
 
       startTransition(() => {
         router.push(href, { scroll: false });
       });
     },
-    [router]
+    [router, pathname]
   );
 
   const handleSearch = useCallback(
