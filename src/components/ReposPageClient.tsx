@@ -7,10 +7,12 @@ import {
   MonitoredRepo,
   DependencyScanResult,
   RepoScanRecord,
+  SOURCE_UPLOAD_MAX_BYTES,
   VulnerabilityMatch,
 } from "@/lib/github-types";
 import { getSeverityLabel } from "@/lib/osv";
 import { diffScanFindings } from "@/lib/repo-scan-diff";
+import type { RepoFindingsNotification } from "@/lib/repo-scans-store";
 import ConfirmationDialog from "./ConfirmationDialog";
 import VulnerabilityFixModal from "./VulnerabilityFixModal";
 
@@ -40,6 +42,7 @@ export default function ReposPageClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showRepoBrowser, setShowRepoBrowser] = useState(false);
   const [repoPendingRemoval, setRepoPendingRemoval] = useState<MonitoredRepo | null>(null);
+  const [newFindings, setNewFindings] = useState<RepoFindingsNotification[]>([]);
 
   const loadRepoScanHistory = useCallback(async (fullName: string) => {
     try {
@@ -53,6 +56,9 @@ export default function ReposPageClient() {
   }, []);
 
   const loadMonitoredRepos = useCallback(async () => {
+    void fetch("/api/github/notifications")
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setNewFindings, () => setNewFindings([]));
     try {
       const response = await fetch("/api/github/monitored");
       if (!response.ok) throw new Error("Failed to load monitored repos");
@@ -370,6 +376,21 @@ export default function ReposPageClient() {
         <UploadSourceForm onUploaded={loadMonitoredRepos} />
       </section>
 
+      {newFindings.length > 0 && (
+        <section className="glass mb-4 rounded-2xl p-5" aria-labelledby="new-findings-heading">
+          <h2 id="new-findings-heading" className="text-sm font-semibold text-white">New findings</h2>
+          <ul className="mt-2 space-y-1.5 text-xs text-white/50">
+            {newFindings.map((notification) => (
+              <li key={notification.id}>
+                <span className="text-white/30">{new Date(notification.createdAt).toLocaleString()}</span>{" "}
+                <span className="font-medium text-white/80">{notification.repoFullName}</span>:{" "}
+                <span className="text-red-300">{notification.findings.join(", ")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Monitored Repos */}
       {loadingMonitored ? (
         <div className="flex items-center justify-center py-12">
@@ -603,7 +624,7 @@ const UploadSourceForm = ({ onUploaded }: { onUploaded: () => Promise<void> }) =
       <div>
         <h2 className="text-sm font-semibold text-white">Scan a lockfile or SBOM</h2>
         <p className="mt-0.5 text-xs text-white/30">
-          Upload or paste a lockfile or a CycloneDX / SPDX JSON SBOM. No GitHub token needed.
+          Upload or paste a lockfile or a CycloneDX / SPDX JSON SBOM (max {SOURCE_UPLOAD_MAX_BYTES / (1024 * 1024)} MB). No GitHub token needed.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

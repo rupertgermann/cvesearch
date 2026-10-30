@@ -159,6 +159,19 @@ export function listUndigestedRepoNotifications(userId: string): RepoFindingsNot
   return rows.map(({ findingsJson, ...row }) => ({ ...row, findings: JSON.parse(findingsJson) as string[] }));
 }
 
+// In-app view: digested or not, so findings stay visible after a digest goes out.
+export function listRecentRepoNotifications(userId: string, limit = 10): RepoFindingsNotification[] {
+  const rows = getDb().prepare(`
+    SELECT id, repo_full_name as repoFullName, findings_json as findingsJson, created_at as createdAt
+    FROM user_repo_notifications
+    WHERE user_id = ?
+    ORDER BY created_at DESC, rowid DESC
+    LIMIT ?
+  `).all(userId, limit) as Array<Omit<RepoFindingsNotification, "findings"> & { findingsJson: string }>;
+
+  return rows.map(({ findingsJson, ...row }) => ({ ...row, findings: JSON.parse(findingsJson) as string[] }));
+}
+
 export function markRepoNotificationsDigested(userId: string, ids: string[]): void {
   const statement = getDb().prepare("UPDATE user_repo_notifications SET digested_at = ? WHERE user_id = ? AND id = ?");
   const now = new Date().toISOString();

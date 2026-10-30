@@ -138,3 +138,17 @@ test("POST /api/sources rejects invalid input", async () => {
     }
   });
 });
+
+test("POST /api/sources accepts SBOM-sized bodies over the 2 MB default and rejects past 20 MB", async () => {
+  await withEnv(async () => {
+    // Over the default cap but under 20 MB reaches the handler: 400 for unparseable content, not 413.
+    const body = JSON.stringify({ name: "big", filename: "bom.json", content: "x".repeat(3 * 1024 * 1024) });
+    const sized = (contentLength: number) => POST(new NextRequest("https://example.test/api/sources", {
+      method: "POST",
+      headers: { ...headers, "content-length": String(contentLength) },
+      body,
+    }));
+    assert.equal((await sized(body.length)).status, 400);
+    assert.equal((await sized(21 * 1024 * 1024)).status, 413);
+  });
+});

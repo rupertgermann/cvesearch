@@ -1,3 +1,4 @@
+import type { ExposureRow } from "./exposure";
 import { VulnerabilityMatch } from "./github-types";
 
 export interface ScanDiff {
@@ -19,4 +20,25 @@ export function diffScanFindings(previous: VulnerabilityMatch[], current: Vulner
 
 function findingKeys(matches: VulnerabilityMatch[]): Set<string> {
   return new Set(matches.map((match) => `${match.vulnerability.id} (${match.matchedDependency.name})`));
+}
+
+// Repo exposure rows key their asset as `${repoId}:${ecosystem}:${name}` (see buildRepoExposureRows).
+function repoRowDependency(row: Pick<ExposureRow, "assetId">): { ecosystem: string; name: string } {
+  const [, ecosystem = "", ...name] = row.assetId.split(":");
+  return { ecosystem, name: name.join(":") };
+}
+
+// The AI fix flow only handles npm and Composer, and only GitHub repos (uploaded source names never contain "/").
+export function canOpenFixPR(row: Pick<ExposureRow, "source" | "assetId" | "repoFullName">): boolean {
+  const { ecosystem } = repoRowDependency(row);
+  return row.source === "repo" && Boolean(row.repoFullName?.includes("/")) && (ecosystem === "npm" || ecosystem === "Packagist");
+}
+
+export function findRepoRowMatch(row: Pick<ExposureRow, "assetId" | "vulnerabilityId">, matches: VulnerabilityMatch[]): VulnerabilityMatch | undefined {
+  const { ecosystem, name } = repoRowDependency(row);
+  return matches.find((match) =>
+    match.matchedDependency.ecosystem === ecosystem &&
+    match.matchedDependency.name === name &&
+    (match.vulnerability.id === row.vulnerabilityId || match.vulnerability.aliases.includes(row.vulnerabilityId))
+  );
 }

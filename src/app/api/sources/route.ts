@@ -4,7 +4,7 @@ import { parseSbom } from "@/lib/sbom-parser";
 import { queryOSVBatch } from "@/lib/osv";
 import { addMonitoredRepo, updateLastScan } from "@/lib/monitored-repos-store";
 import { persistRepoScanResult } from "@/lib/repo-scans-store";
-import { DependencyScanResult } from "@/lib/github-types";
+import { DependencyScanResult, SOURCE_UPLOAD_MAX_BYTES } from "@/lib/github-types";
 import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
 
@@ -67,4 +67,5 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
   route: "/api/sources",
   errorMessage: "Failed to scan uploaded dependency source",
   rateLimit: API_RATE_LIMITS.githubScans,
+  maxBodyBytes: SOURCE_UPLOAD_MAX_BYTES,
 });
