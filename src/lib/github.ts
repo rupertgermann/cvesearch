@@ -8,8 +8,14 @@ const DEPENDENCY_FILE_NAMES = new Set([
   "package.json",
   "package-lock.json",
   "pnpm-lock.yaml",
+  "yarn.lock",
   "composer.json",
   "composer.lock",
+  "requirements.txt",
+  "poetry.lock",
+  "uv.lock",
+  "go.mod",
+  "Cargo.lock",
 ]);
 
 const IGNORED_PATH_SEGMENTS = ["node_modules", "vendor", ".git", "dist", "build"];

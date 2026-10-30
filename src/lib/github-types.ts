@@ -1,5 +1,5 @@
 import type { AIOverrides } from "./types";
-export type DependencyEcosystem = "npm" | "Packagist";
+export type DependencyEcosystem = "npm" | "Packagist" | "PyPI" | "Go" | "crates.io" | "Maven" | "RubyGems" | "NuGet";
 
 export interface GitHubRepo {
   id: number;
@@ -24,6 +24,8 @@ export interface MonitoredRepo {
   addedAt: string;
   lastScannedAt: string | null;
   lastScanVulnerabilityCount: number | null;
+  /** "upload": a pasted/uploaded lockfile or SBOM, not a GitHub repo (no rescan, no fix PRs). */
+  sourceKind: "github" | "upload";
 }
 
 export interface RepoScanRecord extends DependencyScanResult {
@@ -68,7 +70,7 @@ export interface OSVVulnerability {
   id: string;
   summary: string;
   details: string;
-  aliases: string[];
+  aliases?: string[]; // OSV omits it when there are none
   severity: OSVSeverity[];
   affected: OSVAffectedPackage[];
   references: { type: string; url: string }[];
@@ -89,6 +91,8 @@ export interface DependencyScanResult {
   dependencyCount: number;
   locationCount: number;
   vulnerabilities: VulnerabilityMatch[];
+  // Finding key (see findingKey) → scannedAt of the first scan of this branch that had it; set when persisted.
+  firstSeenAt?: Record<string, string>;
 }
 
 export interface RepoFileContent {
@@ -125,3 +129,6 @@ export interface FixResponse {
   existingPr?: boolean;
   previewOnly?: boolean;
 }
+
+// Real SBOMs (e.g. syft CycloneDX) run 3-15 MB before JSON-escaping into the upload body.
+export const SOURCE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;

@@ -1,6 +1,7 @@
 import { generateDigest } from "./ai-service";
 import { PublicRouteError } from "./api-route-guard";
 import { getDb } from "./db";
+import { markRepoNotificationsDigested } from "./repo-scans-store";
 import { AIDigest } from "./types";
 import { buildDigestInputFromWorkspaceSnapshot, loadWorkspaceContextSnapshot } from "./workspace-context";
 import { NotificationCadence, NotificationChannel, NotificationDeliveryRecord, NotificationPreferenceRecord } from "./workspace-types";
@@ -286,6 +287,11 @@ export async function runDueNotificationDigestsForUser(
     }
 
     deliveries.push(delivery);
+  }
+
+  // Each new finding is reported once: after the first digest that actually went out.
+  if (deliveries.some((delivery) => delivery.status === "sent")) {
+    markRepoNotificationsDigested(userId, workspace.repoNotifications.map((item) => item.id));
   }
 
   return deliveries;

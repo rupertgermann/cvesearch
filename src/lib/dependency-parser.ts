@@ -282,6 +282,157 @@ export const parsePnpmLockDependencies = (
   return dependencies;
 };
 
+const YARN_NON_REGISTRY_PROTOCOL = /^(workspace|link|portal|file|patch|exec|git\+?\w*|github|https?):/;
+
+// Handles both classic ("name@range":\n  version "x") and berry ("name@npm:range":\n  version: x) formats.
+export const parseYarnLockDependencies = (
+  yarnLockRaw: string,
+  manifestPath?: string,
+  lockfilePath?: string,
+  devOnlyNames: ReadonlySet<string> = new Set()
+): ParsedDependency[] => {
+  const dependencies: ParsedDependency[] = [];
+  const seen = new Set<string>();
+  let name: string | null = null;
+  let isDev = false;
+
+  yarnLockRaw.split(/\r?\n/).forEach((line) => {
+    if (/^[^\s#]/.test(line)) {
+      const descriptor = line.replace(/:$/, "").split(",")[0].trim().replace(/^"|"$/g, "");
+      const at = descriptor.indexOf("@", 1);
+      const range = descriptor.slice(at + 1);
+      const declaredName = descriptor.slice(0, at);
+      // "alias@npm:real-name@range" installs real-name; advisories are filed under that name.
+      const aliasTarget = range.match(/^npm:((?:@[^/]+\/)?[^@]+)@/)?.[1];
+      name = at > 0 && !YARN_NON_REGISTRY_PROTOCOL.test(range) ? aliasTarget ?? declaredName : null;
+      isDev = devOnlyNames.has(declaredName);
+      return;
+    }
+
+    const versionMatch = line.match(/^\s+version:?\s+"?([^"\s]+)"?\s*$/);
+    if (!name || !versionMatch) return;
+    const version = versionMatch[1];
+    if (!isConcreteVersion(version) || seen.has(`${name}@${version}`)) return;
+    seen.add(`${name}@${version}`);
+    dependencies.push({ ...toDependency(name, version, "npm", manifestPath, lockfilePath), isDev });
+  });
+
+  return dependencies;
+};
+
+// Names only in devDependencies; a package in both is needed at runtime.
+const readDevOnlyNames = (packageJsonRaw: string | undefined): Set<string> => {
+  try {
+    const manifest = packageJsonRaw ? JSON.parse(packageJsonRaw) : {};
+    const runtime = new Set(Object.keys(manifest.dependencies ?? {}));
+    return new Set(Object.keys(manifest.devDependencies ?? {}).filter((dependencyName) => !runtime.has(dependencyName)));
+  } catch {
+    return new Set();
+  }
+};
+
+const toDependency = (
+  name: string,
+  version: string,
+  ecosystem: DependencyEcosystem,
+  manifestPath?: string,
+  lockfilePath?: string
+): ParsedDependency => ({
+  name,
+  version,
+  ecosystem,
+  isDev: false,
+  manifestPath,
+  lockfilePath,
+  sourceDirectory: getParentDir(manifestPath ?? lockfilePath ?? ""),
+});
+
+const unquote = (value: string | undefined): string | undefined => value?.match(/^"(.*)"$/)?.[1];
+
+// shortcut: reads only top-level `key = value` lines of [[package]] tables (enough for Cargo/poetry/uv lockfiles);
+// switch to a real TOML parser if we ever need nested values.
+const readTomlPackages = (raw: string): Record<string, string>[] => {
+  const packages: Record<string, string>[] = [];
+  let current: Record<string, string> | null = null;
+
+  raw.split(/\r?\n/).forEach((line) => {
+    if (line.startsWith("[")) {
+      const header = line.trim().replace(/^\[+|\]+$/g, "");
+      if (line.trim() === "[[package]]") packages.push((current = {}));
+      else if (!header.startsWith("package.")) current = null;
+      return;
+    }
+    const match = line.match(/^([\w-]+)\s*=\s*(.+)$/);
+    if (current && match && !(match[1] in current)) current[match[1]] = match[2].trim();
+  });
+
+  return packages;
+};
+
+// poetry.lock marks non-PyPI packages with [package.source] type; uv.lock with a non-registry source.
+export const parsePythonLockDependencies = (lockRaw: string, lockfilePath: string): ParsedDependency[] => {
+  return readTomlPackages(lockRaw).flatMap((pkg) => {
+    const name = unquote(pkg.name);
+    const version = unquote(pkg.version);
+    const fromRegistry = (!pkg.source || pkg.source.includes("registry")) && (!pkg.type || pkg.type === '"legacy"');
+    return name && version && fromRegistry ? [toDependency(name, version, "PyPI", undefined, lockfilePath)] : [];
+  });
+};
+
+// Workspace members and path crates have no source; git crates have a non-registry source. Neither is on crates.io.
+export const parseCargoLockDependencies = (cargoLockRaw: string, lockfilePath: string): ParsedDependency[] => {
+  return readTomlPackages(cargoLockRaw).flatMap((pkg) => {
+    const name = unquote(pkg.name);
+    const version = unquote(pkg.version);
+    const fromRegistry = unquote(pkg.source)?.startsWith("registry+") ?? false;
+    return name && version && fromRegistry ? [toDependency(name, version, "crates.io", undefined, lockfilePath)] : [];
+  });
+};
+
+const REQUIREMENT_PIN =/^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*===?\s*([^\s,*]+)$/;
+
+// Only exact `name==version` pins are scanned; ranges cannot be resolved without an index lookup.
+export const parseRequirementsTxtDependencies = (raw: string, manifestPath: string): ParsedDependency[] => {
+  return raw.split(/\r?\n/).flatMap((line) => {
+    const requirement = line.replace(/(^|\s)#.*$/, "").split(";")[0].replace(/\\$/, "").replace(/\s+--\S.*$/, "").trim();
+    const match = requirement.match(REQUIREMENT_PIN);
+    return match ? [toDependency(match[1], match[2], "PyPI", manifestPath)] : [];
+  });
+};
+
+// Includes `// indirect` requires; a replace to a local path drops the module (nothing to look up in OSV).
+export const parseGoModDependencies = (goModRaw: string, manifestPath: string): ParsedDependency[] => {
+  const requires: [string, string][] = [];
+  const replaces = new Map<string, [string, string] | null>();
+  let block: string | null = null;
+
+  goModRaw.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.replace(/\/\/.*$/, "").trim();
+    const opening = line.match(/^(\w+)\s*\($/);
+    if (opening) return void (block = opening[1]);
+    if (line === ")") return void (block = null);
+
+    const statement = block ? [block, line] : (line.match(/^(\w+)\s+(.+)$/)?.slice(1) ?? []);
+    const [directive, args] = statement;
+    if (directive === "require") {
+      const [path, version] = args.split(/\s+/);
+      if (path && version) requires.push([path, version]);
+    } else if (directive === "replace") {
+      const [from, to] = args.split("=>").map((side) => side.trim().split(/\s+/));
+      if (from?.[0] && to?.[0]) replaces.set(from.join(" "), to[1] ? [to[0], to[1]] : null);
+    }
+  });
+
+  return requires.flatMap(([path, version]) => {
+    const replaced = [`${path} ${version}`, path].map((key) => replaces.get(key)).find((entry) => entry !== undefined);
+    if (replaced === null) return [];
+    const [name, resolvedVersion] = replaced ?? [path, version];
+    return [toDependency(name, resolvedVersion.replace(/^v/, ""), "Go", manifestPath)];
+  });
+};
+
+const normalizePythonName =(name: string): string => name.toLowerCase().replace(/[-_.]+/g, "-");
+
 export interface ParseResult {
   dependencies: ParsedDependency[];
   locationCount: number;
@@ -348,8 +499,19 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
     ));
   }
 
+  const yarnLock = group.files.get("yarn.lock");
+  if (yarnLock) {
+    results.push(...parseYarnLockDependencies(
+      yarnLock,
+      group.files.has("package.json") ? packageJsonPath : undefined,
+      joinDirFile(group.dir, "yarn.lock"),
+      readDevOnlyNames(group.files.get("package.json"))
+    ));
+  }
+
   const packageJson = group.files.get("package.json");
-  if (packageJson) {
+  // yarn.lock pins every manifest dependency, so manifest ranges would only add guessed versions.
+  if (packageJson && !yarnLock) {
     const packageLock = group.files.get("package-lock.json");
     results.push(...parseNpmDependencies(packageJson, packageJsonPath, packageLock, packageLock ? packageLockPath : undefined));
   }
@@ -358,6 +520,26 @@ const parseDirectoryGroup = (group: DirectoryGroup): ParsedDependency[] => {
   if (composerJson) {
     const composerLock = group.files.get("composer.lock");
     results.push(...parseComposerDependencies(composerJson, composerJsonPath, composerLock, composerLock ? composerLockPath : undefined));
+  }
+
+  const pythonLocked = ["poetry.lock", "uv.lock"].flatMap((fileName) => {
+    const raw = group.files.get(fileName);
+    return raw ? parsePythonLockDependencies(raw, joinDirFile(group.dir, fileName)) : [];
+  });
+  results.push(...pythonLocked);
+
+  const goMod = group.files.get("go.mod");
+  if (goMod) results.push(...parseGoModDependencies(goMod, joinDirFile(group.dir, "go.mod")));
+
+  const cargoLock = group.files.get("Cargo.lock");
+  if (cargoLock) results.push(...parseCargoLockDependencies(cargoLock, joinDirFile(group.dir, "Cargo.lock")));
+
+  const requirementsTxt = group.files.get("requirements.txt");
+  if (requirementsTxt) {
+    // Lockfile versions win; requirements.txt only adds packages the lockfile does not cover.
+    const lockedNames = new Set(pythonLocked.map((dependency) => normalizePythonName(dependency.name)));
+    results.push(...parseRequirementsTxtDependencies(requirementsTxt, joinDirFile(group.dir, "requirements.txt"))
+      .filter((dependency) => !lockedNames.has(normalizePythonName(dependency.name))));
   }
 
   return results;
@@ -393,6 +575,9 @@ const deduplicateDependencies = (dependencies: ParsedDependency[]): ParsedDepend
 };
 
 export const SUPPORTED_ECOSYSTEMS: { ecosystem: DependencyEcosystem; label: string; files: string[] }[] = [
-  { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml"] },
+  { ecosystem: "npm", label: "npm", files: ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"] },
   { ecosystem: "Packagist", label: "Composer (PHP)", files: ["composer.json", "composer.lock"] },
+  { ecosystem: "PyPI", label: "Python (PyPI)", files: ["requirements.txt", "poetry.lock", "uv.lock"] },
+  { ecosystem: "Go", label: "Go modules", files: ["go.mod"] },
+  { ecosystem: "crates.io", label: "Rust (crates.io)", files: ["Cargo.lock"] },
 ];

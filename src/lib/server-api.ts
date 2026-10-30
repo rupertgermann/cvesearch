@@ -1,4 +1,4 @@
-import { CVEDetail, CVESummary, CWEData, EPSSData, HomeDashboardData, KnownExploitedVulnerability } from "./types";
+import { CVEDetail, CVESummary, CWEData, DataSource, EPSSData, HomeDashboardData, KnownExploitedVulnerability } from "./types";
 import { SearchState } from "./search";
 import {
   applySearchResultPreferences,
@@ -13,7 +13,7 @@ import {
   matchesSearchState,
   wasPublishedWithinDays,
 } from "./search";
-import { searchStoredCVESummaries } from "./cve-store";
+import { getStoredCVE, searchStoredCVESummaries } from "./cve-store";
 import { extractCVEId } from "./utils";
 import { parseCVEDetail, parseCVESummaryList, parseCWEData, parseEPSSResponse, parseKnownExploitedCatalog } from "./validation";
 import {
@@ -25,6 +25,7 @@ import {
   buildVendorProductSearchPath,
   fetchVulnerabilityAPIUpstream,
   type NextFetchOptions,
+  VulnerabilityAPIError,
 } from "./vulnerability-api";
 
 const KEV_CATALOG_URL = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json";
@@ -86,9 +87,21 @@ export async function searchCVEsServer(params: {
   );
 }
 
+// Timeouts (504), network errors (502) and upstream 5xx; a 404 is a real answer and never masked by the cache.
+function isUpstreamOutage(error: unknown): boolean {
+  return error instanceof VulnerabilityAPIError && error.status >= 500;
+}
+
 export async function getCVEByIdServer(id: string): Promise<CVEDetail> {
-  const data = await fetchUpstream<unknown>(buildCVEDetailPath(id));
-  const detail = parseCVEDetail(data);
+  let detail: CVEDetail;
+  try {
+    detail = { ...parseCVEDetail(await fetchUpstream<unknown>(buildCVEDetailPath(id))), source: "live" };
+  } catch (error) {
+    const stored = isUpstreamOutage(error) ? getStoredCVE(id) : null;
+    const cached = stored?.detail ?? (stored?.summary as CVEDetail | null | undefined);
+    if (!stored || !cached) throw error;
+    detail = { ...cached, source: "cache", storedAt: stored.lastSeenAt };
+  }
   const kev = await getKnownExploitedVulnerabilityById(extractCVEId(detail));
   return kev ? { ...detail, kev } : detail;
 }
@@ -126,6 +139,8 @@ export async function getHomePageResults(state: SearchState): Promise<{
   cves: CVESummary[];
   error: string | null;
   totalHint: string;
+  source: DataSource;
+  storedAt?: string;
 }> {
   const validationError = getSearchValidationError(state);
 
@@ -134,6 +149,7 @@ export async function getHomePageResults(state: SearchState): Promise<{
       cves: [],
       error: validationError,
       totalHint: "",
+      source: "live",
     };
   }
 
@@ -144,6 +160,8 @@ export async function getHomePageResults(state: SearchState): Promise<{
         cves: detail ? [detail as unknown as CVESummary] : [],
         error: null,
         totalHint: "1 result",
+        source: detail.source ?? "live",
+        storedAt: detail.storedAt,
       };
     }
 
@@ -197,14 +215,36 @@ export async function getHomePageResults(state: SearchState): Promise<{
         : results,
       error: null,
       totalHint,
+      source: "live",
     };
   } catch (error) {
+    if (isUpstreamOutage(error)) {
+      return getCachedHomePageResults(state);
+    }
     return {
       cves: [],
       error: error instanceof Error ? error.message : "Failed to fetch CVEs",
       totalHint: "",
+      source: "live",
     };
   }
+}
+
+// shortcut: only the newest HOME_RESULTS_WINDOW stored rows containing the text term are filtered; widen if offline search must go deeper.
+async function getCachedHomePageResults(state: SearchState) {
+  const matches = searchStoredCVESummaries(state.query || state.product, HOME_RESULTS_WINDOW)
+    .filter((cve) => matchesSearchState(cve, state));
+  const cves = applySearchResultPreferences(await enrichCVEs(matches), state)
+    .slice((state.page - 1) * state.perPage, state.page * state.perPage);
+  // The oldest stored-at among shown rows is the staleness analysts must assume.
+  const storedAt = cves.flatMap((cve) => getStoredCVE(extractCVEId(cve))?.lastSeenAt ?? []).sort()[0];
+  return {
+    cves,
+    error: null,
+    totalHint: "Upstream unavailable: showing locally cached CVEs",
+    source: "cache" as const,
+    storedAt,
+  };
 }
 
 export async function getHomeDashboardData(state: SearchState): Promise<HomeDashboardData | null> {

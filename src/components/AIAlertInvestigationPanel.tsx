@@ -6,14 +6,16 @@ import LoadingIndicator from "./LoadingIndicator";
 
 interface CachedAIAlertInvestigation extends AIAlertInvestigation {
   _cachedAt?: string;
+  _newMatches?: number;
 }
 
 export default function AIAlertInvestigationPanel({ ruleId }: { ruleId: string }) {
+  const [configured, setConfigured] = useState(false);
   const [investigation, setInvestigation] = useState<CachedAIAlertInvestigation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (regenerate = false) => {
+  const investigate = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -21,7 +23,7 @@ export default function AIAlertInvestigationPanel({ ruleId }: { ruleId: string }
       const res = await fetch(`/api/ai/alerts/investigate/${encodeURIComponent(ruleId)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regenerate }),
+        body: JSON.stringify({ regenerate: true }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -36,11 +38,25 @@ export default function AIAlertInvestigationPanel({ ruleId }: { ruleId: string }
     }
   }, [ruleId]);
 
+  // Cache-only read on mount: the model runs only when the user clicks Investigate/Regenerate.
   useEffect(() => {
     let cancelled = false;
-    load().then(() => { if (cancelled) setInvestigation(null); });
+    fetch(`/api/ai/alerts/investigate/${encodeURIComponent(ruleId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setConfigured(data.configured === true);
+        setInvestigation(data.investigation ?? null);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
-  }, [load]);
+  }, [ruleId]);
+
+  if (!configured) {
+    return null;
+  }
+
+  const newMatches = investigation?._newMatches ?? 0;
 
   return (
     <div className="mb-4 rounded-xl border border-rose-500/15 bg-gradient-to-br from-rose-500/[0.06] to-transparent p-4">
@@ -60,13 +76,18 @@ export default function AIAlertInvestigationPanel({ ruleId }: { ruleId: string }
           {investigation?._cachedAt ? (
             <span className="text-[11px] text-white/20">{formatRelativeTime(investigation._cachedAt)}</span>
           ) : null}
+          {newMatches > 0 ? (
+            <span className="text-[11px] text-amber-300">
+              Outdated: {newMatches} new {newMatches === 1 ? "match" : "matches"} since this analysis
+            </span>
+          ) : null}
           <button
             type="button"
-            onClick={() => void load(true)}
+            onClick={() => void investigate()}
             disabled={loading}
             className="rounded-lg bg-gradient-to-r from-rose-400 to-rose-500 px-3 py-2 text-sm font-semibold text-black shadow-[0_2px_12px_-2px_rgba(244,63,94,0.3)] transition-all hover:shadow-[0_4px_20px_-2px_rgba(244,63,94,0.4)] hover:-translate-y-px disabled:opacity-50"
           >
-            {loading ? "Investigating..." : investigation ? "Regenerate" : "Investigate Rule"}
+            {loading ? "Investigating..." : investigation ? "Regenerate" : "Investigate"}
           </button>
         </div>
       </div>

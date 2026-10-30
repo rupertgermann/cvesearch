@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { CVESummary } from "@/lib/types";
+import { usePathname, useRouter } from "next/navigation";
+import { CVESummary, DataSource } from "@/lib/types";
 import {
   buildSearchParams,
   DEFAULT_PAGE,
@@ -19,12 +19,15 @@ import CVEList from "@/components/CVEList";
 import Pagination from "@/components/Pagination";
 import ExportResultsButtons from "@/components/ExportResultsButtons";
 import AISearchAssistantPanel from "@/components/AISearchAssistantPanel";
+import CachedDataNotice from "@/components/CachedDataNotice";
 
 interface HomePageClientProps {
   initialState: SearchState;
   cves: CVESummary[];
   error: string | null;
   totalHint: string;
+  source: DataSource;
+  storedAt?: string;
 }
 
 export default function HomePageClient({
@@ -32,8 +35,12 @@ export default function HomePageClient({
   cves,
   error,
   totalHint,
+  source,
+  storedAt,
 }: HomePageClientProps) {
   const router = useRouter();
+  // Rendered at /search and, for users without inventory or repos, at /.
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const state = useMemo(() => normalizeSearchState(initialState), [initialState]);
   const dashboardHref = useMemo(() => {
@@ -44,13 +51,13 @@ export default function HomePageClient({
   const navigate = useCallback(
     (nextState: SearchState) => {
       const params = buildSearchParams(nextState);
-      const href = params.toString() ? `/?${params.toString()}` : "/";
+      const href = params.toString() ? `${pathname}?${params.toString()}` : pathname;
 
       startTransition(() => {
         router.push(href, { scroll: false });
       });
     },
-    [router]
+    [router, pathname]
   );
 
   const handleSearch = useCallback(
@@ -124,10 +131,17 @@ export default function HomePageClient({
       {/* Hero */}
       <div className="page-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/15 bg-cyan-500/5 px-2.5 py-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-[11px] font-medium text-cyan-300/80">Live</span>
-          </div>
+          {source === "cache" ? (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              <span className="text-[11px] font-medium text-amber-300/90">Cached</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/15 bg-cyan-500/5 px-2.5 py-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-[11px] font-medium text-cyan-300/80">Live</span>
+            </div>
+          )}
           <h1 className="text-2xl font-bold tracking-tight text-white">Vulnerability Search</h1>
           <span className="hidden text-sm text-white/25 sm:inline">Search and filter CVE records</span>
         </div>
@@ -157,6 +171,8 @@ export default function HomePageClient({
           }}
         />
       </div>
+
+      {source === "cache" && <CachedDataNotice storedAt={storedAt} />}
 
       {/* Results bar */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

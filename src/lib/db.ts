@@ -304,6 +304,18 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_notification_deliveries_user_id ON user_notification_deliveries(user_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS user_repo_notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      repo_full_name TEXT NOT NULL,
+      findings_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      digested_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_repo_notifications_user_id ON user_repo_notifications(user_id, digested_at);
+
     CREATE TABLE IF NOT EXISTS user_inventory_assets (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -321,6 +333,25 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_inventory_assets_user_id ON user_inventory_assets(user_id, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS inventory_asset_matches (
+      asset_id TEXT NOT NULL,
+      cve_id TEXT NOT NULL,
+      summary_json TEXT NOT NULL,
+      published_at TEXT,
+      first_seen_at TEXT NOT NULL,
+      PRIMARY KEY (asset_id, cve_id),
+      FOREIGN KEY (asset_id) REFERENCES user_inventory_assets(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS cve_feed_backfill (
+      user_id TEXT NOT NULL,
+      feed TEXT NOT NULL,
+      page INTEGER NOT NULL,
+      floor TEXT NOT NULL,
+      PRIMARY KEY (user_id, feed),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS user_triage_records (
       user_id TEXT NOT NULL,
       cve_id TEXT NOT NULL,
@@ -335,6 +366,19 @@ function initializeDatabase(db: DatabaseSync): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_user_triage_records_user_id ON user_triage_records(user_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS user_finding_triage (
+      user_id TEXT NOT NULL,
+      finding_key TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      accepted_until TEXT,
+      kev_at_acceptance INTEGER,
+      severity_at_acceptance TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, finding_key),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
 
     CREATE TABLE IF NOT EXISTS user_workspace_conversations (
       id TEXT PRIMARY KEY,
@@ -383,11 +427,15 @@ function initializeDatabase(db: DatabaseSync): void {
   ensureColumn(db, "ai_runs", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "user_alert_rules", "cursor_published_at", "TEXT");
   ensureColumn(db, "alert_rule_matches", "published_at", "TEXT");
+  ensureColumn(db, "user_inventory_assets", "match_cursor_published_at", "TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_alert_rule_matches_rule_id ON alert_rule_matches(rule_id, published_at DESC, matched_at DESC)");
 
   migrateMonitoredRepoScope(db);
   ensureColumn(db, "monitored_repos", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "monitored_repo_scans", "user_id", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "monitored_repos", "source_kind", "TEXT NOT NULL DEFAULT 'github'");
+  // Parsed dependency list of an uploaded source, so it can be rescanned without the original file.
+  ensureColumn(db, "monitored_repos", "upload_dependencies_json", "TEXT");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id, updated_at DESC);

@@ -29,12 +29,13 @@ interface RouteProtectionConfig {
   errorMessage: string;
   rateLimit: RateLimitConfig;
   route: string;
+  maxBodyBytes?: number;
 }
 
 type RouteHandler<T extends unknown[]> = (...args: T) => Promise<Response> | Response;
 
 const MAX_STORED_REQUEST_LOGS = 500;
-const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+export const DEFAULT_MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const SESSION_COOKIE_NAME = "cvesearch_session";
 
@@ -50,8 +51,7 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
     const request = args[0];
     const startedAt = Date.now();
 
-    const contentLength = Number(request.headers.get("content-length") || "0");
-    if (contentLength > MAX_REQUEST_BODY_BYTES) {
+    if (await bodyExceeds(request, config.maxBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES)) {
       return NextResponse.json({ error: "Request body too large" }, { status: 413 });
     }
 
@@ -118,6 +118,25 @@ export function withRouteProtection<T extends [Request, ...unknown[]]>(handler: 
   };
 }
 
+async function bodyExceeds(request: Request, maxBytes: number): Promise<boolean> {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null || request.body === null) {
+    return Number(contentLength || "0") > maxBytes;
+  }
+
+  // No Content-Length (chunked): count a clone's bytes, stopping at the cap; the handler still reads the original.
+  const reader = request.clone().body!.getReader();
+  let total = 0;
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+    total += chunk.value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function listRecentAPIRequestLogs(limit = 50): Promise<APIRequestLogRecord[]> {
   const rows = getDb().prepare(`
     SELECT
@@ -131,7 +150,7 @@ export async function listRecentAPIRequestLogs(limit = 50): Promise<APIRequestLo
       error,
       created_at as createdAt
     FROM api_request_logs
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, rowid DESC
     LIMIT ?
   `).all(normalizeLimit(limit)) as APIRequestLogRow[];
 
@@ -267,7 +286,7 @@ async function appendAPIRequestLog(input: Omit<APIRequestLogRecord, "id" | "crea
       const overflow = db.prepare(`
         SELECT id
         FROM api_request_logs
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, rowid DESC
         LIMIT -1 OFFSET ?
       `).all(MAX_STORED_REQUEST_LOGS) as Array<{ id: string }>;
 

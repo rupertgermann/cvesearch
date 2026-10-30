@@ -9,7 +9,7 @@ import { loadTriageMap, TRIAGE_UPDATED_EVENT } from "@/lib/triage";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Search", icon: SearchIcon },
+  { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
   { href: "/workspace", label: "Workspace", icon: ChatIcon },
   { href: "/watchlist", label: "Watchlist", icon: BookmarkIcon },
@@ -85,7 +85,7 @@ export default function Header() {
         {/* Navigation */}
         <nav aria-label="Primary" className="flex items-center gap-0.5">
           {NAV_ITEMS.map((item) => {
-            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const isActive = pathname.startsWith(item.href);
             const badge = getBadge(item.href);
             const Icon = item.icon;
 

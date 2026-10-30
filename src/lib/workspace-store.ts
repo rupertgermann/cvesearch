@@ -261,6 +261,12 @@ export function recordAlertRuleMatches(ruleId: string, matches: CVESummary[], cu
   });
 }
 
+export function countAlertRuleMatchesSince(ruleId: string, since: string): number {
+  const row = getDb().prepare("SELECT COUNT(*) as count FROM alert_rule_matches WHERE rule_id = ? AND matched_at > ?")
+    .get(ruleId, since) as { count: number };
+  return row.count;
+}
+
 export function listAlertRuleMatches(ruleId: string): { matching: CVESummary[]; unread: number } {
   const db = getDb();
   // shortcut: only the newest MAX_STORED_ALERT_MATCHES are returned; paginate if the alerts UI ever needs older ones.
@@ -352,24 +358,106 @@ export async function updateInventoryAssetForUser(
     updatedAt: new Date().toISOString(),
   });
 
-  getDb().prepare(`
-    UPDATE user_inventory_assets
-    SET name = ?, vendor = ?, product = ?, version = ?, environment = ?, criticality = ?, notes = ?, updated_at = ?
-    WHERE user_id = ? AND id = ?
-  `).run(
-    next.name,
-    next.vendor,
-    next.product,
-    next.version,
-    next.environment,
-    next.criticality,
-    next.notes,
-    next.updatedAt,
-    userId,
-    id
-  );
+  const rematch = next.vendor !== existing.vendor || next.product !== existing.product || next.version !== existing.version;
+  withTransaction((db) => {
+    db.prepare(`
+      UPDATE user_inventory_assets
+      SET name = ?, vendor = ?, product = ?, version = ?, environment = ?, criticality = ?, notes = ?, updated_at = ?
+      WHERE user_id = ? AND id = ?
+    `).run(
+      next.name,
+      next.vendor,
+      next.product,
+      next.version,
+      next.environment,
+      next.criticality,
+      next.notes,
+      next.updatedAt,
+      userId,
+      id
+    );
+    // Stored matches were computed for the old vendor/product/version, so drop them and re-baseline.
+    if (rematch) {
+      db.prepare("DELETE FROM inventory_asset_matches WHERE asset_id = ?").run(id);
+      db.prepare("UPDATE user_inventory_assets SET match_cursor_published_at = NULL WHERE id = ?").run(id);
+    }
+  });
 
   return next;
+}
+
+export type CVEFeed = "alerts" | "inventory";
+
+// Where a truncated feed run stopped: `page` is the next unread page, `floor` the oldest cursor still owed.
+export interface FeedBackfill {
+  page: number;
+  floor: string;
+}
+
+export function readFeedBackfill(userId: string, feed: CVEFeed): FeedBackfill | null {
+  const row = getDb().prepare("SELECT page, floor FROM cve_feed_backfill WHERE user_id = ? AND feed = ?")
+    .get(userId, feed) as FeedBackfill | undefined;
+  return row ? { page: row.page, floor: row.floor } : null;
+}
+
+export function writeFeedBackfill(userId: string, feed: CVEFeed, backfill: FeedBackfill | null): void {
+  if (!backfill) {
+    getDb().prepare("DELETE FROM cve_feed_backfill WHERE user_id = ? AND feed = ?").run(userId, feed);
+    return;
+  }
+  getDb().prepare(`
+    INSERT INTO cve_feed_backfill (user_id, feed, page, floor) VALUES (?, ?, ?, ?)
+    ON CONFLICT (user_id, feed) DO UPDATE SET page = excluded.page, floor = excluded.floor
+  `).run(userId, feed, backfill.page, backfill.floor);
+}
+
+// Newest published date already matched per asset; null means the asset still needs a baseline.
+export function readInventoryMatchCursors(userId: string): Map<string, string | null> {
+  const rows = getDb().prepare(`
+    SELECT id, match_cursor_published_at as cursor FROM user_inventory_assets WHERE user_id = ?
+  `).all(userId) as Array<{ id: string; cursor: string | null }>;
+  return new Map(rows.map((row) => [row.id, row.cursor]));
+}
+
+const MAX_STORED_ASSET_MATCHES = 200;
+
+export function recordInventoryAssetMatches(assetId: string, matches: CVESummary[], cursor: string | null): void {
+  withTransaction((db) => {
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO inventory_asset_matches (asset_id, cve_id, summary_json, published_at, first_seen_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const seenAt = new Date().toISOString();
+    for (const cve of matches) {
+      insert.run(assetId, extractCVEId(cve), JSON.stringify(cve), extractPublishedDate(cve) ?? null, seenAt);
+    }
+    if (cursor) {
+      db.prepare("UPDATE user_inventory_assets SET match_cursor_published_at = ? WHERE id = ?").run(cursor, assetId);
+    }
+    // shortcut: only the newest MAX_STORED_ASSET_MATCHES per asset are kept; page the queue if assets get that broad.
+    db.prepare(`
+      DELETE FROM inventory_asset_matches
+      WHERE asset_id = ? AND cve_id NOT IN (
+        SELECT cve_id FROM inventory_asset_matches WHERE asset_id = ? ORDER BY published_at DESC, first_seen_at DESC LIMIT ?
+      )
+    `).run(assetId, assetId, MAX_STORED_ASSET_MATCHES);
+  });
+}
+
+export function listInventoryAssetMatchesForUser(userId: string): Array<{ assetId: string; firstSeenAt: string; cve: CVESummary }> {
+  const rows = getDb().prepare(`
+    SELECT m.asset_id as assetId, m.first_seen_at as firstSeenAt, m.summary_json as summaryJson
+    FROM inventory_asset_matches m
+    JOIN user_inventory_assets a ON a.id = m.asset_id
+    WHERE a.user_id = ?
+    ORDER BY m.published_at DESC
+  `).all(userId) as Array<{ assetId: string; firstSeenAt: string; summaryJson: string }>;
+
+  return rows.flatMap((row) => {
+    const parsed = parseStoredJson<CVESummary>(row.summaryJson);
+    const [cve] = parsed ? parseCVESummaryList([parsed]) : [];
+    return cve ? [{ assetId: row.assetId, firstSeenAt: row.firstSeenAt, cve }] : [];
+  });
 }
 
 export async function deleteInventoryAssetForUser(userId: string, id: string): Promise<boolean> {

@@ -11,6 +11,7 @@
     "src/lib/**/*.ts",
     "src/types/**/*.d.ts",
     "src/app/api/github/fix/route.ts",
+    "src/app/api/exposure/route.ts",
     "tests/**/*.ts",
     "next.config.ts"
   ],

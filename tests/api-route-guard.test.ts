@@ -133,3 +133,46 @@ test("withRouteProtection passes intentional 4xx client errors through unchanged
     assert.deepEqual(await response.json(), { error: "fullName is required" });
   });
 });
+
+test("withRouteProtection caps bodies at 2 MB by default and honours a per-route maxBodyBytes", async () => {
+  await withTempDatabase(async () => {
+    const echoLength = async function POST(request: Request) {
+      return NextResponse.json({ length: (await request.text()).length });
+    };
+    const defaultCap = withRouteProtection(echoLength, errorTestConfig);
+    const bigCap = withRouteProtection(echoLength, { ...errorTestConfig, maxBodyBytes: 20 * 1024 * 1024 });
+    const post = (body: string) => new Request("https://example.test/api/error-test", {
+      method: "POST",
+      body,
+      headers: { "content-length": String(body.length) },
+    });
+    const threeMb = "x".repeat(3 * 1024 * 1024);
+
+    assert.equal((await defaultCap(post(threeMb))).status, 413);
+    assert.equal((await bigCap(post(threeMb))).status, 200);
+    assert.equal((await bigCap(post("x".repeat(21 * 1024 * 1024)))).status, 413);
+  });
+});
+
+test("withRouteProtection enforces the cap on bodies without Content-Length (chunked)", async () => {
+  await withTempDatabase(async () => {
+    const handler = withRouteProtection(async function POST(request: Request) {
+      return NextResponse.json({ text: await request.text() });
+    }, { ...errorTestConfig, maxBodyBytes: 8 });
+    const chunked = (...chunks: string[]) => new Request("https://example.test/api/error-test", {
+      method: "POST",
+      duplex: "half",
+      body: new ReadableStream({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+          controller.close();
+        },
+      }),
+    } as RequestInit);
+
+    assert.equal((await handler(chunked("1234", "56789"))).status, 413);
+    const small = await handler(chunked("1234", "5678"));
+    assert.equal(small.status, 200);
+    assert.deepEqual(await small.json(), { text: "12345678" });
+  });
+});
