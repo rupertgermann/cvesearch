@@ -14,6 +14,7 @@ Delete projects outright: the `/projects` page, the `/api/projects` routes, the 
 ## Consequences
 
 - The `projects`, `project_items` and `project_activity` tables are no longer created, migrated, read or written. Databases that already have them keep them and their data; dropping them is a separate, one-way step.
-- `PROJECTS_FILE` no longer decides where the database lives. Use `DATABASE_FILE`.
+- `PROJECTS_FILE` no longer decides where the database lives. A deployment that set only `PROJECTS_FILE` must set `DATABASE_FILE=<directory of PROJECTS_FILE>/state.db` to keep its data.
 - Workspace export no longer contains projects. Import still accepts older files that do and ignores the field.
 - Remediation notes no longer name projects or raise the change risk for CVEs that sit in several projects.
+- Remediation notes cached before this change may still mention projects until they are regenerated.

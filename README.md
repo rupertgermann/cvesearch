@@ -195,7 +195,7 @@ npm start
 
 ## Testing
 
-The project includes 74 TypeScript tests across 19 test files covering:
+The TypeScript test suite covers:
 
 - search-state parsing and URL generation
 - prioritization and local alert matching

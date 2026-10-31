@@ -438,9 +438,9 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the rule disappears from the page and from local workspace storage
 - Verification: `Smoke-tested` via `DELETE /api/alerts/[id]`
 
-### 8. Repos
+### 7. Repos
 
-#### 8.1 Open the GitHub repo browser
+#### 7.1 Open the GitHub repo browser
 
 - Entry point: `/repos`
 - Preconditions: GitHub integration is configured
@@ -449,7 +449,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the GitHub repo list loads and the browser panel opens
 - Verification: `Partial`, `Environment-dependent`
 
-#### 8.2 Filter the GitHub repository list
+#### 7.2 Filter the GitHub repository list
 
 - Entry point: `/repos`
 - Preconditions: repo browser is open and contains results
@@ -458,7 +458,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the repo list narrows to matching `full_name` values
 - Verification: `Partial`, `Environment-dependent`
 
-#### 8.3 Monitor and unmonitor repositories
+#### 7.3 Monitor and unmonitor repositories
 
 - Entry point: `/repos`
 - Preconditions: GitHub repo browser loaded
@@ -469,7 +469,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the repo moves into and out of the monitored workspace set
 - Verification: `Partial` for UI, `Automated` via `tests/monitored-repos-store.test.ts` and `tests/github.test.ts`
 
-#### 8.4 Surface token-scope guidance
+#### 7.4 Surface token-scope guidance
 
 - Entry point: `/repos`
 - Preconditions: GitHub token lacks required access or returns only a subset of repos
@@ -478,7 +478,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: scope warnings explain missing `repo` access or missing fine-grained repo grants
 - Verification: `Partial`, `Environment-dependent`
 
-#### 8.5 Load monitored repositories
+#### 7.5 Load monitored repositories
 
 - Entry point: `/repos`
 - Preconditions: monitored repos exist
@@ -487,7 +487,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: monitored repositories load immediately and existing scan history is fetched for each one
 - Verification: `Smoke-tested` via `GET /api/github/monitored`
 
-#### 8.6 Scan a single monitored repository
+#### 7.6 Scan a single monitored repository
 
 - Entry point: `/repos`
 - Preconditions: monitored repository exists and GitHub API access works
@@ -496,7 +496,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the repo enters a scanning state, then shows vulnerabilities or a surfaced scan error
 - Verification: `Partial`, `Environment-dependent`
 
-#### 8.7 Scan all monitored repositories
+#### 7.7 Scan all monitored repositories
 
 - Entry point: `/repos`
 - Preconditions: at least one monitored repo exists
@@ -505,7 +505,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: all monitored repos begin scanning concurrently and settle individually
 - Verification: `Partial`, `Environment-dependent`
 
-#### 8.8 Review persisted scan history
+#### 7.8 Review persisted scan history
 
 - Entry point: `/repos`
 - Preconditions: at least one repo has been scanned previously
@@ -515,7 +515,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: prior scans are listed from persisted SQLite-backed history
 - Verification: `Automated` via `tests/repo-scans-store.test.ts`
 
-#### 8.9 Review repository vulnerability rows
+#### 7.9 Review repository vulnerability rows
 
 - Entry point: `/repos`
 - Preconditions: a successful scan exists
@@ -525,7 +525,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: vulnerabilities are grouped under the scanned repository with severity context
 - Verification: `Automated` via `tests/dependency-parser.test.ts` and `tests/github.test.ts`
 
-#### 8.10 Open the fix workflow modal
+#### 7.10 Open the fix workflow modal
 
 - Entry point: `/repos`
 - Preconditions: successful scan results include actionable vulnerabilities
@@ -535,7 +535,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the modal prepares a fix workflow for GitHub PR creation
 - Verification: `Automated` via `tests/github-pr.test.ts`, `Environment-dependent` for live PR creation
 
-#### 8.11 Negative-path repo scanning
+#### 7.11 Negative-path repo scanning
 
 - Entry point: `/repos`
 - Preconditions: local environment without a known-good upstream target
@@ -544,9 +544,9 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the app surfaces the upstream failure instead of crashing
 - Verification: `Smoke-tested`; observed `POST /api/github/scan` returned `502` with `GitHub API error: Not Found`
 
-### 9. Settings
+### 8. Settings
 
-#### 9.1 Review the server-side AI configuration summary
+#### 8.1 Review the server-side AI configuration summary
 
 - Entry point: `/settings`
 - Preconditions: settings page loaded
@@ -556,7 +556,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the user can see whether AI is running in configured-provider or heuristic mode
 - Verification: `Partial`
 
-#### 9.2 Review provider availability and redaction posture
+#### 8.2 Review provider availability and redaction posture
 
 - Entry point: `/settings`
 - Preconditions: settings page loaded
@@ -566,7 +566,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the page clearly communicates whether sensitive metadata is redacted before third-party model calls
 - Verification: `Partial`
 
-#### 9.3 Review per-feature AI configuration
+#### 8.3 Review per-feature AI configuration
 
 - Entry point: `/settings`
 - Preconditions: settings page loaded
@@ -575,7 +575,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: every AI feature shows its provider, model, and configured versus heuristic mode
 - Verification: `Partial`
 
-#### 9.5 Add an inventory asset
+#### 8.5 Add an inventory asset
 
 - Entry point: `/settings`
 - Preconditions: none
@@ -587,7 +587,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the asset appears in `Tracked Assets` and inventory counts update
 - Verification: `Smoke-tested` via `POST /api/inventory`, `Automated` via related workspace-store coverage
 
-#### 9.6 Remove an inventory asset
+#### 8.6 Remove an inventory asset
 
 - Entry point: `/settings`
 - Preconditions: at least one asset exists
@@ -596,7 +596,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the asset is removed from the tracked list
 - Verification: `Smoke-tested` via `DELETE /api/inventory/[id]`
 
-#### 9.7 Export workspace data
+#### 8.7 Export workspace data
 
 - Entry point: `/settings`
 - Preconditions: workspace has data
@@ -605,7 +605,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: a JSON snapshot downloads containing watchlist, saved views, alert rules, inventory, and triage records
 - Verification: `Smoke-tested` via `GET /api/workspace/export`, `Automated` via `tests/workspace-store.test.ts`
 
-#### 9.8 Import workspace data in merge mode
+#### 8.8 Import workspace data in merge mode
 
 - Entry point: `/settings`
 - Preconditions: valid workspace export file available
@@ -615,7 +615,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: imported records are upserted without clearing existing workspace data
 - Verification: `Automated` via `tests/workspace-store.test.ts`
 
-#### 9.9 Import workspace data in replace mode
+#### 8.9 Import workspace data in replace mode
 
 - Entry point: `/settings`
 - Preconditions: valid workspace export file available
@@ -625,9 +625,9 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: current workspace data is cleared and then replaced by the imported snapshot
 - Verification: `Automated` via `tests/workspace-store.test.ts`
 
-### 10. Workspace
+### 9. Workspace
 
-#### 10.7 Create a notification schedule
+#### 9.7 Create a notification schedule
 
 - Entry point: `/workspace`
 - Preconditions: workspace page loaded
@@ -639,7 +639,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the schedule appears in the preference list
 - Verification: `Smoke-tested` via `GET /api/notifications` and `POST /api/notifications`, `Automated` via `tests/notifications-store.test.ts`
 
-#### 10.8 Run all due digests
+#### 9.8 Run all due digests
 
 - Entry point: `/workspace`
 - Preconditions: at least one schedule exists
@@ -648,7 +648,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: due schedules produce delivery records and success feedback
 - Verification: `Smoke-tested` via `POST /api/notifications/run`
 
-#### 10.9 Run a single schedule
+#### 9.9 Run a single schedule
 
 - Entry point: `/workspace`
 - Preconditions: at least one schedule exists
@@ -657,7 +657,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: only the selected schedule produces a delivery entry
 - Verification: `Partial`, `Automated` via `tests/notifications-store.test.ts`
 
-#### 10.10 Pause and re-enable a schedule
+#### 9.10 Pause and re-enable a schedule
 
 - Entry point: `/workspace`
 - Preconditions: at least one schedule exists
@@ -667,7 +667,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the persisted `enabled` state changes without breaking the schedule definition
 - Verification: `Smoke-tested` via `PATCH /api/notifications/[id]`, `Automated` via `tests/notifications-store.test.ts`
 
-#### 10.11 Delete a schedule
+#### 9.11 Delete a schedule
 
 - Entry point: `/workspace`
 - Preconditions: at least one schedule exists
@@ -676,7 +676,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the schedule disappears while historical deliveries remain available if stored separately
 - Verification: `Smoke-tested` via `DELETE /api/notifications/[id]`
 
-#### 10.12 Review delivery history
+#### 9.12 Review delivery history
 
 - Entry point: `/workspace`
 - Preconditions: at least one digest has been run
