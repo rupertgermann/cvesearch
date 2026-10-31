@@ -1,9 +1,8 @@
-import { generateDigest } from "./ai-service";
 import { PublicRouteError } from "./api-route-guard";
 import { getDb } from "./db";
 import { markRepoNotificationsDigested } from "./repo-scans-store";
 import { AIDigest } from "./types";
-import { buildDigestInputFromWorkspaceSnapshot, loadWorkspaceContextSnapshot } from "./workspace-context";
+import { buildDigest, buildDigestInputFromWorkspaceSnapshot, loadWorkspaceContextSnapshot } from "./workspace-context";
 import { NotificationCadence, NotificationChannel, NotificationDeliveryRecord, NotificationPreferenceRecord } from "./workspace-types";
 
 const DELIVERY_TIMEOUT_MS = 10_000;
@@ -218,7 +217,7 @@ export async function runDueNotificationDigestsForUser(
   }
 
   const workspace = await loadWorkspaceContextSnapshot(userId);
-  const digest = await generateDigest(buildDigestInputFromWorkspaceSnapshot(workspace), { userId });
+  const digest = buildDigest(buildDigestInputFromWorkspaceSnapshot(workspace));
 
   const deliveries: NotificationDeliveryRecord[] = [];
 

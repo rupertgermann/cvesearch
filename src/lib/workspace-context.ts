@@ -1,8 +1,7 @@
-import type { DigestInput } from "./ai-service";
 import { applySearchResultPreferences, matchesSearchState } from "./search";
 import { enrichCVEs, getLatestCVESummariesServer } from "./server-api";
 import { TriageRecord } from "./triage-shared";
-import { ProjectRecord, CVESummary } from "./types";
+import { AIDigest, ProjectRecord, CVESummary } from "./types";
 import { AlertRule, SavedView } from "./workspace-types";
 import {
   FeedBackfill,
@@ -17,6 +16,14 @@ import {
 } from "./workspace-store";
 import { listProjects } from "./projects-store";
 import { listUndigestedRepoNotifications, RepoFindingsNotification } from "./repo-scans-store";
+
+export interface DigestInput {
+  watchlist: Array<{ id: string; summary?: string; severity?: string }>;
+  alerts: Array<{ name: string; unread: number; topMatches: string[] }>;
+  projects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[];
+  // New findings from repo rescans since the last digest.
+  repoFindings?: Array<{ repo: string; findings: string[] }>;
+}
 
 const ALERT_PAGE_SIZE = 100;
 // ~4 days of feed (~1,100 records/day) for rules that already have a cursor.
@@ -172,4 +179,47 @@ export async function fetchLatestCVEsUntil(
 function isBeforeCursor(cve: CVESummary, cursor: string | null): boolean {
   if (!cursor || !cve.published) return false;
   return Date.parse(cve.published) < Date.parse(cursor);
+}
+
+// Rule-based on purpose: digests make no model call (docs/adr/0001-shrink-ai-features.md).
+export function buildDigest(input: DigestInput): AIDigest {
+  const highestAlert = [...input.alerts].sort((a, b) => b.unread - a.unread)[0];
+  const activeProjects = input.projects.filter((project) => project.items.length > 0);
+
+  return {
+    headline:
+      highestAlert && highestAlert.unread > 0
+        ? `${highestAlert.unread} unread matches in ${highestAlert.name}`
+        : `Tracking ${input.watchlist.length} watchlist items across ${activeProjects.length} projects`,
+    sections: [
+      {
+        title: "Watchlist",
+        body: `You have ${input.watchlist.length} tracked vulnerabilities in the current profile.`,
+        items: input.watchlist.slice(0, 5).map((item) => item.id),
+      },
+      {
+        title: "Alerts",
+        body:
+          input.alerts.length > 0
+            ? `${input.alerts.filter((item) => item.unread > 0).length} alert rules currently have unread matches.`
+            : "No alert rules are configured yet.",
+        items: input.alerts.slice(0, 5).map((item) => `${item.name}: ${item.unread} unread`),
+      },
+      {
+        title: "Projects",
+        body:
+          activeProjects.length > 0
+            ? `${activeProjects.length} projects currently contain tracked CVEs.`
+            : "No projects contain tracked CVEs yet.",
+        items: activeProjects.slice(0, 5).map((project) => `${project.name}: ${project.items.length} CVEs`),
+      },
+      ...(input.repoFindings?.length
+        ? [{
+          title: "Repositories",
+          body: `Rescans found new vulnerabilities in ${new Set(input.repoFindings.map((entry) => entry.repo)).size} repositories.`,
+          items: input.repoFindings.flatMap((entry) => entry.findings.map((finding) => `${entry.repo}: ${finding}`)).slice(0, 10),
+        }]
+        : []),
+    ],
+  };
 }

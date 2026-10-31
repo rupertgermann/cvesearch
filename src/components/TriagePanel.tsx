@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApprovalCheckpoint, buildTriageApprovalCheckpoint } from "@/lib/approval-checkpoints";
 import {
   createDefaultTriageRecord,
   loadTriageRecord,
@@ -11,14 +10,11 @@ import {
   TriageStatus,
   writeTriageRecord,
 } from "@/lib/triage";
-import AITriageAssistantPanel from "./AITriageAssistantPanel";
-import HumanApprovalCheckpoint from "./HumanApprovalCheckpoint";
 import InlineLoadingSpinner from "./InlineLoadingSpinner";
 
 export default function TriagePanel({ cveId }: { cveId: string }) {
   const [record, setRecord] = useState<TriageRecord>(() => createDefaultTriageRecord(cveId));
   const [tagInput, setTagInput] = useState("");
-  const [pendingApproval, setPendingApproval] = useState<ApprovalCheckpoint<TriageRecord> | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -39,17 +35,6 @@ export default function TriagePanel({ cveId }: { cveId: string }) {
       ...next,
       updatedAt: new Date().toISOString(),
     }).then((saved) => { setRecord(saved); setSaving(false); }).catch(() => setSaving(false));
-  };
-
-  const requestApproval = (updater: (current: TriageRecord) => TriageRecord, label: string) => {
-    const checkpoint = buildTriageApprovalCheckpoint(record, updater(record), label);
-    setPendingApproval(checkpoint);
-  };
-
-  const approveCheckpoint = (checkpoint: ApprovalCheckpoint<TriageRecord>) => {
-    persist(checkpoint.nextState);
-    setTagInput(checkpoint.nextState.tags.join(", "));
-    setPendingApproval(null);
   };
 
   return (
@@ -138,15 +123,6 @@ export default function TriagePanel({ cveId }: { cveId: string }) {
         </div>
       )}
 
-      <AITriageAssistantPanel cveId={cveId} record={record} onRequestApproval={requestApproval} />
-
-      {pendingApproval ? (
-        <HumanApprovalCheckpoint
-          checkpoint={pendingApproval}
-          onApprove={approveCheckpoint}
-          onCancel={() => setPendingApproval(null)}
-        />
-      ) : null}
     </div>
   );
 }

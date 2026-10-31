@@ -12,9 +12,9 @@ Fast, analyst-friendly CVE search, GitHub repository monitoring, and automated v
 
 CVE Search turns raw vulnerability data into a workflow-oriented web app for research, prioritization, and operational tracking.
 
-It combines URL-driven search, rich CVE detail pages, saved views, watchlists, alerts, triage state, project workflows, team notifications, and a conversational workspace in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
+It combines URL-driven search, rich CVE detail pages, saved views, watchlists, alerts, triage state, project workflows, and team notifications in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
 
-It also includes an optional AI layer for natural-language search, analyst-facing CVE summaries, remediation guidance, workspace digests, and workspace Q&A, with provider settings managed server-side through environment variables.
+It also includes a small, optional AI layer: natural-language search, remediation notes for findings in the exposure queue, and fix PR generation. Provider settings are managed server-side through environment variables. See `docs/adr/0001-shrink-ai-features.md` for why the AI surface is kept this small.
 
 The GitHub Repos feature connects private and public repositories, scans their dependency trees for known vulnerabilities via the OSV.dev API, persists scan history in SQLite, and can automatically generate fix PRs using AI.
 
@@ -28,13 +28,13 @@ URL-driven search, saved views, alert rules, analyst dashboard presets, and AI-a
 
 ### CVE Detail View
 
-Structured vulnerability detail with AI insight, triage state, CVSS context, affected products, and linked references.
+Structured vulnerability detail with triage state, CVSS context, affected products, and linked references.
 
 ![CVE Detail View](docs/images/screenshot-detail.png)
 
 ### AI Settings
 
-Server-side AI configuration dashboard showing active provider, per-feature overrides, prompt versions, tool registry, inventory, and workspace data management.
+Server-side AI configuration dashboard showing active provider, per-feature overrides, inventory, and workspace data management.
 
 ![AI Settings](docs/images/screenshot-settings.png)
 
@@ -48,7 +48,7 @@ Server-side AI configuration dashboard showing active provider, per-feature over
 - Rich CVE detail pages with EPSS, CWE, CAPEC, references, comments, and linked vulnerabilities when available
 - Saved views, watchlist, alerts, notifications, and triage workflow
 - Server-persisted projects workspace with owner, due date, labels, status, SLA, and exception tracking
-- AI-assisted search, summaries, triage guidance, workspace digests, and conversational workspace answers
+- AI-assisted search and remediation notes
 - GitHub repository monitoring with deep dependency scanning (npm, pnpm, Composer) across monorepo subdirectories
 - Persisted repository scan history for monitored repos
 - AI-powered vulnerability fix generation with automatic pull request creation
@@ -73,15 +73,11 @@ Server-side AI configuration dashboard showing active provider, per-feature over
 - Create alert rules, review matches in an alerts center, and schedule digest delivery for team destinations
 - Track triage status, owner, tags, and notes with approval checkpoints
 - Group CVEs into server-persisted projects with owners, due dates, labels, status, timeline events, per-item assignment, SLA tracking, remediation state, and exceptions
-- Ask the workspace assistant questions over watchlist, alerts, projects, and saved searches
 
-### AI Workspace
+### AI
 
 - Translate natural-language prompts into structured search filters
-- Generate analyst-friendly CVE summaries and triage recommendations
-- Draft remediation notes from affected products, references, and available metadata
-- Build watchlist, alerts, and project digests from current workspace context
-- Answer workspace questions over saved views, watchlist, alerts, and project workflow state
+- Draft remediation notes for a finding from the exposure queue, on demand
 - Configure provider and model with server-side environment variables and per-feature overrides
 
 ### Vulnerability Detail
@@ -185,7 +181,7 @@ To use model-backed AI features instead of the built-in heuristic fallback, conf
 OpenAI requests are sent through the Responses API. The checked-in example configuration uses `gpt-5-mini` as the default OpenAI model.
 Anthropic requests are sent through the Messages API. The checked-in example configuration uses `claude-haiku-4-5-20251001` as the default Anthropic model.
 
-You can also override individual flows with feature-specific variables such as `AI_SEARCH_ASSISTANT_PROVIDER`, `AI_CVE_INSIGHT_MODEL`, or `AI_DAILY_DIGEST_MODEL`. The `/settings` page shows the active configuration, prompt versions, tool registry, inventory assets, workspace import/export, and recent AI runs.
+You can also override individual flows with feature-specific variables `AI_SEARCH_ASSISTANT_PROVIDER`/`_MODEL` and `AI_REMEDIATION_AGENT_PROVIDER`/`_MODEL`. The `/settings` page shows the active configuration, inventory assets, and workspace import/export.
 
 See `.env.example` for the full list of supported variables.
 
@@ -210,7 +206,6 @@ The project includes 74 TypeScript tests across 19 test files covering:
 - project workflow logic and store persistence
 - repository scan persistence
 - notification scheduling and digest delivery
-- workspace assistant behavior
 - workspace import/export
 - AI platform heuristics and evaluation
 - AI runs store persistence
@@ -228,26 +223,24 @@ GitHub Actions runs `lint`, `test`, and `build` on pushes and pull requests.
 src/
 ├── app/
 │   ├── api/
-│   │   ├── ai/              # AI insight, search, triage, digest, remediation,
-│   │   │                    # exposure, alerts, watchlist, and project APIs
+│   │   ├── ai/              # AI search and remediation APIs
 │   │   ├── alerts/          # Alert rule CRUD
 │   │   ├── github/          # GitHub integration (repos, scan, fix)
 │   │   ├── inventory/       # Asset inventory CRUD
 │   │   ├── notifications/   # Notification schedules and delivery
 │   │   ├── projects/        # Project and project-item CRUD
-│   │   ├── prompt-templates/ # Saved prompt template CRUD
 │   │   ├── proxy/           # CIRCL vulnerability-lookup proxy
 │   │   ├── saved-views/     # Saved view CRUD
 │   │   ├── triage/          # Triage state CRUD
 │   │   ├── watchlist/       # Watchlist CRUD
-│   │   └── workspace/       # Conversations, export, and import
+│   │   └── workspace/       # Export and import
 │   ├── alerts/              # Alerts route
 │   ├── cve/[id]/            # CVE detail route
 │   ├── dashboard/           # Analyst dashboard route
 │   ├── projects/            # Projects route
 │   ├── repos/               # GitHub repository monitoring route
 │   ├── settings/            # Server-side AI configuration, inventory, and workspace data
-│   ├── workspace/           # Conversational workspace and notifications
+│   ├── workspace/           # Notification schedules and digest history
 │   ├── watchlist/           # Watchlist route
 │   └── page.tsx             # Homepage
 ├── components/              # Search, detail, workflow, repos, and navigation UI

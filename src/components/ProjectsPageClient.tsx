@@ -14,7 +14,6 @@ import {
 import { getCVEById } from "@/lib/api";
 import { ProjectRecord, CVESummary, ProjectStatus, RemediationState, ProjectItem } from "@/lib/types";
 import CVEList from "./CVEList";
-import AIProjectSummaryPanel from "./AIProjectSummaryPanel";
 import ConfirmationDialog from "./ConfirmationDialog";
 
 type ProjectDetails = Record<string, CVESummary[]>;
@@ -509,8 +508,7 @@ export default function ProjectsPageClient() {
                   </div>
                 )}
 
-                <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_0.9fr]">
-                  <AIProjectSummaryPanel projectId={project.id} />
+                <div className="mt-5">
                   <div className="glass rounded-xl p-4">
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Recent activity</h3>
                     <div className="mt-3 space-y-2">

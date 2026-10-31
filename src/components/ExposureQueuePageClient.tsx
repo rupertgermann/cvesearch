@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import type { ExposureQueue, ExposureQueueRow, FindingTriageStatus } from "@/lib/exposure";
 import { formatDate, getSeverityFromScore } from "@/lib/utils";
 import SeverityBadge from "@/components/SeverityBadge";
 import ProjectPickerButton from "@/components/ProjectPickerButton";
 import VulnerabilityFixModal from "@/components/VulnerabilityFixModal";
+import AIRemediationPlanPanel from "@/components/AIRemediationPlanPanel";
 import { INVENTORY_UPDATED_EVENT } from "@/lib/inventory";
 import type { RepoScanRecord, VulnerabilityMatch } from "@/lib/github-types";
 import { canOpenFixPR, findRepoRowMatch } from "@/lib/repo-scan-diff";
@@ -26,6 +27,7 @@ export default function ExposureQueuePageClient() {
   const [fixing, setFixing] = useState<{ match: VulnerabilityMatch; repoFullName: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [remediationKey, setRemediationKey] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -148,55 +150,72 @@ export default function ExposureQueuePageClient() {
                 const score = row.cve.cvss3 ?? row.cve.cvss;
                 const status = row.triage?.status ?? "open";
                 return (
-                  <tr key={row.key} className={`border-t border-white/[0.06] ${row.hidden ? "text-white/35" : "text-white/70"}`}>
-                    <td className="px-3 py-2">
-                      <div className={`font-semibold ${PRIORITY_CLASSES[row.priority]}`}>{row.priority}</div>
-                      <div className="text-xs text-white/35">{row.priorityReason}</div>
-                    </td>
-                    <td className="px-3 py-2 font-mono">
-                      <Link href={`/cve/${encodeURIComponent(row.vulnerabilityId)}`} className="text-cyan-300 hover:underline">
-                        {row.vulnerabilityId}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div>{row.assetLabel}</div>
-                      <div className="text-xs text-white/35">{row.repoFullName ?? "Inventory"}</div>
-                    </td>
-                    <td className="px-3 py-2">
-                      {score !== undefined ? <SeverityBadge severity={getSeverityFromScore(score)} score={score} size="sm" /> : <span className="text-white/30">—</span>}
-                    </td>
-                    <td className="px-3 py-2">{row.cve.kev ? <span className="badge badge-xs border-red-500/30 bg-red-500/10 text-red-300">KEV</span> : <span className="text-white/30">—</span>}</td>
-                    <td className="px-3 py-2 font-mono">{row.cve.epss !== undefined ? `${(row.cve.epss * 100).toFixed(1)}%` : "—"}</td>
-                    <td className="px-3 py-2 capitalize">{row.criticality ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.firstSeenAt)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <select
-                          aria-label={`Triage status for ${row.vulnerabilityId} on ${row.assetLabel}`}
-                          value={status}
-                          onChange={(event) => void setStatus(row, event.target.value as FindingTriageStatus)}
-                          className="h-7 rounded-lg border border-white/[0.08] bg-transparent px-2 text-xs"
-                        >
-                          {Object.entries(FINDING_STATUS_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                          ))}
-                        </select>
-                        {row.triage?.status === "accepted_risk" && (
-                          <span className="text-[11px] text-white/35" title={row.triage.reason}>until {row.triage.acceptedUntil}</span>
-                        )}
-                        <ProjectPickerButton cveId={row.vulnerabilityId} />
-                        {queue.githubConfigured && canOpenFixPR(row) && (
+                  <Fragment key={row.key}>
+                    <tr className={`border-t border-white/[0.06] ${row.hidden ? "text-white/35" : "text-white/70"}`}>
+                      <td className="px-3 py-2">
+                        <div className={`font-semibold ${PRIORITY_CLASSES[row.priority]}`}>{row.priority}</div>
+                        <div className="text-xs text-white/35">{row.priorityReason}</div>
+                      </td>
+                      <td className="px-3 py-2 font-mono">
+                        <Link href={`/cve/${encodeURIComponent(row.vulnerabilityId)}`} className="text-cyan-300 hover:underline">
+                          {row.vulnerabilityId}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div>{row.assetLabel}</div>
+                        <div className="text-xs text-white/35">{row.repoFullName ?? "Inventory"}</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        {score !== undefined ? <SeverityBadge severity={getSeverityFromScore(score)} score={score} size="sm" /> : <span className="text-white/30">—</span>}
+                      </td>
+                      <td className="px-3 py-2">{row.cve.kev ? <span className="badge badge-xs border-red-500/30 bg-red-500/10 text-red-300">KEV</span> : <span className="text-white/30">—</span>}</td>
+                      <td className="px-3 py-2 font-mono">{row.cve.epss !== undefined ? `${(row.cve.epss * 100).toFixed(1)}%` : "—"}</td>
+                      <td className="px-3 py-2 capitalize">{row.criticality ?? "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.firstSeenAt)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <select
+                            aria-label={`Triage status for ${row.vulnerabilityId} on ${row.assetLabel}`}
+                            value={status}
+                            onChange={(event) => void setStatus(row, event.target.value as FindingTriageStatus)}
+                            className="h-7 rounded-lg border border-white/[0.08] bg-transparent px-2 text-xs"
+                          >
+                            {Object.entries(FINDING_STATUS_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                          {row.triage?.status === "accepted_risk" && (
+                            <span className="text-[11px] text-white/35" title={row.triage.reason}>until {row.triage.acceptedUntil}</span>
+                          )}
+                          <ProjectPickerButton cveId={row.vulnerabilityId} />
                           <button
                             type="button"
-                            onClick={() => void openFix(row)}
+                            aria-expanded={remediationKey === row.key}
+                            onClick={() => setRemediationKey((current) => (current === row.key ? null : row.key))}
                             className="btn-ghost inline-flex h-7 items-center px-2.5 text-[11px]"
                           >
-                            Open fix PR
+                            Remediation
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                          {queue.githubConfigured && canOpenFixPR(row) && (
+                            <button
+                              type="button"
+                              onClick={() => void openFix(row)}
+                              className="btn-ghost inline-flex h-7 items-center px-2.5 text-[11px]"
+                            >
+                              Open fix PR
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {remediationKey === row.key && (
+                      <tr className="border-t border-white/[0.06]">
+                        <td colSpan={9} className="px-3 py-3">
+                          <AIRemediationPlanPanel cveId={row.vulnerabilityId} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

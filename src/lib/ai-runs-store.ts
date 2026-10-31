@@ -66,16 +66,6 @@ export async function appendAIRun(userId: string, record: AIRunRecord): Promise<
   });
 }
 
-export async function deleteAIRun(userId: string, id: string): Promise<boolean> {
-  const result = getDb().prepare("DELETE FROM ai_runs WHERE user_id = ? AND id = ?").run(userId, id);
-  return result.changes > 0;
-}
-
-export async function clearAIRuns(userId: string): Promise<number> {
-  const result = getDb().prepare("DELETE FROM ai_runs WHERE user_id = ?").run(userId);
-  return result.changes;
-}
-
 interface AIRunRow {
   id: string;
   userId: string;
@@ -217,7 +207,7 @@ function getModelPricing(provider: string, model: string): { inputPerMillionUsd:
 }
 
 function isAIFeature(value: string): value is AIFeature {
-  return ["search_assistant", "cve_insight", "daily_digest", "triage_agent", "remediation_agent", "watchlist_analyst", "project_summary", "alert_investigation", "exposure_agent"].includes(value);
+  return ["search_assistant", "remediation_agent"].includes(value);
 }
 
 function isAIProvider(value: string): value is AIProvider {

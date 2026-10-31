@@ -275,52 +275,10 @@ export interface AITriageContextSnapshot {
   updatedAt: string;
 }
 
-export interface AIContextCluster {
-  canonicalId: string;
-  sourceIds: string[];
-  relatedIds: string[];
-  summary: string;
-}
-
-export interface AITriageSignal {
-  label: string;
-  value: string;
-  level: "high" | "medium" | "low";
-  rationale: string;
-}
-
-export interface AITriageRecommendation {
-  priority: "critical" | "high" | "medium" | "low";
-  status: "new" | "investigating" | "mitigated" | "accepted" | "closed";
-  confidence: "high" | "medium" | "low";
-  ownerRecommendation: string;
-  rationale: string;
-  nextSteps: string[];
-  signals: AITriageSignal[];
-}
-
 export interface AIProjectContext {
   projectCount: number;
   projectNames: string[];
   summary: string;
-}
-
-export interface AICveInsight {
-  summary: string;
-  triage: AITriageRecommendation;
-  remediation: string[];
-  cluster: AIContextCluster;
-  projectContext: AIProjectContext;
-}
-
-export interface AITriageSuggestion {
-  summary: string;
-  recommendation: AITriageRecommendation;
-  recommendedTags: string[];
-  recommendedOwner: string;
-  ownershipRationale: string;
-  projectContext: AIProjectContext;
-  requiresHumanApproval: boolean;
 }
 
 export interface AIRemediationPlan {
@@ -334,76 +292,6 @@ export interface AIRemediationPlan {
   ownerRationale: string;
   projectContext: AIProjectContext;
   requiresHumanApproval: boolean;
-}
-
-export interface AIWatchlistReviewCluster {
-  label: string;
-  cveIds: string[];
-  summary: string;
-}
-
-export interface AIWatchlistReview {
-  headline: string;
-  summary: string;
-  newMatches: string[];
-  changedSinceLastReview: string[];
-  clusters: AIWatchlistReviewCluster[];
-  recommendedActions: string[];
-  previousReviewAt: string | null;
-  reviewedAt: string;
-}
-
-export interface AIProjectSummarySection {
-  headline: string;
-  summary: string;
-  bullets: string[];
-}
-
-export interface AIProjectSummary {
-  projectName: string;
-  overview: string;
-  executive: AIProjectSummarySection;
-  analyst: AIProjectSummarySection;
-  engineering: AIProjectSummarySection;
-  metrics: {
-    totalItems: number;
-    criticalCount: number;
-    highCount: number;
-    kevCount: number;
-    investigatingCount: number;
-  };
-}
-
-export interface AIAlertInvestigationMatch {
-  id: string;
-  summary: string;
-  rationale: string;
-  unread: boolean;
-}
-
-export interface AIAlertInvestigation {
-  ruleName: string;
-  summary: string;
-  whyMatched: string[];
-  topMatches: AIAlertInvestigationMatch[];
-  recommendedAction: string;
-  nextSteps: string[];
-}
-
-export interface AIExposureMatch {
-  assetId: string;
-  assetName: string;
-  confidence: "high" | "medium" | "low";
-  rationale: string;
-  matchingSignals: string[];
-}
-
-export interface AIExposureAssessment {
-  summary: string;
-  likelyImpact: "critical" | "high" | "medium" | "low";
-  matchedAssets: AIExposureMatch[];
-  rationale: string[];
-  recommendedActions: string[];
 }
 
 export type AISearchFilterField = "query" | "vendor" | "product" | "cwe" | "since" | "minSeverity" | "sort";
@@ -468,7 +356,7 @@ export interface AIRunRecord {
 
 export type AIProvider = "heuristic" | "openai" | "anthropic";
 
-export type AIFeature = "search_assistant" | "cve_insight" | "daily_digest" | "triage_agent" | "remediation_agent" | "watchlist_analyst" | "project_summary" | "alert_investigation" | "exposure_agent";
+export type AIFeature = "search_assistant" | "remediation_agent";
 
 export interface AISettings {
   provider: AIProvider;

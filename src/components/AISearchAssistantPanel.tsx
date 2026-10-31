@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SearchState } from "@/lib/search";
-import { createPromptTemplate, deletePromptTemplate, loadPromptTemplates, PROMPT_TEMPLATES_UPDATED_EVENT } from "@/lib/prompt-templates";
 import { AISearchInterpretation } from "@/lib/types";
-import { PromptTemplateRecord } from "@/lib/workspace-types";
 import LoadingIndicator from "./LoadingIndicator";
 
 interface AISearchAssistantPanelProps {
@@ -16,23 +14,6 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<AISearchInterpretation | null>(null);
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplateRecord[]>([]);
-  const [templateName, setTemplateName] = useState("");
-  const [templateBusy, setTemplateBusy] = useState<null | "save" | `delete:${string}`>(null);
-  const [templateMessage, setTemplateMessage] = useState("");
-
-  useEffect(() => {
-    const sync = async () => setPromptTemplates(await loadPromptTemplates());
-    void sync();
-    window.addEventListener(PROMPT_TEMPLATES_UPDATED_EVENT, sync);
-    return () => window.removeEventListener(PROMPT_TEMPLATES_UPDATED_EVENT, sync);
-  }, []);
-
-  const defaultTemplateName = useMemo(() => {
-    if (!prompt.trim()) return "Prompt template";
-    return prompt.trim().slice(0, 48);
-  }, [prompt]);
-
   const resultSummary = useMemo(() => {
     if (!result) return null;
     return {
@@ -70,43 +51,9 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
     }
   }
 
-  async function handleSaveTemplate() {
-    if (!prompt.trim()) {
-      setTemplateMessage("Enter a prompt before saving it as a template.");
-      return;
-    }
-
-    setTemplateBusy("save");
-    setTemplateMessage("");
-    try {
-      const next = await createPromptTemplate(templateName || defaultTemplateName, prompt);
-      setPromptTemplates(next);
-      setTemplateName("");
-      setTemplateMessage("Saved prompt template.");
-    } catch (error) {
-      setTemplateMessage(error instanceof Error ? error.message : "Failed to save prompt template");
-    } finally {
-      setTemplateBusy(null);
-    }
-  }
-
-  async function handleDeleteTemplate(id: string) {
-    setTemplateBusy(`delete:${id}`);
-    setTemplateMessage("");
-    try {
-      const next = await deletePromptTemplate(id);
-      setPromptTemplates(next);
-      setTemplateMessage("Deleted prompt template.");
-    } catch (error) {
-      setTemplateMessage(error instanceof Error ? error.message : "Failed to delete prompt template");
-    } finally {
-      setTemplateBusy(null);
-    }
-  }
-
   return (
     <section className="glass-raised rounded-2xl border border-cyan-500/15 p-5 sm:p-6">
-      <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
+      <div className="flex flex-col gap-5">
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -135,31 +82,7 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
               className="input-base min-h-[116px] w-full resize-y px-3 py-3 text-sm leading-relaxed disabled:opacity-50"
             />
 
-            <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <label htmlFor="ai-template-name" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/25">
-                  Save prompt as template
-                </label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    id="ai-template-name"
-                    type="text"
-                    value={templateName}
-                    onChange={(event) => setTemplateName(event.target.value)}
-                    placeholder={defaultTemplateName}
-                    className="input-base min-w-0 flex-1 px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveTemplate()}
-                    disabled={loading || templateBusy !== null}
-                    className="btn-ghost px-4 py-2 text-sm disabled:opacity-50"
-                  >
-                    {templateBusy === "save" ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
-
+            <div className="mt-4 flex justify-end">
               <button
                 type="button"
                 onClick={() => void handleInterpret()}
@@ -187,44 +110,14 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
               />
             )}
 
-            {(message || templateMessage) && !loading && (
+            {message && !loading && (
               <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-sm text-white/45">
-                {message || templateMessage}
+                {message}
               </div>
             )}
           </div>
         </div>
 
-        <div className="space-y-4">
-          <AssistantSidebarSection
-            title="Saved Templates"
-            description="Keep reusable prompts here for fast search setup."
-          >
-            {promptTemplates.length > 0 ? (
-              <div className="space-y-2">
-                {promptTemplates.map((template) => (
-                  <TemplateListItem
-                    key={template.id}
-                    name={template.name}
-                    prompt={template.prompt}
-                    primaryLabel="Apply"
-                    onPrimary={() => {
-                      setPrompt(template.prompt);
-                      void handleInterpret(template.prompt);
-                    }}
-                    onSecondary={() => void handleDeleteTemplate(template.id)}
-                    secondaryLabel={templateBusy === `delete:${template.id}` ? "Deleting..." : "Delete"}
-                    disabled={loading || templateBusy !== null}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-sm text-white/30">
-                No saved prompt templates yet. Save the prompts you reuse most often and they will show up here.
-              </div>
-            )}
-          </AssistantSidebarSection>
-        </div>
       </div>
 
       {result && resultSummary && (
@@ -290,75 +183,6 @@ export default function AISearchAssistantPanel({ onApply }: AISearchAssistantPan
         </div>
       )}
     </section>
-  );
-}
-
-function AssistantSidebarSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="glass rounded-2xl p-4">
-      <div className="mb-3">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/30">{title}</h3>
-        <p className="mt-1 text-sm text-white/35">{description}</p>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function TemplateListItem({
-  name,
-  prompt,
-  primaryLabel,
-  onPrimary,
-  onSecondary,
-  secondaryLabel = "Delete",
-  disabled,
-}: {
-  name: string;
-  prompt: string;
-  primaryLabel: string;
-  onPrimary: () => void;
-  onSecondary?: () => void;
-  secondaryLabel?: string;
-  disabled: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-white">{name}</div>
-          <p className="mt-1 text-sm leading-relaxed text-white/40">{prompt}</p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            onClick={onPrimary}
-            disabled={disabled}
-            className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/15 disabled:opacity-50"
-          >
-            {primaryLabel}
-          </button>
-          {onSecondary ? (
-            <button
-              type="button"
-              onClick={onSecondary}
-              disabled={disabled}
-              className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50"
-            >
-              {secondaryLabel}
-            </button>
-          ) : null}
-        </div>
-      </div>
-    </div>
   );
 }
 

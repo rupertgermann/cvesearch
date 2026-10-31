@@ -11,7 +11,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 const NAV_ITEMS = [
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
-  { href: "/workspace", label: "Workspace", icon: ChatIcon },
+  { href: "/workspace", label: "Notifications", icon: ChatIcon },
   { href: "/watchlist", label: "Watchlist", icon: BookmarkIcon },
   { href: "/alerts", label: "Alerts", icon: BellIcon },
   { href: "/projects", label: "Projects", icon: FolderIcon },

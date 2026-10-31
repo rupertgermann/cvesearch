@@ -11,7 +11,6 @@ interface ImportResult {
   imported: {
     watchlist: number;
     savedViews: number;
-    promptTemplates: number;
     alertRules: number;
     inventoryAssets: number;
     triageRecords: number;
@@ -75,7 +74,7 @@ export default function WorkspaceDataPanel() {
       const result = data as ImportResult;
       setMessage({
         type: "success",
-        text: `Imported ${result.imported.watchlist} watchlist items, ${result.imported.savedViews} saved views, ${result.imported.promptTemplates} prompt templates, ${result.imported.alertRules} alert rules, ${result.imported.inventoryAssets} inventory assets, ${result.imported.triageRecords} triage records, and ${result.imported.projects} projects using ${result.mode} mode.`,
+        text: `Imported ${result.imported.watchlist} watchlist items, ${result.imported.savedViews} saved views, ${result.imported.alertRules} alert rules, ${result.imported.inventoryAssets} inventory assets, ${result.imported.triageRecords} triage records, and ${result.imported.projects} projects using ${result.mode} mode.`,
       });
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -108,7 +107,7 @@ export default function WorkspaceDataPanel() {
         <div>
           <Heading size="4" className="text-white">Workspace Data</Heading>
           <Text as="p" size="2" color="gray" className="mt-1 max-w-3xl">
-            Export or import projects, watchlist items, saved views, prompt templates, alert rules, inventory assets, and triage records for this workspace.
+            Export or import projects, watchlist items, saved views, alert rules, inventory assets, and triage records for this workspace.
           </Text>
         </div>
         <Flex gap="2" wrap="wrap">
