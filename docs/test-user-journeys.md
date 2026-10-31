@@ -24,7 +24,7 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 3. Watchlist and triage
 4. Alerts
 5. Projects
-6. Workspace conversations and notifications
+6. Workspace notifications
 7. Settings data workflows
 8. Repos and GitHub flows
 
@@ -43,7 +43,6 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Use the AI search assistant and apply the generated search state
 - Save the current search as a saved view, reopen it, then delete it
 - Save the current search as an alert rule
-- Generate an AI digest
 - Export visible results as CSV and JSON
 - Expected result: URL state, filters, saved views, alerts, digests, and exports all behave consistently
 - Verification: `Smoke-tested` for saved views, alerts, and AI search; `Automated` for search/filter logic; `Partial` for download UX
@@ -61,8 +60,6 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 
 - Open `/cve/[id]`
 - Update triage status, owner, tags, and notes
-- Use the AI triage assistant and review the human approval checkpoint
-- Generate AI insight, remediation, and exposure output
 - Review aliases, CVSS, EPSS, products, references, linked vulnerabilities, CAPEC, comments, and raw data
 - Expected result: the detail page acts as the primary investigation and workflow surface
 - Verification: `Smoke-tested` for triage persistence; `Automated` for AI and normalization logic; `Partial` for full visual inspection
@@ -76,7 +73,6 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Bulk update triage status
 - Bulk assign items to an existing project
 - Create a new project inline during assignment
-- Run the AI watchlist review and page-level digest
 - Expected result: watchlist supports individual and bulk vulnerability operations
 - Verification: `Smoke-tested` for CRUD and project assignment; `Automated` for AI helpers; `Partial` for all selection states
 
@@ -87,7 +83,6 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Mark one rule checked
 - Mark all rules checked
 - Delete a rule
-- Run the AI alert investigation panel
 - Expected result: alert rules are reviewable, mutable, and AI-explainable
 - Verification: `Smoke-tested` for rule mutations; `Automated` for alert logic and AI helpers; `Partial` for full UI inspection
 
@@ -99,33 +94,26 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Update project-item owner, remediation state, SLA due date, notes, and exception fields
 - Remove a project item
 - Delete a project
-- Run the AI project summary
 - Expected result: projects support end-to-end remediation tracking and exception handling
 - Verification: `Smoke-tested` for project and item CRUD; `Automated` for store logic and AI helpers
 
 ### 8. Workspace
 
-- Create a new conversation
-- Ask `Give me a workspace overview`
-- Ask a follow-up such as `Show project SLA risk`
-- Open a historical conversation
-- Review assistant reference chips
 - Create a notification schedule
 - Run all due digests
 - Toggle a schedule off and on
 - Delete a schedule
 - Review delivery history
-- Expected result: the workspace acts as both a conversational analyst surface and a digest orchestration center
-- Verification: `Smoke-tested` for conversations and notification CRUD/run flows; `Automated` for assistant and notification stores; `Partial` for all UI states
+- Expected result: the workspace page manages digest schedules and delivery history
+- Verification: `Smoke-tested` for notification CRUD/run flows; `Automated` for notification stores; `Partial` for all UI states
 
 ### 9. Settings
 
-- Review AI provider summary, redaction posture, per-feature configuration, prompt versions, and tool registry
+- Review AI provider summary, redaction posture, and per-feature configuration
 - Add and delete an inventory asset
 - Export workspace data
 - Import workspace data in merge mode
 - Import workspace data in replace mode
-- Review recent AI runs
 - Expected result: the settings page exposes AI operations visibility and workspace data management
 - Verification: `Smoke-tested` for inventory CRUD and export; `Automated` for workspace import/export and AI run persistence; `Partial` for read-only operational panels
 

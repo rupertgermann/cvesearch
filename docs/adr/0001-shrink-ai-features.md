@@ -27,7 +27,7 @@ Delete everything else outright, with no feature flag:
 
 Git history is the way back.
 
-Notification digests stay. They always use the heuristic summary (`buildHeuristicDigest`), so a digest costs no model call and its text is predictable.
+Notification digests stay. They always use the rule-based summary (`buildDigest` in `workspace-context.ts`), so a digest costs no model call and its text is predictable.
 
 `ai_runs` keeps recording the calls that remain, so their cost stays visible in the database.
 

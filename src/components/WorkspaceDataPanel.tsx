@@ -107,7 +107,7 @@ export default function WorkspaceDataPanel() {
         <div>
           <Heading size="4" className="text-white">Workspace Data</Heading>
           <Text as="p" size="2" color="gray" className="mt-1 max-w-3xl">
-            Export or import projects, watchlist items, saved views, prompt templates, alert rules, inventory assets, and triage records for this workspace.
+            Export or import projects, watchlist items, saved views, alert rules, inventory assets, and triage records for this workspace.
           </Text>
         </div>
         <Flex gap="2" wrap="wrap">

@@ -34,7 +34,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - `npm run build` passed
 - `npm run lint` passed with one existing warning in `src/app/layout.tsx` (`@next/next/no-page-custom-font`)
 - Route reachability was smoke-tested for `/`, `/watchlist`, `/alerts`, `/projects`, `/repos`, `/settings`, and `/workspace`
-- Core CRUD and workflow APIs were smoke-tested for watchlist, triage, saved views, alerts, inventory, projects, notifications, workspace conversations, AI digest/search, and workspace export
+- Core CRUD and workflow APIs were smoke-tested for watchlist, triage, saved views, alerts, inventory, projects, notifications, AI search, and workspace export
 - GitHub monitoring was only partially validated locally because a known-good GitHub repository/token combination was not available
 
 ## Feature Inventory
@@ -54,7 +54,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 5. Dashboard metrics panel
 6. Saved views
 7. Alert rule creation
-8. AI digest panel
 9. Result export
 10. Pagination
 11. CVE result list
@@ -64,12 +63,8 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 1. Bookmark to watchlist
 2. Add to project
 3. Copy link
-4. AI insight panel
 5. Triage workspace
-6. AI triage assistant
 7. Human approval checkpoint
-8. AI remediation plan
-9. AI exposure analysis
 10. Aliases
 11. CVSS score breakdown
 12. EPSS enrichment
@@ -90,8 +85,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 5. Bulk triage update
 6. Bulk project assignment
 7. Inline project creation for bulk assignment
-8. AI watchlist review
-9. AI digest panel
 10. Selectable CVE list
 
 ### Alerts (`/alerts`)
@@ -102,7 +95,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 4. Mark single rule checked
 5. Mark all checked
 6. Delete rule
-7. AI alert investigation
 8. Matching CVE preview list
 
 ### Projects (`/projects`)
@@ -115,7 +107,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 6. Update owner/remediation/SLA
 7. Exception workflow
 8. Remove project item
-9. AI project summary
 10. Embedded CVE previews
 
 ### Repos (`/repos`)
@@ -138,20 +129,14 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 3. Sensitive-data redaction notice
 4. Per-feature AI configuration cards
 5. Prompt version catalog
-6. Tool registry
 7. Inventory mapping
 8. Workspace export
 9. Workspace import in merge mode
 10. Workspace import in replace mode
-11. Recent AI runs
 
 ### Workspace (`/workspace`)
 
-1. Create conversation
-2. Open conversation
 3. Suggested questions
-4. Ask workspace assistant
-5. View assistant references
 6. Create notification schedule
 7. Run all due digests
 8. Run a single schedule
@@ -255,16 +240,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
   4. Delete the alert rule from the panel or Alerts page
 - Expected result: the rule is stored, visible in the panel, and appears in the Alerts workspace
 - Verification: `Smoke-tested` via `POST /api/alerts` and `DELETE /api/alerts/[id]`, `Automated` via `tests/alerts.test.ts`
-
-#### 2.7 Generate an AI digest from the search workspace
-
-- Entry point: `/`
-- Preconditions: homepage loaded
-- User journey:
-  1. Open the digest panel
-  2. Request a digest for the current workspace data
-- Expected result: the digest summarizes current risks and recent activity
-- Verification: `Smoke-tested` through `POST /api/ai/digest`, `Automated` via `tests/ai.test.ts`
 
 #### 2.8 Export visible search results
 
@@ -372,28 +347,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the record persists, `updatedAt` changes, and recent activity captures the edits
 - Verification: `Smoke-tested` via `GET /api/triage/[id]` and `PUT /api/triage/[id]`, `Automated` via `tests/triage.test.ts`
 
-#### 4.4 Use the AI triage assistant with human approval
-
-- Entry point: `/cve/[id]`
-- Preconditions: detail page loaded
-- User journey:
-  1. Ask the triage assistant to propose workflow changes
-  2. Review the `Human Approval Checkpoint`
-  3. Approve or cancel the proposed changes
-- Expected result: AI-suggested edits are never silently applied; approval applies the proposed triage state and cancellation discards it
-- Verification: `Automated` via `tests/ai.test.ts` and `tests/triage.test.ts`
-
-#### 4.5 Generate AI insight, remediation, and exposure analysis
-
-- Entry point: `/cve/[id]`
-- Preconditions: detail page loaded
-- User journey:
-  1. Request the AI insight panel
-  2. Request the remediation plan
-  3. Request the exposure analysis
-- Expected result: each panel returns focused output for understanding impact, mitigation, and likely environmental exposure
-- Verification: `Automated` via `tests/ai.test.ts` and `tests/ai-platform.test.ts`
-
 #### 4.6 Review aliases, CVSS, and EPSS enrichment
 
 - Entry point: `/cve/[id]`
@@ -494,26 +447,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the new project is created and the selected CVEs are added to it
 - Verification: `Smoke-tested` via `POST /api/projects` and `POST /api/projects/[id]/items`
 
-#### 5.8 Generate an AI watchlist review
-
-- Entry point: `/watchlist`
-- Preconditions: watchlist has content
-- User journey:
-  1. Open the AI watchlist review panel
-  2. Request a review
-- Expected result: the panel summarizes the most important watchlist items and likely priorities
-- Verification: `Automated` via `tests/ai.test.ts` and `tests/ai-platform.test.ts`
-
-#### 5.9 Generate a digest from the watchlist page
-
-- Entry point: `/watchlist`
-- Preconditions: watchlist has content
-- User journey:
-  1. Open the digest panel
-  2. Request a digest
-- Expected result: digest generation works from the watchlist context as well as the homepage
-- Verification: `Smoke-tested` through `POST /api/ai/digest`
-
 ### 6. Alerts
 
 #### 6.1 Review alert metrics and evaluated rules
@@ -553,15 +486,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
   1. Click `Delete` on a rule
 - Expected result: the rule disappears from the page and from local workspace storage
 - Verification: `Smoke-tested` via `DELETE /api/alerts/[id]`
-
-#### 6.5 Run the AI alert investigation panel
-
-- Entry point: `/alerts`
-- Preconditions: at least one alert rule exists
-- User journey:
-  1. Expand or trigger the AI investigation for a rule
-- Expected result: the assistant summarizes what changed, what matters, and how to triage the matching set
-- Verification: `Automated` via `tests/ai.test.ts` and `tests/ai-platform.test.ts`
 
 ### 7. Projects
 
@@ -653,15 +577,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
   1. Click `Delete Project`
 - Expected result: the project is removed from storage and from any project pickers
 - Verification: `Smoke-tested` via `DELETE /api/projects/[id]`
-
-#### 7.9 Generate an AI project summary
-
-- Entry point: `/projects`
-- Preconditions: a project with meaningful content exists
-- User journey:
-  1. Request a project summary from the AI panel
-- Expected result: the summary highlights scope, SLA risk, progress, and exceptions
-- Verification: `Automated` via `tests/ai.test.ts` and `tests/ai-platform.test.ts`
 
 ### 8. Repos
 
@@ -800,16 +715,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: every AI feature shows its provider, model, and configured versus heuristic mode
 - Verification: `Partial`
 
-#### 9.4 Review prompt versions and tool registry
-
-- Entry point: `/settings`
-- Preconditions: settings page loaded
-- User journey:
-  1. Review `Prompt Versions`
-  2. Review `Tool Registry`
-- Expected result: prompt-template versions and shared tool capabilities are visible for auditability
-- Verification: `Partial`
-
 #### 9.5 Add an inventory asset
 
 - Entry point: `/settings`
@@ -837,7 +742,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Preconditions: workspace has data
 - User journey:
   1. Click `Export JSON`
-- Expected result: a JSON snapshot downloads containing watchlist, saved views, prompt templates, alert rules, inventory, triage, and projects
+- Expected result: a JSON snapshot downloads containing watchlist, saved views, alert rules, inventory, triage, and projects
 - Verification: `Smoke-tested` via `GET /api/workspace/export`, `Automated` via `tests/workspace-store.test.ts`
 
 #### 9.8 Import workspace data in merge mode
@@ -860,72 +765,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: current workspace data is cleared and then replaced by the imported snapshot
 - Verification: `Automated` via `tests/workspace-store.test.ts`
 
-#### 9.10 Review recent AI runs
-
-- Entry point: `/settings`
-- Preconditions: AI-enabled flows have been exercised
-- User journey:
-  1. Open `Recent AI Runs`
-  2. Review status, provider, timestamps, latency, token estimate, cost estimate, prompt, output, tool calls, and errors
-- Expected result: the page acts as a read-only operational audit trail for AI activity
-- Verification: `Automated` via `tests/ai-runs-store.test.ts` and `tests/ai-platform.test.ts`
-
 ### 10. Workspace
-
-#### 10.1 Create a new empty conversation
-
-- Entry point: `/workspace`
-- Preconditions: workspace page loaded
-- User journey:
-  1. Click `New Conversation`
-- Expected result: a new conversation record is created and becomes active
-- Verification: `Smoke-tested` via `POST /api/workspace/conversations`, `Automated` via `tests/workspace-assistant.test.ts`
-
-#### 10.2 Start a conversation from a prompt
-
-- Entry point: `/workspace`
-- Preconditions: workspace page loaded
-- User journey:
-  1. Ask `Give me a workspace overview`
-- Expected result: a new conversation is created with stored user and assistant messages
-- Verification: `Smoke-tested` via `POST /api/workspace/conversations`
-
-#### 10.3 Append a follow-up question to an existing conversation
-
-- Entry point: `/workspace`
-- Preconditions: a conversation exists
-- User journey:
-  1. Ask `Show project SLA risk`
-- Expected result: the assistant appends a new turn to the active conversation and preserves thread continuity
-- Verification: `Smoke-tested` via `POST /api/workspace/conversations/[id]/messages`, `Automated` via `tests/workspace-assistant.test.ts`
-
-#### 10.4 Use suggested questions
-
-- Entry point: `/workspace`
-- Preconditions: workspace page loaded
-- User journey:
-  1. Click one of the suggested prompts
-- Expected result: the assistant submits the prompt immediately and returns a response
-- Verification: `Partial`
-
-#### 10.5 Open historical conversations
-
-- Entry point: `/workspace`
-- Preconditions: multiple conversations exist
-- User journey:
-  1. Select a prior conversation from the conversation list
-- Expected result: the full stored conversation reloads into the active panel
-- Verification: `Partial`, `Automated` via `tests/workspace-assistant.test.ts`
-
-#### 10.6 Review assistant references
-
-- Entry point: `/workspace`
-- Preconditions: assistant response contains references
-- User journey:
-  1. Inspect assistant messages
-  2. Review attached reference chips
-- Expected result: referenced workspace entities are shown alongside the response
-- Verification: `Smoke-tested` through workspace conversation flow
 
 #### 10.7 Create a notification schedule
 
@@ -997,7 +837,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Dependency parsing for repo scans: `tests/dependency-parser.test.ts`
 - AI provider behavior and heuristic fallbacks: `tests/ai.test.ts`, `tests/ai-platform.test.ts`
 - AI run history persistence: `tests/ai-runs-store.test.ts`
-- Workspace assistant persistence and response behavior: `tests/workspace-assistant.test.ts`
 - Workspace import/export store behavior: `tests/workspace-store.test.ts`
 - Validation and upstream normalization: `tests/validation.test.ts`
 - General utility coverage: `tests/utils.test.ts`
@@ -1017,5 +856,5 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - If stricter regression protection is needed, the next best step is to add Playwright journeys for the highest-value flows:
   1. Search to watchlist to triage
   2. Search to project workflow
-  3. Workspace notifications and conversation history
+  3. Workspace notifications
   4. Repo scan happy-path with mocked GitHub responses

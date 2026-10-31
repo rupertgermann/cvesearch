@@ -50,7 +50,6 @@ const SEARCH_CWE_FAMILY_ALIASES: Array<{ cwe: string; aliases: string[] }> = [
   { cwe: "CWE-502", aliases: ["deserialization", "insecure deserialization"] },
 ];
 
-
 export interface RemediationPlanInput {
   detail: CVEDetail;
   epss: EPSSData | null;
@@ -170,10 +169,6 @@ export function getServerAIConfigurationSummary(): ServerAIConfigurationSummary 
       };
     }),
   };
-}
-
-export function isAIFeatureConfigured(feature: AIFeature): boolean {
-  return resolveAIRuntime(feature).mode === "configured";
 }
 
 export function prepareRemediationPromptInput(input: RemediationPlanInput): RemediationPlanInput {
@@ -423,7 +418,6 @@ function derivePriority(
 export function interpretSearchPromptHeuristically(prompt: string): AISearchInterpretation {
   return buildSearchInterpretationFromPlan(prompt, runSearchPlanning(prompt));
 }
-
 
 async function executeStructuredTask<T>({ feature, prompt, fallback, sanitize, toolCalls = [], userId }: StructuredTask<T>): Promise<T> {
   const runtime = resolveAIRuntime(feature);
