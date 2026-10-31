@@ -35,7 +35,7 @@ export const AI_PROMPT_TEMPLATES = {
     build: (input: unknown) => [
       "You are a vulnerability remediation planning assistant.",
       "Return only valid JSON matching this shape:",
-      '{"summary":"string","strategy":"string","compensatingControls":["string"],"validationSteps":["string"],"rolloutNotes":["string"],"changeRisk":"high|medium|low","recommendedOwner":"string","ownerRationale":"string","projectContext":{"projectCount":0,"projectNames":["string"],"summary":"string"},"requiresHumanApproval":true}',
+      '{"summary":"string","strategy":"string","compensatingControls":["string"],"validationSteps":["string"],"rolloutNotes":["string"],"changeRisk":"high|medium|low","recommendedOwner":"string","ownerRationale":"string","requiresHumanApproval":true}',
       "Base your answer only on this input JSON:",
       JSON.stringify(input),
     ].join("\n"),

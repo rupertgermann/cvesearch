@@ -18,7 +18,6 @@ import {
   writeTriageRecordForUser,
 } from "../src/lib/workspace-store";
 import { createDefaultTriageRecord } from "../src/lib/triage-shared";
-import { importProjects, listProjects } from "../src/lib/projects-store";
 
 test("workspace stores are isolated per session user", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-workspace-"));
@@ -91,7 +90,7 @@ test("workspace stores are isolated per session user", async () => {
   }
 });
 
-test("workspace import supports replace mode for user data and projects", async () => {
+test("workspace import supports replace mode for user data", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-workspace-import-"));
   const previousDatabaseFile = process.env.DATABASE_FILE;
   process.env.DATABASE_FILE = path.join(tempDir, "workspace.db");
@@ -135,22 +134,11 @@ test("workspace import supports replace mode for user data and projects", async 
       }],
     }, "replace");
 
-    await importProjects(session.userId, [{
-      id: "project-1",
-      name: "Imported Project",
-      description: "Imported",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      items: [{ cveId: "CVE-2026-1234", note: "Track fix", addedAt: new Date().toISOString() }],
-      activity: [],
-    }], "replace");
-
     assert.deepEqual(await listWatchlist(session.userId), ["CVE-2026-1234"]);
     assert.equal((await listSavedViewsForUser(session.userId))[0]?.name, "Critical");
     assert.equal((await listAlertRulesForUser(session.userId))[0]?.name, "Critical Alert");
     assert.equal((await listInventoryAssetsForUser(session.userId))[0]?.name, "Gateway");
     assert.equal((await readTriageRecordForUser(session.userId, "CVE-2026-1234")).status, "mitigated");
-    assert.equal((await listProjects(session.userId))[0]?.name, "Imported Project");
   } finally {
     if (previousDatabaseFile === undefined) {
       delete process.env.DATABASE_FILE;

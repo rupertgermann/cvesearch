@@ -330,16 +330,6 @@ export const API_RATE_LIMITS = {
     maxRequests: 12,
     windowMs: 60_000,
   },
-  projectMutations: {
-    bucket: "project-mutations",
-    maxRequests: 40,
-    windowMs: 60_000,
-  },
-  projectReads: {
-    bucket: "project-reads",
-    maxRequests: 120,
-    windowMs: 60_000,
-  },
   workspaceReads: {
     bucket: "workspace-reads",
     maxRequests: 180,

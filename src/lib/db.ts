@@ -15,7 +15,6 @@ export function getDatabaseFile(): string {
   }
 
   const scopedFile = [
-    process.env.PROJECTS_FILE,
     process.env.MONITORED_REPOS_FILE,
     process.env.AI_RUNS_FILE,
     process.env.API_REQUEST_LOG_FILE,
@@ -86,44 +85,6 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
-
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL DEFAULT '',
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      owner TEXT NOT NULL DEFAULT '',
-      due_at TEXT,
-      labels_json TEXT NOT NULL DEFAULT '[]',
-      status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS project_items (
-      project_id TEXT NOT NULL,
-      cve_id TEXT NOT NULL,
-      note TEXT NOT NULL,
-      added_at TEXT NOT NULL,
-      owner TEXT NOT NULL DEFAULT '',
-      remediation_state TEXT NOT NULL DEFAULT 'not_started',
-      sla_due_at TEXT,
-      exception_json TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL DEFAULT '',
-      PRIMARY KEY (project_id, cve_id),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS project_activity (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      action TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_project_activity_project_id ON project_activity(project_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS monitored_repos (
       id TEXT PRIMARY KEY,
@@ -413,17 +374,7 @@ function initializeDatabase(db: DatabaseSync): void {
     );
   `);
 
-  ensureColumn(db, "projects", "owner", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "user_notification_deliveries", "error", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "projects", "due_at", "TEXT");
-  ensureColumn(db, "projects", "labels_json", "TEXT NOT NULL DEFAULT '[]'");
-  ensureColumn(db, "projects", "status", "TEXT NOT NULL DEFAULT 'active'");
-  ensureColumn(db, "projects", "user_id", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "project_items", "owner", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "project_items", "remediation_state", "TEXT NOT NULL DEFAULT 'not_started'");
-  ensureColumn(db, "project_items", "sla_due_at", "TEXT");
-  ensureColumn(db, "project_items", "exception_json", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "project_items", "updated_at", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "ai_runs", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "user_alert_rules", "cursor_published_at", "TEXT");
   ensureColumn(db, "alert_rule_matches", "published_at", "TEXT");
@@ -438,7 +389,6 @@ function initializeDatabase(db: DatabaseSync): void {
   ensureColumn(db, "monitored_repos", "upload_dependencies_json", "TEXT");
 
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_monitored_repos_user_id ON monitored_repos(user_id, added_at DESC);
     CREATE INDEX IF NOT EXISTS idx_monitored_repo_scans_user_id ON monitored_repo_scans(user_id, repo_full_name, scanned_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_runs_user_id ON ai_runs(user_id, created_at DESC);
@@ -448,83 +398,9 @@ function initializeDatabase(db: DatabaseSync): void {
 }
 
 function migrateJsonBackfills(db: DatabaseSync): void {
-  migrateProjects(db);
   migrateMonitoredRepos(db);
   migrateAIRuns(db);
   migrateAPIRequestLogs(db);
-}
-
-function migrateProjects(db: DatabaseSync): void {
-  const count = db.prepare("SELECT COUNT(*) as count FROM projects").get() as { count: number };
-  if (count.count > 0) {
-    return;
-  }
-
-  const file = process.env.PROJECTS_FILE?.trim() || path.join(DATA_DIR, "projects.json");
-  const parsed = readJsonArray(file);
-  if (!parsed) {
-    return;
-  }
-
-  const insertProject = db.prepare(`
-    INSERT INTO projects (id, name, description, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  const insertItem = db.prepare(`
-    INSERT INTO project_items (project_id, cve_id, note, added_at)
-    VALUES (?, ?, ?, ?)
-  `);
-  const insertActivity = db.prepare(`
-    INSERT INTO project_activity (id, project_id, action, summary, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  withTransaction(() => {
-    for (const project of parsed) {
-      if (!isRecord(project) || typeof project.id !== "string") {
-        continue;
-      }
-
-      insertProject.run(
-        project.id,
-        typeof project.name === "string" ? project.name : "Untitled project",
-        typeof project.description === "string" ? project.description : "",
-        typeof project.createdAt === "string" ? project.createdAt : new Date().toISOString(),
-        typeof project.updatedAt === "string" ? project.updatedAt : new Date().toISOString()
-      );
-
-      if (Array.isArray(project.items)) {
-        for (const item of project.items) {
-          if (!isRecord(item) || typeof item.cveId !== "string") {
-            continue;
-          }
-
-          insertItem.run(
-            project.id,
-            item.cveId,
-            typeof item.note === "string" ? item.note : "",
-            typeof item.addedAt === "string" ? item.addedAt : new Date().toISOString()
-          );
-        }
-      }
-
-      if (Array.isArray(project.activity)) {
-        for (const activity of project.activity) {
-          if (!isRecord(activity) || typeof activity.id !== "string") {
-            continue;
-          }
-
-          insertActivity.run(
-            activity.id,
-            project.id,
-            typeof activity.action === "string" ? activity.action : "project_updated",
-            typeof activity.summary === "string" ? activity.summary : "Updated project",
-            typeof activity.createdAt === "string" ? activity.createdAt : new Date().toISOString()
-          );
-        }
-      }
-    }
-  });
 }
 
 function migrateMonitoredRepos(db: DatabaseSync): void {

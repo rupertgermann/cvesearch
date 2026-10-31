@@ -33,8 +33,8 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - `npm test` passed: 65/65
 - `npm run build` passed
 - `npm run lint` passed with one existing warning in `src/app/layout.tsx` (`@next/next/no-page-custom-font`)
-- Route reachability was smoke-tested for `/`, `/watchlist`, `/alerts`, `/projects`, `/repos`, `/settings`, and `/workspace`
-- Core CRUD and workflow APIs were smoke-tested for watchlist, triage, saved views, alerts, inventory, projects, notifications, AI search, and workspace export
+- Route reachability was smoke-tested for `/`, `/watchlist`, `/alerts`, `/repos`, `/settings`, and `/workspace`
+- Core CRUD and workflow APIs were smoke-tested for watchlist, triage, saved views, alerts, inventory, notifications, AI search, and workspace export
 - GitHub monitoring was only partially validated locally because a known-good GitHub repository/token combination was not available
 
 ## Feature Inventory
@@ -42,7 +42,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 ### Global Surfaces
 
 1. App route reachability
-2. Header navigation between search, watchlist, alerts, projects, repos, settings, and workspace
+2. Header navigation between search, watchlist, alerts, repos, settings, and workspace
 3. Shared CVE card actions
 
 ### Search Workspace (`/`)
@@ -61,7 +61,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 ### CVE Detail (`/cve/[id]`)
 
 1. Bookmark to watchlist
-2. Add to project
 3. Copy link
 5. Triage workspace
 7. Human approval checkpoint
@@ -83,8 +82,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 3. Bulk selection
 4. Bulk remove
 5. Bulk triage update
-6. Bulk project assignment
-7. Inline project creation for bulk assignment
 10. Selectable CVE list
 
 ### Alerts (`/alerts`)
@@ -96,18 +93,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 5. Mark all checked
 6. Delete rule
 8. Matching CVE preview list
-
-### Projects (`/projects`)
-
-1. Create project
-2. Delete project
-3. Edit project metadata
-4. Timeline view
-5. Vulnerability workflow per project item
-6. Update owner/remediation/SLA
-7. Exception workflow
-8. Remove project item
-10. Embedded CVE previews
 
 ### Repos (`/repos`)
 
@@ -156,10 +141,9 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
   1. Open `/`
   2. Open `/watchlist`
   3. Open `/alerts`
-  4. Open `/projects`
-  5. Open `/repos`
-  6. Open `/settings`
-  7. Open `/workspace`
+  4. Open `/repos`
+  5. Open `/settings`
+  6. Open `/workspace`
 - Expected result: every route returns `200` and renders its primary page shell without crashing
 - Verification: `Smoke-tested`
 
@@ -168,7 +152,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Entry point: any non-home route
 - Preconditions: app is running
 - User journey:
-  1. Open a secondary page such as `/projects`
+  1. Open a secondary page such as `/alerts`
   2. Use the page-level `Back to Search` action
 - Expected result: navigation returns to `/`
 - Verification: `Partial`
@@ -283,17 +267,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: the CVE appears in the watchlist
 - Verification: `Smoke-tested` via watchlist API flow
 
-#### 3.3 Add a CVE to a project from the card
-
-- Entry point: any CVE list
-- Preconditions: projects may or may not already exist
-- User journey:
-  1. Open the `Projects` picker on a card
-  2. Create a new project or choose an existing one
-  3. Add the CVE
-- Expected result: the project is created if needed and the CVE is attached to the selected project
-- Verification: `Smoke-tested` via `POST /api/projects` and `POST /api/projects/[id]/items`
-
 #### 3.4 Copy a deep link to a CVE from the card
 
 - Entry point: any CVE list
@@ -324,16 +297,15 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: summary metadata, action buttons, AI panels, triage panel, and supporting sections render together
 - Verification: `Partial`
 
-#### 4.2 Bookmark, assign to project, and copy link from detail view
+#### 4.2 Bookmark and copy link from detail view
 
 - Entry point: `/cve/[id]`
 - Preconditions: detail page loaded
 - User journey:
   1. Bookmark the CVE
-  2. Add it to an existing or newly created project
-  3. Copy the deep link
+  2. Copy the deep link
 - Expected result: the actions behave the same as the result-card controls
-- Verification: `Smoke-tested` through the underlying watchlist/project APIs, `Partial` for clipboard UI
+- Verification: `Smoke-tested` through the underlying watchlist API, `Partial` for clipboard UI
 
 #### 4.3 Update triage status, owner, tags, and notes
 
@@ -426,27 +398,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: triage records update for all selected CVEs
 - Verification: `Smoke-tested` through the triage API flow
 
-#### 5.6 Bulk assign selected CVEs to an existing project
-
-- Entry point: `/watchlist`
-- Preconditions: one or more items selected and at least one project exists
-- User journey:
-  1. Choose a project
-  2. Click `Add to Project`
-- Expected result: every selected CVE is attached to the chosen project
-- Verification: `Smoke-tested` via `POST /api/projects/[id]/items`
-
-#### 5.7 Create a project inline during bulk assignment
-
-- Entry point: `/watchlist`
-- Preconditions: one or more items selected
-- User journey:
-  1. Choose `Create new project...`
-  2. Enter a project name
-  3. Click `Add to Project`
-- Expected result: the new project is created and the selected CVEs are added to it
-- Verification: `Smoke-tested` via `POST /api/projects` and `POST /api/projects/[id]/items`
-
 ### 6. Alerts
 
 #### 6.1 Review alert metrics and evaluated rules
@@ -486,97 +437,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
   1. Click `Delete` on a rule
 - Expected result: the rule disappears from the page and from local workspace storage
 - Verification: `Smoke-tested` via `DELETE /api/alerts/[id]`
-
-### 7. Projects
-
-#### 7.1 Create a project from the Projects page
-
-- Entry point: `/projects`
-- Preconditions: none
-- User journey:
-  1. Enter a new project name
-  2. Click `Create Project`
-- Expected result: a new project card appears immediately
-- Verification: `Smoke-tested` via `POST /api/projects`, `Automated` via `tests/projects-store.test.ts`
-
-#### 7.2 Update project metadata
-
-- Entry point: `/projects`
-- Preconditions: at least one project exists
-- User journey:
-  1. Edit name
-  2. Edit owner
-  3. Set due date
-  4. Change project status
-  5. Edit labels
-  6. Edit description
-  7. Click `Save project`
-- Expected result: the project persists with the new metadata and the card summary reflects the changes
-- Verification: `Smoke-tested` via `PATCH /api/projects/[id]`, `Automated` via `tests/projects-store.test.ts`
-
-#### 7.3 Review project timeline visibility
-
-- Entry point: `/projects`
-- Preconditions: project has prior activity
-- User journey:
-  1. Open a populated project
-  2. Review the `Timeline view`
-- Expected result: recent project events appear with timestamped summaries and event-kind badges
-- Verification: `Partial`
-
-#### 7.4 Add a CVE to a project from other surfaces
-
-- Entry point: search results, watchlist, or detail page
-- Preconditions: target CVE exists
-- User journey:
-  1. Add a CVE to a project using a project picker or bulk assignment
-  2. Open `/projects`
-- Expected result: the project contains the new project item and can preview the linked CVE
-- Verification: `Smoke-tested` via `POST /api/projects/[id]/items`
-
-#### 7.5 Update project-item workflow fields
-
-- Entry point: `/projects`
-- Preconditions: a project contains at least one CVE
-- User journey:
-  1. Set workflow owner
-  2. Change remediation state
-  3. Set an SLA due date
-  4. Add workflow notes
-  5. Click `Save workflow`
-- Expected result: the item persists with the new workflow state and summary counters update
-- Verification: `Smoke-tested` via `PATCH /api/projects/[id]/items`, `Automated` via `tests/projects-store.test.ts`
-
-#### 7.6 Manage a project exception
-
-- Entry point: `/projects`
-- Preconditions: a project item exists
-- User journey:
-  1. Enter exception reason
-  2. Enter approver
-  3. Set exception expiry
-  4. Add exception notes
-  5. Save workflow
-- Expected result: the item is marked as an exception-backed workflow state and exception metadata is persisted
-- Verification: `Smoke-tested` via `PATCH /api/projects/[id]/items`, `Automated` via `tests/projects-store.test.ts`
-
-#### 7.7 Remove a CVE from a project
-
-- Entry point: `/projects`
-- Preconditions: a project contains at least one item
-- User journey:
-  1. Click `Remove` on a workflow item
-- Expected result: the CVE is removed from the project and no longer appears in the embedded preview
-- Verification: `Smoke-tested` via `DELETE /api/projects/[id]/items`
-
-#### 7.8 Delete a project
-
-- Entry point: `/projects`
-- Preconditions: at least one project exists
-- User journey:
-  1. Click `Delete Project`
-- Expected result: the project is removed from storage and from any project pickers
-- Verification: `Smoke-tested` via `DELETE /api/projects/[id]`
 
 ### 8. Repos
 
@@ -742,7 +602,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Preconditions: workspace has data
 - User journey:
   1. Click `Export JSON`
-- Expected result: a JSON snapshot downloads containing watchlist, saved views, alert rules, inventory, triage, and projects
+- Expected result: a JSON snapshot downloads containing watchlist, saved views, alert rules, inventory, and triage records
 - Verification: `Smoke-tested` via `GET /api/workspace/export`, `Automated` via `tests/workspace-store.test.ts`
 
 #### 9.8 Import workspace data in merge mode
@@ -830,7 +690,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Search, filtering, and result preference logic: `tests/search.test.ts`
 - Triage persistence and workflow behavior: `tests/triage.test.ts`
 - Alert rule persistence and evaluation behavior: `tests/alerts.test.ts`
-- Project storage, workflow updates, timelines, and exceptions: `tests/projects-store.test.ts`
 - Repo monitoring and GitHub integration helpers: `tests/github.test.ts`, `tests/monitored-repos-store.test.ts`
 - Repo scan persistence: `tests/repo-scans-store.test.ts`
 - Fix PR workflow logic: `tests/github-pr.test.ts`
@@ -855,6 +714,5 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Clipboard, download, and some visual-state interactions were validated primarily through UI inspection and underlying API behavior rather than automated browser playback.
 - If stricter regression protection is needed, the next best step is to add Playwright journeys for the highest-value flows:
   1. Search to watchlist to triage
-  2. Search to project workflow
-  3. Workspace notifications
-  4. Repo scan happy-path with mocked GitHub responses
+  2. Workspace notifications
+  3. Repo scan happy-path with mocked GitHub responses

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
-import { importProjects } from "@/lib/projects-store";
 import { createDefaultTriageRecord, normalizeTriageRecord, TriageRecord } from "@/lib/triage-shared";
-import { ProjectRecord } from "@/lib/types";
 import { importWorkspaceStateForUser } from "@/lib/workspace-store";
 import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "@/lib/workspace-types";
 
@@ -32,9 +30,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
   const triageRecords = Array.isArray(snapshot.triageRecords)
     ? snapshot.triageRecords.flatMap((value: unknown) => (isTriageRecord(value) ? [normalizeTriageRecord(value)] : []))
     : [];
-  const projects = Array.isArray(snapshot.projects)
-    ? snapshot.projects.flatMap((value: unknown) => (isProjectRecord(value) ? [value] : []))
-    : [];
 
   await importWorkspaceStateForUser(
     session.userId,
@@ -47,7 +42,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     },
     mode
   );
-  await importProjects(session.userId, projects, mode);
 
   const response = NextResponse.json({
     success: true,
@@ -58,7 +52,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
       alertRules: alertRules.length,
       inventoryAssets: inventoryAssets.length,
       triageRecords: triageRecords.length,
-      projects: projects.length,
     },
   });
 
@@ -116,19 +109,4 @@ function isTriageRecord(value: unknown): value is TriageRecord {
     && Array.isArray(record.tags)
     && typeof (record.updatedAt ?? fallback.updatedAt) === "string"
     && Array.isArray(record.activity ?? fallback.activity);
-}
-
-function isProjectRecord(value: unknown): value is ProjectRecord {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-  return typeof record.id === "string"
-    && typeof record.name === "string"
-    && typeof record.description === "string"
-    && typeof record.createdAt === "string"
-    && typeof record.updatedAt === "string"
-    && Array.isArray(record.items)
-    && Array.isArray(record.activity);
 }

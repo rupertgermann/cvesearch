@@ -55,15 +55,14 @@ test("interpretSearchPromptHeuristically understands explicit date windows and r
   assert.equal(result.needsClarification, false);
 });
 
-test("buildDigest summarizes watchlist, alerts, and projects", () => {
+test("buildDigest summarizes watchlist and alerts", () => {
   const result = buildDigest({
     watchlist: [{ id: "CVE-2026-1111" }],
     alerts: [{ name: "Critical OpenSSL", unread: 2, topMatches: ["CVE-2026-1111"] }],
-    projects: [{ name: "Incident Alpha", updatedAt: "2026-03-05", items: [{ cveId: "CVE-2026-1111", addedAt: "2026-03-05" }] }],
   });
 
   assert.match(result.headline, /Critical OpenSSL|Tracking/);
-  assert.equal(result.sections.length, 3);
+  assert.equal(result.sections.length, 2);
 });
 
 test("buildHeuristicRemediationPlan drafts controls, validation, and rollout notes", () => {
@@ -92,13 +91,6 @@ test("buildHeuristicRemediationPlan drafts controls, validation, and rollout not
       tags: ["internet-facing"],
       updatedAt: "2026-03-07T11:00:00.000Z",
     },
-    relatedProjects: [
-      {
-        name: "Edge Gateway",
-        updatedAt: "2026-03-07T10:00:00.000Z",
-        items: [{ cveId: "CVE-2026-4444", addedAt: "2026-03-07T09:00:00.000Z" }],
-      },
-    ],
   });
 
   assert.match(result.summary, /patch validation|version exposure validation/i);
@@ -251,7 +243,7 @@ test("callModel includes Anthropic API error details in failures", async () => {
   }
 });
 
-test("prepareRemediationPromptInput redacts sensitive notes and project metadata for external providers", () => {
+test("prepareRemediationPromptInput redacts sensitive triage notes and owner for external providers", () => {
   const previous = {
     AI_PROVIDER: process.env.AI_PROVIDER,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
@@ -273,19 +265,10 @@ test("prepareRemediationPromptInput redacts sensitive notes and project metadata
         tags: ["internet-facing"],
         updatedAt: "2026-03-07T12:00:00.000Z",
       },
-      relatedProjects: [
-        {
-          name: "Top Secret Project",
-          updatedAt: "2026-03-07T12:00:00.000Z",
-          items: [{ cveId: "CVE-2026-7001", note: "Privileged note", addedAt: "2026-03-07T11:00:00.000Z" }],
-        },
-      ],
     });
 
     assert.equal(redacted.triage?.owner, "[redacted owner]");
     assert.equal(redacted.triage?.notes, "[redacted analyst notes]");
-    assert.equal(redacted.relatedProjects[0]?.name, "Tracked project 1");
-    assert.equal("note" in (redacted.relatedProjects[0]?.items[0] ?? {}), false);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {

@@ -1,5 +1,4 @@
 import {
-  AIProjectContext,
   AIFeature,
   AIRemediationPlan,
   AIRunRecord,
@@ -11,7 +10,6 @@ import {
   AISearchToolTrace,
   CVEDetail,
   EPSSData,
-  ProjectRecord,
   SearchSeverityFilter,
   SearchSortOption,
 } from "./types";
@@ -54,7 +52,6 @@ export interface RemediationPlanInput {
   detail: CVEDetail;
   epss: EPSSData | null;
   triage: AITriageContextSnapshot | null;
-  relatedProjects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[];
 }
 
 export interface ServerAIConfigurationSummary {
@@ -253,8 +250,7 @@ export function buildHeuristicRemediationPlan(input: RemediationPlanInput | CVED
   const normalized = normalizeRemediationPlanInput(input as CVEDetail | RemediationPlanInput);
   const referenceSummary = summarizeReferences(normalized.detail);
   const severity = getSeverityFromScore(normalized.detail.cvss3 ?? normalized.detail.cvss);
-  const projectContext = buildProjectContext(normalized.relatedProjects);
-  const priority = derivePriority(severity, normalized.epss, referenceSummary, projectContext.projectCount);
+  const priority = derivePriority(severity, normalized.epss, referenceSummary);
   const affectedProducts = (normalized.detail.containers?.cna?.affected ?? [])
     .map((item) => item.product || item.vendor)
     .filter((item): item is string => Boolean(item))
@@ -262,7 +258,7 @@ export function buildHeuristicRemediationPlan(input: RemediationPlanInput | CVED
   const internetFacing =
     normalized.triage?.tags.some((tag) => /internet-facing/i.test(tag)) ||
     /internet|remote|network|gateway|edge/i.test(extractDescription(normalized.detail));
-  const recommendedOwner = deriveSuggestedOwner(normalized.triage, normalized.relatedProjects);
+  const recommendedOwner = normalized.triage?.owner || "Security triage";
 
   return {
     summary: `${extractCVEId(normalized.detail)} remediation should start with ${referenceSummary.patchCount > 0 ? "vendor patch validation" : "version exposure validation"}${affectedProducts.length > 0 ? ` for ${affectedProducts.join(", ")}` : ""}.`,
@@ -285,9 +281,7 @@ export function buildHeuristicRemediationPlan(input: RemediationPlanInput | CVED
       "Validate remediation with version checks, smoke tests, and review of logs or telemetry after deployment.",
     ],
     rolloutNotes: [
-      normalized.relatedProjects.length > 0
-        ? `Coordinate rollout with the linked projects: ${normalized.relatedProjects.map((project) => project.name).slice(0, 3).join(", ")}.`
-        : "Capture rollout ownership before making production changes.",
+      "Capture rollout ownership before making production changes.",
       priority === "critical" || normalized.detail.kev
         ? "Use the fastest approved change path and communicate urgency because severity or exploitation signals are elevated."
         : "Prefer staged deployment with checkpoints for validation and rollback readiness.",
@@ -295,14 +289,11 @@ export function buildHeuristicRemediationPlan(input: RemediationPlanInput | CVED
         ? `Preserve existing analyst notes during rollout: ${truncateSentence(normalized.triage.notes, 140)}`
         : "Record validation evidence and any residual risk decisions in triage notes after rollout.",
     ],
-    changeRisk: priority === "critical" || normalized.relatedProjects.length > 1 ? "high" : priority === "high" ? "medium" : "low",
+    changeRisk: priority === "critical" ? "high" : priority === "high" ? "medium" : "low",
     recommendedOwner,
     ownerRationale: normalized.triage?.owner
       ? `Keep ${normalized.triage.owner} as remediation owner so the rollout stays aligned with the current analyst workflow.`
-      : normalized.relatedProjects.length > 0
-        ? `Use the owning team for ${normalized.relatedProjects[0].name} because that project is already linked to the affected CVE.`
-        : "Assign the security or service owner who can validate exposure and coordinate the change window.",
-    projectContext,
+      : "Assign the security or service owner who can validate exposure and coordinate the change window.",
     requiresHumanApproval: true,
   };
 }
@@ -325,16 +316,7 @@ function redactRemediationPlanInput(input: RemediationPlanInput): RemediationPla
           notes: redactSensitiveString(input.triage.notes, "[redacted analyst notes]"),
         }
       : input.triage,
-    relatedProjects: input.relatedProjects.map((project, index) => ({
-      name: maskProjectName(index),
-      updatedAt: project.updatedAt,
-      items: project.items.map((item) => ({ cveId: item.cveId, addedAt: item.addedAt })),
-    })),
   };
-}
-
-function maskProjectName(index: number): string {
-  return `Tracked project ${index + 1}`;
 }
 
 function redactSensitiveString(value: string, replacement: string): string {
@@ -350,7 +332,6 @@ function normalizeRemediationPlanInput(input: CVEDetail | RemediationPlanInput):
     detail: input,
     epss: null,
     triage: null,
-    relatedProjects: [],
   };
 }
 
@@ -375,43 +356,14 @@ function summarizeReferences(detail: CVEDetail): {
   };
 }
 
-function buildProjectContext(projects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[]): AIProjectContext {
-  const projectNames = projects.map((project) => project.name).slice(0, 5);
-
-  return {
-    projectCount: projects.length,
-    projectNames,
-    summary:
-      projects.length > 0
-        ? `This CVE is already tracked in ${projects.length} project${projects.length === 1 ? "" : "s"}: ${projectNames.join(", ")}.`
-        : "This CVE is not currently linked to any tracked project.",
-  };
-}
-
-function deriveSuggestedOwner(
-  triage: AITriageContextSnapshot | null,
-  projects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[]
-): string {
-  if (triage?.owner) {
-    return triage.owner;
-  }
-
-  if (projects.length > 0) {
-    return `${projects[0].name} owner`;
-  }
-
-  return "Security triage";
-}
-
 function derivePriority(
   severity: ReturnType<typeof getSeverityFromScore>,
   epss: EPSSData | null,
-  referenceSummary: { totalCount: number; exploitCount: number; patchCount: number },
-  projectCount: number
+  referenceSummary: { totalCount: number; exploitCount: number; patchCount: number }
 ): "critical" | "high" | "medium" | "low" {
   if (severity === "CRITICAL") return "critical";
   if (severity === "HIGH" || (epss?.percentile ?? 0) >= 0.9 || referenceSummary.exploitCount > 0) return "high";
-  if (severity === "MEDIUM" || (epss?.percentile ?? 0) >= 0.5 || projectCount > 0 || referenceSummary.patchCount > 0) return "medium";
+  if (severity === "MEDIUM" || (epss?.percentile ?? 0) >= 0.5 || referenceSummary.patchCount > 0) return "medium";
   return "low";
 }
 
@@ -956,7 +908,6 @@ function sanitizeRemediationPlan(value: unknown): AIRemediationPlan {
     detail: { id: "CVE-UNKNOWN" },
     epss: null,
     triage: null,
-    relatedProjects: [],
   });
 
   if (!value || typeof value !== "object") {
@@ -979,20 +930,7 @@ function sanitizeRemediationPlan(value: unknown): AIRemediationPlan {
     changeRisk: record.changeRisk === "high" || record.changeRisk === "medium" || record.changeRisk === "low" ? record.changeRisk : fallback.changeRisk,
     recommendedOwner: typeof record.recommendedOwner === "string" ? record.recommendedOwner : fallback.recommendedOwner,
     ownerRationale: typeof record.ownerRationale === "string" ? record.ownerRationale : fallback.ownerRationale,
-    projectContext: sanitizeProjectContext(record.projectContext, fallback.projectContext),
     requiresHumanApproval: record.requiresHumanApproval === false ? false : true,
-  };
-}
-
-function sanitizeProjectContext(value: unknown, fallback: AIProjectContext): AIProjectContext {
-  if (!value || typeof value !== "object") return fallback;
-  const record = value as Record<string, unknown>;
-  return {
-    projectCount: typeof record.projectCount === "number" && Number.isFinite(record.projectCount) ? record.projectCount : fallback.projectCount,
-    projectNames: Array.isArray(record.projectNames)
-      ? record.projectNames.filter((item): item is string => typeof item === "string").slice(0, 8)
-      : fallback.projectNames,
-    summary: typeof record.summary === "string" ? record.summary : fallback.summary,
   };
 }
 

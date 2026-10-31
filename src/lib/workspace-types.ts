@@ -1,6 +1,5 @@
 import { SearchState } from "./search";
 import { TriageRecord } from "./triage-shared";
-import { ProjectRecord } from "./types";
 
 export interface SavedView {
   id: string;
@@ -72,7 +71,6 @@ export interface WorkspaceExportSnapshot {
   alertRules: AlertRule[];
   inventoryAssets: InventoryAssetRecord[];
   triageRecords: TriageRecord[];
-  projects: ProjectRecord[];
   notificationPreferences?: NotificationPreferenceRecord[];
 }
 

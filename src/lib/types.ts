@@ -220,51 +220,11 @@ export interface HomeDashboardData {
   workflowViews: DashboardWorkflowView[];
 }
 
-export interface ProjectItem {
-  cveId: string;
-  note?: string;
-  addedAt: string;
-  owner?: string;
-  remediationState?: RemediationState;
-  slaDueAt?: string | null;
-  exception?: ProjectExceptionRecord | null;
-  updatedAt?: string;
-}
-
 export interface AuditLogEntry {
   id: string;
   action: string;
   summary: string;
   createdAt: string;
-}
-
-export interface ProjectRecord {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-  owner?: string;
-  dueAt?: string | null;
-  labels?: string[];
-  status?: ProjectStatus;
-  items: ProjectItem[];
-  activity: AuditLogEntry[];
-  timeline?: ProjectTimelineEvent[];
-}
-
-export type ProjectStatus = "planned" | "active" | "at_risk" | "done";
-export type RemediationState = "not_started" | "planned" | "in_progress" | "validated" | "deferred" | "exception";
-
-export interface ProjectExceptionRecord {
-  reason: string;
-  approvedBy: string;
-  expiresAt: string | null;
-  notes: string;
-}
-
-export interface ProjectTimelineEvent extends AuditLogEntry {
-  kind: "project" | "vulnerability" | "sla";
 }
 
 export interface AITriageContextSnapshot {
@@ -273,12 +233,6 @@ export interface AITriageContextSnapshot {
   notes: string;
   tags: string[];
   updatedAt: string;
-}
-
-export interface AIProjectContext {
-  projectCount: number;
-  projectNames: string[];
-  summary: string;
 }
 
 export interface AIRemediationPlan {
@@ -290,7 +244,6 @@ export interface AIRemediationPlan {
   changeRisk: "high" | "medium" | "low";
   recommendedOwner: string;
   ownerRationale: string;
-  projectContext: AIProjectContext;
   requiresHumanApproval: boolean;
 }
 

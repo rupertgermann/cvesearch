@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { ExposureQueue, ExposureQueueRow, FindingTriageStatus } from "@/lib/exposure";
 import { formatDate, getSeverityFromScore } from "@/lib/utils";
 import SeverityBadge from "@/components/SeverityBadge";
-import ProjectPickerButton from "@/components/ProjectPickerButton";
 import VulnerabilityFixModal from "@/components/VulnerabilityFixModal";
 import AIRemediationPlanPanel from "@/components/AIRemediationPlanPanel";
 import { INVENTORY_UPDATED_EVENT } from "@/lib/inventory";
@@ -187,7 +186,6 @@ export default function ExposureQueuePageClient() {
                           {row.triage?.status === "accepted_risk" && (
                             <span className="text-[11px] text-white/35" title={row.triage.reason}>until {row.triage.acceptedUntil}</span>
                           )}
-                          <ProjectPickerButton cveId={row.vulnerabilityId} />
                           <button
                             type="button"
                             aria-expanded={remediationKey === row.key}
