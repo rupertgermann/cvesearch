@@ -9,9 +9,9 @@ import {
   SearchState,
 } from "@/lib/search";
 import { HomeDashboardData } from "@/lib/types";
-import AlertRulesPanel from "@/components/AlertRulesPanel";
 import DashboardPanel from "@/components/DashboardPanel";
-import SavedViewsPanel from "@/components/SavedViewsPanel";
+import SavedSearchesPanel from "@/components/SavedSearchesPanel";
+import WatchlistPanel from "@/components/WatchlistPanel";
 
 interface DashboardPageClientProps {
   dashboard: HomeDashboardData | null;
@@ -43,10 +43,10 @@ export default function DashboardPageClient({
           <Link href={searchHref} className="btn-primary inline-flex px-3 py-1.5 text-sm">
             Open Search
           </Link>
-          <Link href="/alerts" className="btn-ghost inline-flex px-3 py-1.5 text-sm">
-            Alerts
+          <Link href="#saved-searches" className="btn-ghost inline-flex px-3 py-1.5 text-sm">
+            Saved Searches
           </Link>
-          <Link href="/watchlist" className="btn-ghost inline-flex px-3 py-1.5 text-sm">
+          <Link href="#watchlist" className="btn-ghost inline-flex px-3 py-1.5 text-sm">
             Watchlist
           </Link>
         </div>
@@ -63,13 +63,13 @@ export default function DashboardPageClient({
         <DashboardPanel dashboard={dashboard} />
       ) : (
         <div className="mb-6 rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-4 text-sm text-white/45">
-          Dashboard data is temporarily unavailable. Search, watchlist, and alert tools are still available below.
+          Dashboard data is temporarily unavailable. Saved searches and the watchlist are still available below.
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <SavedViewsPanel search={search} />
-        <AlertRulesPanel search={search} />
+      <div className="mt-8 space-y-10">
+        <SavedSearchesPanel search={search} />
+        <WatchlistPanel />
       </div>
     </div>
   );

@@ -1,27 +1,15 @@
 import { applySearchResultPreferences, matchesSearchState } from "./search";
 import { enrichCVEs, getLatestCVESummariesServer } from "./server-api";
-import { TriageRecord } from "./triage-shared";
-import { AIDigest, CVESummary } from "./types";
-import { AlertRule, SavedView } from "./workspace-types";
+import { CVESummary } from "./types";
+import { AlertRule } from "./workspace-types";
 import {
   FeedBackfill,
   listAlertRuleMatches,
   listAlertRulesForUser,
-  listSavedViewsForUser,
-  listWatchlistEntriesForUser,
   readFeedBackfill,
-  readTriageMapForUser,
   recordAlertRuleMatches,
   writeFeedBackfill,
 } from "./workspace-store";
-import { listUndigestedRepoNotifications, RepoFindingsNotification } from "./repo-scans-store";
-
-export interface DigestInput {
-  watchlist: Array<{ id: string; summary?: string; severity?: string }>;
-  alerts: Array<{ name: string; unread: number; topMatches: string[] }>;
-  // New findings from repo rescans since the last digest.
-  repoFindings?: Array<{ repo: string; findings: string[] }>;
-}
 
 const ALERT_PAGE_SIZE = 100;
 // ~4 days of feed (~1,100 records/day) for rules that already have a cursor.
@@ -37,48 +25,30 @@ export interface EvaluatedAlertRule {
   unread: number;
 }
 
-export interface WorkspaceContextSnapshot {
-  watchlist: Array<{ cveId: string; addedAt: string }>;
-  savedViews: SavedView[];
-  alertRules: AlertRule[];
-  alertEvaluations: EvaluatedAlertRule[];
-  triage: Record<string, TriageRecord>;
-  repoNotifications: RepoFindingsNotification[];
-  latestSample: CVESummary[];
-  // The page cap stopped before reaching every rule's cursor, so older new CVEs were not evaluated.
-  latestSampleTruncated: boolean;
-}
-
 export interface AlertEvaluationsSnapshot {
   evaluations: EvaluatedAlertRule[];
   sampledCount: number;
   truncated: boolean;
 }
 
-export async function loadWorkspaceContextSnapshot(userId: string): Promise<WorkspaceContextSnapshot> {
-  const [watchlist, savedViews, alertRules, triage] = await Promise.all([
-    listWatchlistEntriesForUser(userId),
-    listSavedViewsForUser(userId),
-    listAlertRulesForUser(userId),
-    readTriageMapForUser(userId),
-  ]);
-
+export async function loadAlertEvaluationsForUser(userId: string): Promise<AlertEvaluationsSnapshot> {
+  const alertRules = await listAlertRulesForUser(userId);
   const cursors = alertRules.map((rule) => rule.cursorPublishedAt);
-  const { cves: latestSample, truncated: latestSampleTruncated, backfill } =
+  const { cves: latestSample, truncated, backfill } =
     await fetchLatestCVEsUntil(cursors, readFeedBackfill(userId, "alerts"));
   const newestPublished = latestSample.reduce<string | null>(
     (newest, cve) => (cve.published && (!newest || Date.parse(cve.published) > Date.parse(newest)) ? cve.published : newest),
     null
   );
 
-  const alertEvaluations: EvaluatedAlertRule[] = [];
+  const evaluations: EvaluatedAlertRule[] = [];
   for (const rule of alertRules) {
     // No cursor filter here: out-of-order records must still match; the (rule, cve) key dedupes repeats.
     const matches = latestSample.filter((cve) => matchesSearchState(cve, rule.search));
     recordAlertRuleMatches(rule.id, await enrichCVEs(matches), newestPublished);
 
     const stored = listAlertRuleMatches(rule.id);
-    alertEvaluations.push({
+    evaluations.push({
       rule,
       matching: applySearchResultPreferences(stored.matching, rule.search),
       unread: stored.unread,
@@ -87,37 +57,7 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
   // Saved after the matches so a crash in between re-reads the gap rather than losing it.
   writeFeedBackfill(userId, "alerts", backfill);
 
-  return {
-    watchlist,
-    savedViews,
-    alertRules,
-    alertEvaluations,
-    triage,
-    repoNotifications: listUndigestedRepoNotifications(userId),
-    latestSample,
-    latestSampleTruncated,
-  };
-}
-
-export async function loadAlertEvaluationsForUser(userId: string): Promise<AlertEvaluationsSnapshot> {
-  const snapshot = await loadWorkspaceContextSnapshot(userId);
-  return {
-    evaluations: snapshot.alertEvaluations,
-    sampledCount: snapshot.latestSample.length,
-    truncated: snapshot.latestSampleTruncated,
-  };
-}
-
-export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContextSnapshot): DigestInput {
-  return {
-    watchlist: snapshot.watchlist.map((item) => ({ id: item.cveId })),
-    alerts: snapshot.alertEvaluations.map((item) => ({
-      name: item.rule.name,
-      unread: item.unread,
-      topMatches: item.matching.slice(0, 3).map((match) => match.id),
-    })),
-    repoFindings: snapshot.repoNotifications.map((item) => ({ repo: item.repoFullName, findings: item.findings })),
-  };
+  return { evaluations, sampledCount: latestSample.length, truncated };
 }
 
 // Pages upstream (newest published first) until every cursor is reached; null cursor means a never-evaluated source.
@@ -169,38 +109,4 @@ export async function fetchLatestCVEsUntil(
 function isBeforeCursor(cve: CVESummary, cursor: string | null): boolean {
   if (!cursor || !cve.published) return false;
   return Date.parse(cve.published) < Date.parse(cursor);
-}
-
-// Rule-based on purpose: digests make no model call (docs/adr/0001-shrink-ai-features.md).
-export function buildDigest(input: DigestInput): AIDigest {
-  const highestAlert = [...input.alerts].sort((a, b) => b.unread - a.unread)[0];
-
-  return {
-    headline:
-      highestAlert && highestAlert.unread > 0
-        ? `${highestAlert.unread} unread matches in ${highestAlert.name}`
-        : `Tracking ${input.watchlist.length} watchlist items`,
-    sections: [
-      {
-        title: "Watchlist",
-        body: `You have ${input.watchlist.length} tracked vulnerabilities in the current profile.`,
-        items: input.watchlist.slice(0, 5).map((item) => item.id),
-      },
-      {
-        title: "Alerts",
-        body:
-          input.alerts.length > 0
-            ? `${input.alerts.filter((item) => item.unread > 0).length} alert rules currently have unread matches.`
-            : "No alert rules are configured yet.",
-        items: input.alerts.slice(0, 5).map((item) => `${item.name}: ${item.unread} unread`),
-      },
-      ...(input.repoFindings?.length
-        ? [{
-          title: "Repositories",
-          body: `Rescans found new vulnerabilities in ${new Set(input.repoFindings.map((entry) => entry.repo)).size} repositories.`,
-          items: input.repoFindings.flatMap((entry) => entry.findings.map((finding) => `${entry.repo}: ${finding}`)).slice(0, 10),
-        }]
-        : []),
-    ],
-  };
 }

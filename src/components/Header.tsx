@@ -11,9 +11,6 @@ import ThemeToggle from "@/components/ThemeToggle";
 const NAV_ITEMS = [
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
-  { href: "/workspace", label: "Notifications", icon: ChatIcon },
-  { href: "/watchlist", label: "Watchlist", icon: BookmarkIcon },
-  { href: "/alerts", label: "Alerts", icon: BellIcon },
   { href: "/repos", label: "Repos", icon: CodeIcon },
   { href: "/settings", label: "Settings", icon: GearIcon },
 ] as const;
@@ -54,13 +51,10 @@ export default function Header() {
   }, []);
 
   function getBadge(href: string) {
-    if (href === "/watchlist") {
-      if (investigatingCount > 0) return { count: investigatingCount, label: "active", color: "amber" as const };
-      if (watchlistCount > 0) return { count: watchlistCount, label: "", color: "cyan" as const };
-    }
-    if (href === "/alerts" && unreadAlertCount > 0) {
-      return { count: unreadAlertCount, label: "", color: "red" as const };
-    }
+    if (href !== "/dashboard") return null;
+    if (unreadAlertCount > 0) return { count: unreadAlertCount, label: "", color: "red" as const };
+    if (investigatingCount > 0) return { count: investigatingCount, label: "active", color: "amber" as const };
+    if (watchlistCount > 0) return { count: watchlistCount, label: "", color: "cyan" as const };
     return null;
   }
 
@@ -153,30 +147,6 @@ function DashboardIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.5h6.75v6.75H3.75V4.5zm9.75 0h6.75v10.5H13.5V4.5zm-9.75 10.5h6.75v4.5H3.75V15zm9.75 3h6.75v1.5H13.5V18z" />
-    </svg>
-  );
-}
-
-function BookmarkIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.75H7.5a2.25 2.25 0 00-2.25 2.25v14.489c0 .94 1.073 1.47 1.816.897L12 17.25l4.934 4.136a1.125 1.125 0 001.816-.897V6a2.25 2.25 0 00-2.25-2.25z" />
-    </svg>
-  );
-}
-
-function BellIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-    </svg>
-  );
-}
-
-function ChatIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75h6.75m-6.75 3h4.5m6.375-.75c0 4.142-3.693 7.5-8.25 7.5a8.841 8.841 0 01-4.082-.98L3.75 19.5l1.106-2.95A7.272 7.272 0 014.5 12c0-4.142 3.693-7.5 8.25-7.5S21 7.858 21 12z" />
     </svg>
   );
 }

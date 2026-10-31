@@ -22,17 +22,16 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 1. Route reachability
 2. Search and result actions
 3. Watchlist and triage
-4. Alerts
-5. Workspace notifications
-6. Settings data workflows
-7. Repos and GitHub flows
+4. Saved searches
+5. Settings data workflows
+6. Repos and GitHub flows
 
 ## Core Journeys
 
 ### 1. Route Reachability
 
-- Open `/`, `/watchlist`, `/alerts`, `/repos`, `/settings`, and `/workspace`
-- Expected result: each route returns `200` and renders its page shell
+- Open `/`, `/dashboard`, `/repos`, and `/settings`; confirm `/alerts`, `/watchlist`, and `/workspace` redirect to the dashboard
+- Expected result: each route returns `200` (or redirects to `/dashboard`) and renders its page shell
 - Verification: `Smoke-tested`
 
 ### 2. Search Workspace
@@ -40,11 +39,10 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Run a keyword search such as `openssl`
 - Apply structured filters for vendor, product, CWE, `since`, severity, and sort
 - Use the AI search assistant and apply the generated search state
-- Save the current search as a saved view, reopen it, then delete it
-- Save the current search as an alert rule
+- Save the current search as a saved search from the dashboard, reopen it, then delete it
 - Export visible results as CSV and JSON
-- Expected result: URL state, filters, saved views, alerts, digests, and exports all behave consistently
-- Verification: `Smoke-tested` for saved views, alerts, and AI search; `Automated` for search/filter logic; `Partial` for download UX
+- Expected result: URL state, filters, saved searches, and exports all behave consistently
+- Verification: `Smoke-tested` for saved searches and AI search; `Automated` for search/filter logic; `Partial` for download UX
 
 ### 3. CVE Result Actions
 
@@ -64,7 +62,7 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 
 ### 5. Watchlist
 
-- Add a CVE to the watchlist and load `/watchlist`
+- Add a CVE to the watchlist and load the Watchlist section on `/dashboard`
 - Filter by triage status
 - Select visible items and clear selection
 - Bulk remove selected items
@@ -72,27 +70,17 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Expected result: watchlist supports individual and bulk vulnerability operations
 - Verification: `Smoke-tested` for CRUD; `Automated` for AI helpers; `Partial` for all selection states
 
-### 6. Alerts
+### 6. Saved Searches
 
-- Open `/alerts`
-- Review metrics, unread counts, and rule sections
-- Mark one rule checked
-- Mark all rules checked
-- Delete a rule
-- Expected result: alert rules are reviewable, mutable, and AI-explainable
-- Verification: `Smoke-tested` for rule mutations; `Automated` for alert logic and AI helpers; `Partial` for full UI inspection
+- Open the Saved Searches section on `/dashboard`
+- Review chips, match and unread badges, and last-checked times
+- Mark one saved search checked
+- Mark all saved searches checked
+- Delete a saved search
+- Expected result: saved searches are reviewable and mutable, and the Dashboard nav badge reflects unread matches
+- Verification: `Smoke-tested` for saved-search mutations; `Automated` for alert logic and saved view migration; `Partial` for full UI inspection
 
-### 7. Workspace
-
-- Create a notification schedule
-- Run all due digests
-- Toggle a schedule off and on
-- Delete a schedule
-- Review delivery history
-- Expected result: the workspace page manages digest schedules and delivery history
-- Verification: `Smoke-tested` for notification CRUD/run flows; `Automated` for notification stores; `Partial` for all UI states
-
-### 8. Settings
+### 7. Settings
 
 - Review AI provider summary, redaction posture, and per-feature configuration
 - Add and delete an inventory asset
@@ -102,7 +90,7 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Expected result: the settings page exposes AI operations visibility and workspace data management
 - Verification: `Smoke-tested` for inventory CRUD and export; `Automated` for workspace import/export and AI run persistence; `Partial` for read-only operational panels
 
-### 9. Repos
+### 8. Repos
 
 - Open `/repos`
 - Load monitored repositories

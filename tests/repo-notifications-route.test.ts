@@ -10,12 +10,10 @@ import { resetAPIRateLimits } from "../src/lib/api-route-guard";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
 import {
   createRepoFindingsNotification,
-  listUndigestedRepoNotifications,
-  markRepoNotificationsDigested,
   RepoFindingsNotification,
 } from "../src/lib/repo-scans-store";
 
-test("GET /api/github/notifications lists the user's recent new-finding notifications, newest first, digested or not", async () => {
+test("GET /api/github/notifications lists the user's recent new-finding notifications, newest first", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-repo-notifications-"));
   const previous = process.env.DATABASE_FILE;
   process.env.DATABASE_FILE = path.join(tempDir, "state.db");
@@ -24,7 +22,6 @@ test("GET /api/github/notifications lists the user's recent new-finding notifica
     const me = getOrCreateWorkspaceSession(new Request("https://example.test/"));
     const other = getOrCreateWorkspaceSession(new Request("https://example.test/"));
     createRepoFindingsNotification(me.userId, "acme/app", ["GHSA-a (lodash)"]);
-    markRepoNotificationsDigested(me.userId, listUndigestedRepoNotifications(me.userId).map((item) => item.id));
     await new Promise((resolve) => setTimeout(resolve, 5));
     createRepoFindingsNotification(me.userId, "acme/api", ["GHSA-b (axios)"]);
     createRepoFindingsNotification(other.userId, "other/repo", ["GHSA-c (x)"]);

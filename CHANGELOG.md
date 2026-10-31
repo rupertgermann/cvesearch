@@ -8,10 +8,12 @@ The format is inspired by Keep a Changelog.
 
 ### Removed
 
+- **Notifications** — the `/workspace` page, `/api/notifications/*`, notification schedules and digest delivery (webhook, Slack; email and in-app were never sent), and the scheduler's digest step ([ADR 0003](docs/adr/0003-dashboard-consolidation.md)). Existing notification tables stay in the database untouched
 - **Projects** — the `/projects` page, `/api/projects`, the project picker, watchlist bulk assignment, the digest "Projects" section and project context in remediation notes ([ADR 0002](docs/adr/0002-remove-projects.md)). Existing project tables stay in the database untouched. `PROJECTS_FILE` no longer selects the database location: if you set only `PROJECTS_FILE`, set `DATABASE_FILE=<directory of PROJECTS_FILE>/state.db` to keep your data
 
 ### Changed
 
+- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - **Session cookie `Secure` flag** — now set when the request is HTTPS (`https` URL or `X-Forwarded-Proto: https`) or when `SESSION_COOKIE_SECURE=true`, instead of following `NODE_ENV=production`. Deployments behind a TLS-terminating proxy that does not send `X-Forwarded-Proto` must set `SESSION_COOKIE_SECURE=true`
 
 ## [v2.0.0] - 2026-03-08
@@ -45,6 +47,7 @@ The format is inspired by Keep a Changelog.
 
 ### Changed
 
+- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - AI settings moved from browser-local storage to server-side environment variables
 - Settings page now shows server-side AI configuration summary, per-feature cards, prompt versions, tool registry, inventory, workspace data management, and recent AI runs
 - All API routes now include rate limiting and request logging
@@ -75,6 +78,7 @@ The format is inspired by Keep a Changelog.
 
 ### Changed
 
+- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - README updated to reflect the AI feature set, settings workflow, and current UI
 - Header navigation updated with a dedicated settings route
 - Homepage and watchlist surfaces now include AI workflow entry points
@@ -99,4 +103,5 @@ The format is inspired by Keep a Changelog.
 
 ### Changed
 
+- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - README and docs expanded to describe roadmap, findings, and execution backlog

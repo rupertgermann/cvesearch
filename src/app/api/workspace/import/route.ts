@@ -3,7 +3,7 @@ import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
 import { createDefaultTriageRecord, normalizeTriageRecord, TriageRecord } from "@/lib/triage-shared";
 import { importWorkspaceStateForUser } from "@/lib/workspace-store";
-import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "@/lib/workspace-types";
+import { AlertRule, InventoryAssetRecord, WorkspaceImportMode } from "@/lib/workspace-types";
 
 export const POST = withRouteProtection(async function POST(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
@@ -18,12 +18,10 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
   const watchlist = Array.isArray(snapshot.watchlist)
     ? snapshot.watchlist.filter((value: unknown): value is string => typeof value === "string")
     : [];
-  const savedViews = Array.isArray(snapshot.savedViews)
-    ? snapshot.savedViews.flatMap((value: unknown) => (isSavedView(value) ? [value] : []))
-    : [];
-  const alertRules = Array.isArray(snapshot.alertRules)
-    ? snapshot.alertRules.flatMap((value: unknown) => (isAlertRule(value) ? [value] : []))
-    : [];
+  // Older exports kept saved views apart; they are saved searches now, same shape as alert rules.
+  const alertRules = [snapshot.alertRules, snapshot.savedViews]
+    .flatMap((list: unknown) => (Array.isArray(list) ? list : []))
+    .flatMap((value: unknown) => (isAlertRule(value) ? [value] : []));
   const inventoryAssets = Array.isArray(snapshot.inventoryAssets)
     ? snapshot.inventoryAssets.flatMap((value: unknown) => (isInventoryAsset(value) ? [value] : []))
     : [];
@@ -35,7 +33,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     session.userId,
     {
       watchlist,
-      savedViews,
       alertRules,
       inventoryAssets,
       triageRecords,
@@ -48,7 +45,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
     mode,
     imported: {
       watchlist: watchlist.length,
-      savedViews: savedViews.length,
       alertRules: alertRules.length,
       inventoryAssets: inventoryAssets.length,
       triageRecords: triageRecords.length,
@@ -61,13 +57,6 @@ export const POST = withRouteProtection(async function POST(request: NextRequest
   errorMessage: "Failed to import workspace data",
   rateLimit: API_RATE_LIMITS.workspaceMutations,
 });
-
-function isSavedView(value: unknown): value is SavedView {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-    && typeof (value as Record<string, unknown>).id === "string"
-    && typeof (value as Record<string, unknown>).name === "string"
-    && typeof (value as Record<string, unknown>).search === "object";
-}
 
 function isAlertRule(value: unknown): value is AlertRule {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)

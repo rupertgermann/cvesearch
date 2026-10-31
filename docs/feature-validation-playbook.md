@@ -33,8 +33,8 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - `npm test` passed: 65/65
 - `npm run build` passed
 - `npm run lint` passed with one existing warning in `src/app/layout.tsx` (`@next/next/no-page-custom-font`)
-- Route reachability was smoke-tested for `/`, `/watchlist`, `/alerts`, `/repos`, `/settings`, and `/workspace`
-- Core CRUD and workflow APIs were smoke-tested for watchlist, triage, saved views, alerts, inventory, notifications, AI search, and workspace export
+- Route reachability was smoke-tested for `/`, `/dashboard`, `/repos`, and `/settings`, plus the `/alerts`, `/watchlist`, and `/workspace` redirects
+- Core CRUD and workflow APIs were smoke-tested for watchlist, triage, saved searches (alerts), inventory, AI search, and workspace export
 - GitHub monitoring was only partially validated locally because a known-good GitHub repository/token combination was not available
 
 ## Feature Inventory
@@ -42,7 +42,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 ### Global Surfaces
 
 1. App route reachability
-2. Header navigation between search, watchlist, alerts, repos, settings, and workspace
+2. Header navigation between search, dashboard, repos, and settings, including the Dashboard nav badge
 3. Shared CVE card actions
 
 ### Search Workspace (`/`)
@@ -52,11 +52,10 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 3. Natural-language AI search assistant
 4. Search summary and active filter chips
 5. Dashboard metrics panel
-6. Saved views
-7. Alert rule creation
-9. Result export
-10. Pagination
-11. CVE result list
+6. Saved searches
+7. Result export
+8. Pagination
+9. CVE result list
 
 ### CVE Detail (`/cve/[id]`)
 
@@ -75,23 +74,24 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 18. Comments
 19. Raw JSON data
 
-### Watchlist (`/watchlist`)
+### Dashboard Watchlist (`/dashboard#watchlist`)
 
 1. Watchlist summary cards
 2. Status filtering
 3. Bulk selection
 4. Bulk remove
 5. Bulk triage update
-10. Selectable CVE list
+6. Selectable CVE list
 
-### Alerts (`/alerts`)
+### Dashboard Saved Searches (`/dashboard#saved-searches`)
 
-1. Alert metrics
+1. Save current search
 2. Rule-by-rule match evaluation
 3. Unread match calculation
-4. Mark single rule checked
-5. Mark all checked
-6. Delete rule
+4. Open saved search
+5. Mark single saved search checked
+6. Mark all checked
+7. Delete saved search
 8. Matching CVE preview list
 
 ### Repos (`/repos`)
@@ -119,16 +119,6 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 9. Workspace import in merge mode
 10. Workspace import in replace mode
 
-### Workspace (`/workspace`)
-
-3. Suggested questions
-6. Create notification schedule
-7. Run all due digests
-8. Run a single schedule
-9. Pause or enable a schedule
-10. Delete a schedule
-11. View delivery history
-
 ## Detailed User Journeys
 
 ### 1. Global Navigation and Reachability
@@ -139,12 +129,11 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Preconditions: app is running locally
 - User journey:
   1. Open `/`
-  2. Open `/watchlist`
-  3. Open `/alerts`
-  4. Open `/repos`
-  5. Open `/settings`
-  6. Open `/workspace`
-- Expected result: every route returns `200` and renders its primary page shell without crashing
+  2. Open `/dashboard`
+  3. Open `/repos`
+  4. Open `/settings`
+  5. Open `/alerts`, `/watchlist`, and `/workspace`
+- Expected result: every main route returns `200` and renders its primary page shell without crashing; `/alerts` redirects to `/dashboard#saved-searches`, `/watchlist` to `/dashboard#watchlist`, and `/workspace` to `/dashboard`
 - Verification: `Smoke-tested`
 
 #### 1.2 Navigate from page actions back to search
@@ -152,7 +141,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Entry point: any non-home route
 - Preconditions: app is running
 - User journey:
-  1. Open a secondary page such as `/alerts`
+  1. Open a secondary page such as `/repos`
   2. Use the page-level `Back to Search` action
 - Expected result: navigation returns to `/`
 - Verification: `Partial`
@@ -201,31 +190,19 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: dashboard metrics render without blocking the search workflow
 - Verification: `Partial`
 
-#### 2.5 Save the current search as a saved view
+#### 2.5 Save the current search as a saved search
 
-- Entry point: `/`
+- Entry point: `/dashboard` (Saved Searches section)
 - Preconditions: a non-trivial search is active
 - User journey:
-  1. Enter a saved-view name or accept the generated default
-  2. Click `Save Current View`
-  3. Open the saved view from the panel
-  4. Delete the saved view
-- Expected result: the search is persisted, reopening the view restores the search params, and deletion removes it from the list
-- Verification: `Smoke-tested` via `POST /api/saved-views` and `DELETE /api/saved-views/[id]`
-
-#### 2.6 Save the current search as an alert rule
-
-- Entry point: `/`
-- Preconditions: a useful search is active
-- User journey:
-  1. Enter an alert-rule name or accept the generated default
-  2. Click `Save Alert`
-  3. Open `/alerts` from the panel
-  4. Delete the alert rule from the panel or Alerts page
-- Expected result: the rule is stored, visible in the panel, and appears in the Alerts workspace
+  1. Enter a saved-search name or accept the generated default
+  2. Click `Save Current Search`
+  3. Click `Open Search` on the saved search
+  4. Delete the saved search
+- Expected result: the search is persisted as an alert rule, reopening it restores the search params, and deletion removes it from the list
 - Verification: `Smoke-tested` via `POST /api/alerts` and `DELETE /api/alerts/[id]`, `Automated` via `tests/alerts.test.ts`
 
-#### 2.8 Export visible search results
+#### 2.6 Export visible search results
 
 - Entry point: `/`
 - Preconditions: at least one search result is visible
@@ -235,7 +212,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: downloads are generated with search-specific filenames and include the currently visible results
 - Verification: `Partial`
 
-#### 2.9 Move through result pages
+#### 2.7 Move through result pages
 
 - Entry point: `/`
 - Preconditions: enough results exist to paginate
@@ -263,7 +240,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Preconditions: result list loaded
 - User journey:
   1. Click the bookmark control on a CVE card
-  2. Open `/watchlist`
+  2. Open the Watchlist section on `/dashboard`
 - Expected result: the CVE appears in the watchlist
 - Verification: `Smoke-tested` via watchlist API flow
 
@@ -349,18 +326,18 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 
 #### 5.1 Add and remove a watchlist item
 
-- Entry point: any result card or detail page, then `/watchlist`
+- Entry point: any result card or detail page, then `/dashboard`
 - Preconditions: known CVE ID
 - User journey:
   1. Add a CVE to the watchlist
-  2. Load `/watchlist`
+  2. Load the Watchlist section on `/dashboard`
   3. Remove the CVE
 - Expected result: the watchlist shows the CVE when added and no longer shows it after removal
 - Verification: `Smoke-tested` via `GET /api/watchlist`, `POST /api/watchlist`, and `DELETE /api/watchlist`
 
 #### 5.2 Filter watchlist by triage status
 
-- Entry point: `/watchlist`
+- Entry point: `/dashboard` (Watchlist section)
 - Preconditions: watchlist contains items across multiple statuses
 - User journey:
   1. Click `Total`, `New`, `Investigating`, `Mitigated`, `Accepted`, and `Closed`
@@ -369,7 +346,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 
 #### 5.3 Select visible items and clear selection
 
-- Entry point: `/watchlist`
+- Entry point: `/dashboard` (Watchlist section)
 - Preconditions: at least one watchlist item exists
 - User journey:
   1. Click `Select Visible`
@@ -380,7 +357,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 
 #### 5.4 Bulk remove selected CVEs
 
-- Entry point: `/watchlist`
+- Entry point: `/dashboard` (Watchlist section)
 - Preconditions: one or more items selected
 - User journey:
   1. Select multiple watchlist items
@@ -390,7 +367,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 
 #### 5.5 Bulk update triage status
 
-- Entry point: `/watchlist`
+- Entry point: `/dashboard` (Watchlist section)
 - Preconditions: one or more items selected
 - User journey:
   1. Select a target triage status
@@ -398,45 +375,55 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: triage records update for all selected CVEs
 - Verification: `Smoke-tested` through the triage API flow
 
-### 6. Alerts
+### 6. Saved Searches
 
-#### 6.1 Review alert metrics and evaluated rules
+#### 6.1 Review saved-search metrics and evaluated searches
 
-- Entry point: `/alerts`
-- Preconditions: at least one alert rule exists
+- Entry point: `/dashboard` (Saved Searches section)
+- Preconditions: at least one saved search exists
 - User journey:
-  1. Open `/alerts`
-  2. Review alert-rule count, unread match count, and sampled CVE count
-  3. Review the rule sections and their current matches
-- Expected result: each rule shows matching CVEs against the sampled latest dataset
+  1. Open `/dashboard#saved-searches`
+  2. Review each saved search's chips, match and unread badges, and last-checked time
+  3. Review up to 8 matching CVEs per saved search
+- Expected result: each saved search shows matching CVEs against the sampled latest dataset
 - Verification: `Partial`
 
-#### 6.2 Mark a single alert rule checked
+#### 6.2 Mark a single saved search checked
 
-- Entry point: `/alerts`
-- Preconditions: at least one alert rule exists
+- Entry point: `/dashboard` (Saved Searches section)
+- Preconditions: at least one saved search exists
 - User journey:
-  1. Click `Mark Checked` on a rule
-- Expected result: `lastCheckedAt` updates and unread calculations recalculate accordingly
+  1. Click `Mark Checked` on a saved search
+- Expected result: `lastCheckedAt` updates and unread calculations recalculate accordingly, including the Dashboard nav badge
 - Verification: `Smoke-tested` via `PATCH /api/alerts/[id]`, `Automated` via `tests/alerts.test.ts`
 
-#### 6.3 Mark all alert rules checked
+#### 6.3 Mark all saved searches checked
 
-- Entry point: `/alerts`
-- Preconditions: at least one alert rule exists
+- Entry point: `/dashboard` (Saved Searches section)
+- Preconditions: at least one saved search exists
 - User journey:
   1. Click `Mark All Checked`
-- Expected result: all rules receive a new `lastCheckedAt`
+- Expected result: all saved searches receive a new `lastCheckedAt`
 - Verification: `Smoke-tested` via `POST /api/alerts/mark-all`, `Automated` via `tests/alerts.test.ts`
 
-#### 6.4 Delete an alert rule
+#### 6.4 Delete a saved search
 
-- Entry point: `/alerts`
-- Preconditions: at least one alert rule exists
+- Entry point: `/dashboard` (Saved Searches section)
+- Preconditions: at least one saved search exists
 - User journey:
-  1. Click `Delete` on a rule
-- Expected result: the rule disappears from the page and from local workspace storage
+  1. Click `Delete` on a saved search
+- Expected result: the saved search disappears from the page and from local workspace storage
 - Verification: `Smoke-tested` via `DELETE /api/alerts/[id]`
+
+#### 6.5 Migrate legacy saved views
+
+- Entry point: DB open, or `/settings` import
+- Preconditions: a database with legacy saved views, or an old export containing `savedViews`
+- User journey:
+  1. Open the app against the legacy database, or import the old export
+  2. Review the Saved Searches section
+- Expected result: old saved views appear as saved searches (alert rules); new exports no longer contain `savedViews`
+- Verification: `Automated` via `tests/workspace-store.test.ts`
 
 ### 7. Repos
 
@@ -602,7 +589,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Preconditions: workspace has data
 - User journey:
   1. Click `Export JSON`
-- Expected result: a JSON snapshot downloads containing watchlist, saved views, alert rules, inventory, and triage records
+- Expected result: a JSON snapshot downloads containing watchlist, saved searches (alert rules), inventory, and triage records
 - Verification: `Smoke-tested` via `GET /api/workspace/export`, `Automated` via `tests/workspace-store.test.ts`
 
 #### 8.8 Import workspace data in merge mode
@@ -625,71 +612,11 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Expected result: current workspace data is cleared and then replaced by the imported snapshot
 - Verification: `Automated` via `tests/workspace-store.test.ts`
 
-### 9. Workspace
-
-#### 9.7 Create a notification schedule
-
-- Entry point: `/workspace`
-- Preconditions: workspace page loaded
-- User journey:
-  1. Enter team name
-  2. Choose channel and destination
-  3. Choose cadence
-  4. Save the schedule
-- Expected result: the schedule appears in the preference list
-- Verification: `Smoke-tested` via `GET /api/notifications` and `POST /api/notifications`, `Automated` via `tests/notifications-store.test.ts`
-
-#### 9.8 Run all due digests
-
-- Entry point: `/workspace`
-- Preconditions: at least one schedule exists
-- User journey:
-  1. Click the page-level run action
-- Expected result: due schedules produce delivery records and success feedback
-- Verification: `Smoke-tested` via `POST /api/notifications/run`
-
-#### 9.9 Run a single schedule
-
-- Entry point: `/workspace`
-- Preconditions: at least one schedule exists
-- User journey:
-  1. Trigger digest delivery for a single schedule
-- Expected result: only the selected schedule produces a delivery entry
-- Verification: `Partial`, `Automated` via `tests/notifications-store.test.ts`
-
-#### 9.10 Pause and re-enable a schedule
-
-- Entry point: `/workspace`
-- Preconditions: at least one schedule exists
-- User journey:
-  1. Toggle a schedule off
-  2. Toggle it back on
-- Expected result: the persisted `enabled` state changes without breaking the schedule definition
-- Verification: `Smoke-tested` via `PATCH /api/notifications/[id]`, `Automated` via `tests/notifications-store.test.ts`
-
-#### 9.11 Delete a schedule
-
-- Entry point: `/workspace`
-- Preconditions: at least one schedule exists
-- User journey:
-  1. Delete a schedule
-- Expected result: the schedule disappears while historical deliveries remain available if stored separately
-- Verification: `Smoke-tested` via `DELETE /api/notifications/[id]`
-
-#### 9.12 Review delivery history
-
-- Entry point: `/workspace`
-- Preconditions: at least one digest has been run
-- User journey:
-  1. Review the delivery-history list
-- Expected result: digest deliveries show timestamps and delivery context
-- Verification: `Partial`, `Automated` via `tests/notifications-store.test.ts`
-
 ## Automated Coverage Map
 
 - Search, filtering, and result preference logic: `tests/search.test.ts`
 - Triage persistence and workflow behavior: `tests/triage.test.ts`
-- Alert rule persistence and evaluation behavior: `tests/alerts.test.ts`
+- Saved search (alert rule) persistence and evaluation behavior: `tests/alerts.test.ts`
 - Repo monitoring and GitHub integration helpers: `tests/github.test.ts`, `tests/monitored-repos-store.test.ts`
 - Repo scan persistence: `tests/repo-scans-store.test.ts`
 - Fix PR workflow logic: `tests/github-pr.test.ts`
@@ -714,5 +641,4 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 - Clipboard, download, and some visual-state interactions were validated primarily through UI inspection and underlying API behavior rather than automated browser playback.
 - If stricter regression protection is needed, the next best step is to add Playwright journeys for the highest-value flows:
   1. Search to watchlist to triage
-  2. Workspace notifications
-  3. Repo scan happy-path with mocked GitHub responses
+  2. Repo scan happy-path with mocked GitHub responses

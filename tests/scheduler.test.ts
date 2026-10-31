@@ -5,7 +5,6 @@ import path from "node:path";
 import test from "node:test";
 import { getOrCreateWorkspaceSession } from "../src/lib/auth-session";
 import { getDb } from "../src/lib/db";
-import { createNotificationPreferenceForUser } from "../src/lib/notifications-store";
 import { runSchedulerTick } from "../src/lib/scheduler";
 import { normalizeSearchState } from "../src/lib/search";
 import { createAlertRuleForUser, listAlertRuleMatches } from "../src/lib/workspace-store";
@@ -15,29 +14,26 @@ const feed = [
   { id: "CVE-2026-900001", summary: "Unrelated issue", published: "2026-10-29T09:00:00.000Z" },
 ];
 
-async function withSchedulerEnv(run: (hookPosts: string[], release: () => void) => Promise<void>, holdHooks = false) {
+async function withSchedulerEnv(run: (feedRequests: string[], release: () => void) => Promise<void>, holdFeed = false) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-scheduler-"));
   const previousDatabaseFile = process.env.DATABASE_FILE;
   process.env.DATABASE_FILE = path.join(tempDir, "state.db");
   const originalFetch = globalThis.fetch;
-  const hookPosts: string[] = [];
+  const feedRequests: string[] = [];
   let release = () => {};
   const gate = new Promise<void>((resolve) => { release = resolve; });
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input));
-    if (url.hostname === "hooks.example.test") {
-      hookPosts.push(url.pathname);
-      if (holdHooks) await gate;
-      return new Response("ok", { status: 200 });
-    }
     if (url.pathname.includes("/vulnerability/")) {
+      feedRequests.push(url.toString());
+      if (holdFeed) await gate;
       const page = Number(url.searchParams.get("page"));
       return new Response(JSON.stringify(page === 1 ? feed : []), { status: 200 });
     }
     return new Response(JSON.stringify({ vulnerabilities: [] }), { status: 200 });
   }) as typeof fetch;
   try {
-    await run(hookPosts, () => release());
+    await run(feedRequests, () => release());
   } finally {
     release();
     globalThis.fetch = originalFetch;
@@ -51,44 +47,32 @@ function newUser(): string {
   return getOrCreateWorkspaceSession(new Request("https://example.test/")).userId;
 }
 
-async function dueWebhook(userId: string, hookPath: string) {
-  const pref = await createNotificationPreferenceForUser(userId, { teamName: "Sec", channel: "webhook", destination: `https://hooks.example.test${hookPath}`, cadence: "daily" });
-  getDb().prepare("UPDATE user_notification_preferences SET next_run_at = ? WHERE id = ?").run(new Date(Date.now() - 1000).toISOString(), pref.id);
-}
-
-test("a tick delivers due digests for all users, skips not-yet-due ones, and records alert matches", async () => {
-  await withSchedulerEnv(async (hookPosts) => {
-    const alice = newUser();
-    const bob = newUser();
-    const carol = newUser();
-    await dueWebhook(alice, "/alice");
-    await dueWebhook(bob, "/bob");
-    await createNotificationPreferenceForUser(carol, { teamName: "Sec", channel: "webhook", destination: "https://hooks.example.test/carol", cadence: "daily" });
-    const rule = await createAlertRuleForUser(carol, "OpenSSL", normalizeSearchState({ query: "openssl" }));
+test("a tick records alert matches for every user with a live session", async () => {
+  await withSchedulerEnv(async () => {
+    const aliceRule = await createAlertRuleForUser(newUser(), "OpenSSL", normalizeSearchState({ query: "openssl" }));
+    const bobRule = await createAlertRuleForUser(newUser(), "Everything", normalizeSearchState({}));
 
     const result = await runSchedulerTick();
 
-    assert.deepEqual([...hookPosts].sort(), ["/alice", "/bob"]);
     assert.equal(result.skipped, false);
-    assert.deepEqual(listAlertRuleMatches(rule.id).matching.map((cve) => cve.id), ["CVE-2026-900002"]);
-
-    await runSchedulerTick();
-    assert.equal(hookPosts.length, 2, "a second tick does not double-deliver");
+    assert.equal(result.alertUsers, 2);
+    assert.deepEqual(listAlertRuleMatches(aliceRule.id).matching.map((cve) => cve.id), ["CVE-2026-900002"]);
+    assert.equal(listAlertRuleMatches(bobRule.id).matching.length, 2);
   });
 });
 
 test("a tick entered while another is running returns without duplicate work", async () => {
-  await withSchedulerEnv(async (hookPosts, release) => {
-    await dueWebhook(newUser(), "/alice");
+  await withSchedulerEnv(async (feedRequests, release) => {
+    await createAlertRuleForUser(newUser(), "OpenSSL", normalizeSearchState({ query: "openssl" }));
 
     const first = runSchedulerTick();
-    while (hookPosts.length === 0) await new Promise((resolve) => setImmediate(resolve));
+    while (feedRequests.length === 0) await new Promise((resolve) => setImmediate(resolve));
     const second = await runSchedulerTick();
+    assert.equal(feedRequests.length, 1, "the skipped tick fetched nothing");
     release();
     await first;
 
     assert.equal(second.skipped, true);
-    assert.equal(hookPosts.length, 1);
   }, true);
 });
 

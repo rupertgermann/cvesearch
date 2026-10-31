@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { getCVEById } from "@/lib/api";
 import { CVEDetail, CVESummary } from "@/lib/types";
 import { loadWatchlist, removeWatchlistItems, WATCHLIST_UPDATED_EVENT } from "@/lib/watchlist";
@@ -15,7 +14,7 @@ import {
 } from "@/lib/triage";
 import CVEList from "@/components/CVEList";
 
-export default function WatchlistPageClient() {
+export default function WatchlistPanel() {
   const [items, setItems] = useState<CVESummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"all" | TriageStatus>("all");
@@ -148,15 +147,10 @@ export default function WatchlistPageClient() {
   };
 
   return (
-    <div className="app-shell px-4 py-8 sm:px-6">
-      <div className="page-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-white">Watchlist</h1>
-          <span className="hidden text-sm text-white/25 sm:inline">Bookmarked CVEs with triage status, notes, and ownership</span>
-        </div>
-        <Link href="/" className="btn-ghost inline-flex px-3 py-1.5 text-sm">
-          Back to Search
-        </Link>
+    <section id="watchlist" className="scroll-mt-20">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-white">Watchlist</h2>
+        <p className="mt-1 text-sm text-white/25">Bookmarked CVEs with triage status, notes, and ownership.</p>
       </div>
 
       {(actionSuccess || actionError) && (
@@ -287,7 +281,7 @@ export default function WatchlistPageClient() {
         emptyBody={items.length === 0 ? "Bookmark CVEs from search results or the detail page to start tracking them here." : "Try another triage status or update triage on the selected vulnerabilities."}
         skeletonCount={6}
       />
-    </div>
+    </section>
   );
 }
 

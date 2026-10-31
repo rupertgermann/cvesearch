@@ -12,7 +12,7 @@ Fast, analyst-friendly CVE search, GitHub repository monitoring, and automated v
 
 CVE Search turns raw vulnerability data into a workflow-oriented web app for research, prioritization, and operational tracking.
 
-It combines URL-driven search, rich CVE detail pages, saved views, watchlists, alerts, triage state, and team notifications in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
+It combines URL-driven search, rich CVE detail pages, saved searches, a watchlist, and triage state in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
 
 It also includes a small, optional AI layer: natural-language search, remediation notes for findings in the exposure queue, and fix PR generation. Provider settings are managed server-side through environment variables. See `docs/adr/0001-shrink-ai-features.md` for why the AI surface is kept this small.
 
@@ -22,7 +22,7 @@ The GitHub Repos feature connects private and public repositories, scans their d
 
 ### Search Workspace
 
-URL-driven search, saved views, alert rules, analyst dashboard presets, and AI-assisted search in one screen.
+URL-driven search, analyst dashboard presets, and AI-assisted search in one screen.
 
 ![CVE Search Workspace](docs/images/screenshot-search.png)
 
@@ -46,7 +46,7 @@ Server-side AI configuration dashboard showing active provider, per-feature over
 - Severity filters and result sorting
 - Server-rendered homepage results
 - Rich CVE detail pages with EPSS, CWE, CAPEC, references, comments, and linked vulnerabilities when available
-- Saved views, watchlist, alerts, notifications, and triage workflow
+- Saved searches with unread matches, watchlist, and triage workflow on the dashboard
 - AI-assisted search and remediation notes
 - GitHub repository monitoring with deep dependency scanning (npm, pnpm, Composer) across monorepo subdirectories
 - Persisted repository scan history for monitored repos
@@ -67,9 +67,8 @@ Server-side AI configuration dashboard showing active provider, per-feature over
 
 ### Analyst Workflow
 
-- Save reusable searches as server-persisted saved views
-- Bookmark CVEs and advisories in a server-persisted watchlist
-- Create alert rules, review matches in an alerts center, and schedule digest delivery for team destinations
+- Save searches on the dashboard; each one tracks its unread matches from the latest feed
+- Bookmark CVEs and advisories in a server-persisted watchlist, shown on the dashboard
 - Track triage status, owner, tags, and notes
 
 ### AI
@@ -134,7 +133,6 @@ The `data/` directory contains the SQLite database with all workspace state. Ens
 - Vendor-only filtering is intentionally blocked because the current upstream flow is only trustworthy when vendor is paired with product.
 - Workspace data is scoped to the app session/user cookie rather than a shared organization identity system.
 - AI providers are configured with server-side environment variables; there is no in-product credential management UI.
-- Notification delivery currently persists in-app schedule and delivery records; external email/Slack/webhook delivery is modeled as destinations but not actually pushed to third-party services.
 - GitHub monitoring requires a valid `GITHUB_TOKEN`; without one, the Repos workflow is limited to negative-path validation.
 - Lock file regeneration (`npm install`, `composer update`) must be run locally after merging AI-generated fix PRs.
 
@@ -202,7 +200,7 @@ The TypeScript test suite covers:
 - triage helpers
 - upstream response validation
 - repository scan persistence
-- notification scheduling and digest delivery
+- background scheduler
 - workspace import/export
 - AI platform heuristics and evaluation
 - AI runs store persistence
@@ -221,22 +219,17 @@ src/
 ├── app/
 │   ├── api/
 │   │   ├── ai/              # AI search and remediation APIs
-│   │   ├── alerts/          # Alert rule CRUD
+│   │   ├── alerts/          # Saved search (alert rule) CRUD
 │   │   ├── github/          # GitHub integration (repos, scan, fix)
 │   │   ├── inventory/       # Asset inventory CRUD
-│   │   ├── notifications/   # Notification schedules and delivery
 │   │   ├── proxy/           # CIRCL vulnerability-lookup proxy
-│   │   ├── saved-views/     # Saved view CRUD
 │   │   ├── triage/          # Triage state CRUD
 │   │   ├── watchlist/       # Watchlist CRUD
 │   │   └── workspace/       # Export and import
-│   ├── alerts/              # Alerts route
 │   ├── cve/[id]/            # CVE detail route
-│   ├── dashboard/           # Analyst dashboard route
+│   ├── dashboard/           # Dashboard: feed stats, saved searches, watchlist
 │   ├── repos/               # GitHub repository monitoring route
 │   ├── settings/            # Server-side AI configuration, inventory, and workspace data
-│   ├── workspace/           # Notification schedules and digest history
-│   ├── watchlist/           # Watchlist route
 │   └── page.tsx             # Homepage
 ├── components/              # Search, detail, workflow, repos, and navigation UI
 └── lib/                     # Search logic, AI helpers, API clients, GitHub integration,

@@ -182,17 +182,6 @@ function initializeDatabase(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_user_watchlist_user_id ON user_watchlist(user_id, added_at DESC);
 
-    CREATE TABLE IF NOT EXISTS user_saved_views (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      search_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_user_saved_views_user_id ON user_saved_views(user_id, created_at DESC);
-
     CREATE TABLE IF NOT EXISTS user_prompt_templates (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -227,43 +216,6 @@ function initializeDatabase(db: DatabaseSync): void {
       PRIMARY KEY (rule_id, cve_id),
       FOREIGN KEY (rule_id) REFERENCES user_alert_rules(id) ON DELETE CASCADE
     );
-
-    CREATE TABLE IF NOT EXISTS user_notification_preferences (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      team_name TEXT NOT NULL,
-      channel TEXT NOT NULL,
-      destination TEXT NOT NULL,
-      cadence TEXT NOT NULL,
-      enabled INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      last_sent_at TEXT,
-      next_run_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_user_id ON user_notification_preferences(user_id, updated_at DESC);
-
-    CREATE TABLE IF NOT EXISTS user_notification_deliveries (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      preference_id TEXT NOT NULL,
-      team_name TEXT NOT NULL,
-      channel TEXT NOT NULL,
-      destination TEXT NOT NULL,
-      cadence TEXT NOT NULL,
-      headline TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      status TEXT NOT NULL,
-      item_count INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      delivered_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (preference_id) REFERENCES user_notification_preferences(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_user_notification_deliveries_user_id ON user_notification_deliveries(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS user_repo_notifications (
       id TEXT PRIMARY KEY,
@@ -374,7 +326,6 @@ function initializeDatabase(db: DatabaseSync): void {
     );
   `);
 
-  ensureColumn(db, "user_notification_deliveries", "error", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "ai_runs", "user_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "user_alert_rules", "cursor_published_at", "TEXT");
   ensureColumn(db, "alert_rule_matches", "published_at", "TEXT");
@@ -394,7 +345,26 @@ function initializeDatabase(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_ai_runs_user_id ON ai_runs(user_id, created_at DESC);
   `);
 
+  migrateSavedViewsToAlertRules(db);
   migrateJsonBackfills(db);
+}
+
+// Saved views and alert rules were both stored searches; they are now one concept (saved searches).
+function migrateSavedViewsToAlertRules(db: DatabaseSync): void {
+  const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'user_saved_views'").get();
+  if (!exists) return;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.exec(`
+      INSERT OR IGNORE INTO user_alert_rules (id, user_id, name, search_json, created_at, last_checked_at)
+        SELECT id, user_id, name, search_json, created_at, NULL FROM user_saved_views;
+      DROP TABLE user_saved_views;
+    `);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function migrateJsonBackfills(db: DatabaseSync): void {

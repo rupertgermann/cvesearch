@@ -10,7 +10,7 @@ import { parseStoredJson } from "./cve-store";
 import { parseCVESummaryList } from "./validation";
 import { CVESummary } from "./types";
 import { extractCVEId, extractPublishedDate } from "./utils";
-import { AlertRule, InventoryAssetRecord, SavedView, WorkspaceImportMode } from "./workspace-types";
+import { AlertRule, InventoryAssetRecord, WorkspaceImportMode } from "./workspace-types";
 
 export async function listWatchlist(userId: string): Promise<string[]> {
   const rows = getDb().prepare(`
@@ -72,41 +72,6 @@ export async function removeWatchlistEntries(userId: string, cveIds: string[]): 
   });
 
   return listWatchlist(userId);
-}
-
-export async function listSavedViewsForUser(userId: string): Promise<SavedView[]> {
-  const rows = getDb().prepare(`
-    SELECT id, name, search_json as searchJson, created_at as createdAt
-    FROM user_saved_views
-    WHERE user_id = ?
-    ORDER BY created_at DESC
-  `).all(userId) as Array<{ id: string; name: string; searchJson: string; createdAt: string }>;
-
-  return rows.flatMap((row) => {
-    const search = parseSearchState(row.searchJson);
-    return search ? [{ id: row.id, name: row.name, search, createdAt: row.createdAt }] : [];
-  });
-}
-
-export async function createSavedViewForUser(userId: string, name: string, search: SearchState): Promise<SavedView> {
-  const record: SavedView = {
-    id: crypto.randomUUID(),
-    name: name.trim(),
-    search: normalizeSearchState(search),
-    createdAt: new Date().toISOString(),
-  };
-
-  getDb().prepare(`
-    INSERT INTO user_saved_views (id, user_id, name, search_json, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(record.id, userId, record.name, JSON.stringify(record.search), record.createdAt);
-
-  return record;
-}
-
-export async function deleteSavedViewForUser(userId: string, id: string): Promise<boolean> {
-  const result = getDb().prepare("DELETE FROM user_saved_views WHERE user_id = ? AND id = ?").run(userId, id);
-  return result.changes > 0;
 }
 
 // cursorPublishedAt is internal evaluation state: the newest published date already evaluated for the rule.
@@ -532,7 +497,6 @@ export async function importWorkspaceStateForUser(
   userId: string,
   input: {
     watchlist: string[];
-    savedViews: SavedView[];
     alertRules: AlertRule[];
     inventoryAssets: InventoryAssetRecord[];
     triageRecords: TriageRecord[];
@@ -542,7 +506,6 @@ export async function importWorkspaceStateForUser(
   withTransaction((db) => {
     if (mode === "replace") {
       db.prepare("DELETE FROM user_watchlist WHERE user_id = ?").run(userId);
-      db.prepare("DELETE FROM user_saved_views WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_alert_rules WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_inventory_assets WHERE user_id = ?").run(userId);
       db.prepare("DELETE FROM user_triage_records WHERE user_id = ?").run(userId);
@@ -551,10 +514,6 @@ export async function importWorkspaceStateForUser(
     const insertWatchlist = db.prepare(`
       INSERT OR REPLACE INTO user_watchlist (user_id, cve_id, added_at)
       VALUES (?, ?, ?)
-    `);
-    const insertSavedView = db.prepare(`
-      INSERT OR REPLACE INTO user_saved_views (id, user_id, name, search_json, created_at)
-      VALUES (?, ?, ?, ?, ?)
     `);
     const insertAlertRule = db.prepare(`
       INSERT OR REPLACE INTO user_alert_rules (id, user_id, name, search_json, created_at, last_checked_at)
@@ -573,16 +532,6 @@ export async function importWorkspaceStateForUser(
 
     for (const cveId of Array.from(new Set(input.watchlist.map((id) => id.trim()).filter(Boolean)))) {
       insertWatchlist.run(userId, cveId, new Date().toISOString());
-    }
-
-    for (const view of input.savedViews) {
-      insertSavedView.run(
-        view.id || crypto.randomUUID(),
-        userId,
-        view.name.trim() || "Imported view",
-        JSON.stringify(normalizeSearchState(view.search)),
-        view.createdAt || new Date().toISOString()
-      );
     }
 
     for (const rule of input.alertRules) {
