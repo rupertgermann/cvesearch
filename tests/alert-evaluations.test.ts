@@ -182,7 +182,7 @@ test("re-importing an alert rule does not keep stale matches", async () => {
     recordAlertRuleMatches(rule.id, buildFeed(3), null);
     await importWorkspaceStateForUser(
       userId,
-      { watchlist: [], savedViews: [], alertRules: [rule], inventoryAssets: [], triageRecords: [] },
+      { watchlist: [], alertRules: [rule], inventoryAssets: [], triageRecords: [] },
       "merge"
     );
     assert.equal(listAlertRuleMatches(rule.id).unread, 0);

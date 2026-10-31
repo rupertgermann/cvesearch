@@ -2,14 +2,12 @@ import { getDb } from "./db";
 import { isGitHubTokenConfigured } from "./github";
 import { matchInventoryForUser } from "./exposure-queue";
 import { scanRepoForUser } from "./repo-scan";
-import { runDueNotificationDigestsForUser } from "./notifications-store";
 import { loadAlertEvaluationsForUser } from "./workspace-context";
 
 export interface SchedulerTickResult {
   skipped: boolean;
   alertUsers: number;
   inventoryUsers: number;
-  digestUsers: number;
   rescannedRepos: number;
 }
 
@@ -21,7 +19,6 @@ const MAX_INTERVAL_MS = 2_147_483_647; // setInterval overflows above this and f
 
 // shortcut: in-process guard only; several app instances on one database would each tick. Move to a DB lease when scaling out.
 // Kept on globalThis so a dev hot-reload that re-evaluates this module still shares one guard and one interval.
-// A manual POST /api/notifications/run is forced on purpose and is not guarded against a running tick.
 const state = globalThis as typeof globalThis & {
   __cvesearchSchedulerRunning?: boolean;
   __cvesearchSchedulerInterval?: ReturnType<typeof setInterval>;
@@ -49,7 +46,7 @@ export function startScheduler(intervalMs: number): boolean {
 }
 
 export async function runSchedulerTick(): Promise<SchedulerTickResult> {
-  if (state.__cvesearchSchedulerRunning) return { skipped: true, alertUsers: 0, inventoryUsers: 0, digestUsers: 0, rescannedRepos: 0 };
+  if (state.__cvesearchSchedulerRunning) return { skipped: true, alertUsers: 0, inventoryUsers: 0, rescannedRepos: 0 };
   state.__cvesearchSchedulerRunning = true;
   try {
     const db = getDb();
@@ -65,11 +62,6 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
       FROM user_inventory_assets a
       JOIN sessions s ON s.user_id = a.user_id AND s.expires_at > ?
     `).all(now) as Array<{ userId: string }>).map((row) => row.userId);
-    const digestUsers = (db.prepare(`
-      SELECT DISTINCT user_id as userId
-      FROM user_notification_preferences
-      WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
-    `).all(now) as Array<{ userId: string }>).map((row) => row.userId);
     const rescanBefore = new Date(Date.now() - readSchedulerConfig().rescanIntervalMs).toISOString();
     // Uploaded sources rescan their stored dependency list, so they need no GitHub token.
     const staleRepos = (db.prepare(`
@@ -81,7 +73,6 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
     `).all(now, rescanBefore, isGitHubTokenConfigured() ? 1 : 0) as Array<{ userId: string; fullName: string }>)
       .filter((repo) => !isInRescanBackoff(repo));
 
-    // Rescans run first so their new-finding notifications reach digests due in this same tick.
     for (const repo of staleRepos) {
       await scanRepoForUser(repo.userId, repo.fullName).catch((error) => {
         state.__cvesearchRescanFailures ??= new Map();
@@ -97,11 +88,8 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
     for (const userId of inventoryUsers) {
       await matchInventoryForUser(userId).catch((error) => console.error("[scheduler] inventory matching failed", userId, error));
     }
-    for (const userId of digestUsers) {
-      await runDueNotificationDigestsForUser(userId).catch((error) => console.error("[scheduler] digest run failed", userId, error));
-    }
 
-    return { skipped: false, alertUsers: alertUsers.length, inventoryUsers: inventoryUsers.length, digestUsers: digestUsers.length, rescannedRepos: staleRepos.length };
+    return { skipped: false, alertUsers: alertUsers.length, inventoryUsers: inventoryUsers.length, rescannedRepos: staleRepos.length };
   } finally {
     state.__cvesearchSchedulerRunning = false;
   }

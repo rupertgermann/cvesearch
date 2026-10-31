@@ -29,6 +29,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Alerts, Watchlist and Notifications pages moved into the dashboard.
+  async redirects() {
+    return [
+      { source: "/alerts", destination: "/dashboard#saved-searches", permanent: false },
+      { source: "/watchlist", destination: "/dashboard#watchlist", permanent: false },
+      { source: "/workspace", destination: "/dashboard", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

@@ -7,7 +7,6 @@ import {
   interpretSearchPromptHeuristically,
   prepareRemediationPromptInput,
 } from "../src/lib/ai";
-import { buildDigest } from "../src/lib/workspace-context";
 
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -53,16 +52,6 @@ test("interpretSearchPromptHeuristically understands explicit date windows and r
   assert.equal(result.since, "2026-01-15");
   assert.equal(result.sort, "risk_desc");
   assert.equal(result.needsClarification, false);
-});
-
-test("buildDigest summarizes watchlist and alerts", () => {
-  const result = buildDigest({
-    watchlist: [{ id: "CVE-2026-1111" }],
-    alerts: [{ name: "Critical OpenSSL", unread: 2, topMatches: ["CVE-2026-1111"] }],
-  });
-
-  assert.match(result.headline, /Critical OpenSSL|Tracking/);
-  assert.equal(result.sections.length, 2);
 });
 
 test("buildHeuristicRemediationPlan drafts controls, validation, and rollout notes", () => {

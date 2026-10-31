@@ -10,7 +10,7 @@ import { GET as getScanHistory } from "../src/app/api/github/scan/route";
 import { GET as listMonitored } from "../src/app/api/github/monitored/route";
 import { resetAPIRateLimits } from "../src/lib/api-route-guard";
 import { getDb } from "../src/lib/db";
-import { listUndigestedRepoNotifications } from "../src/lib/repo-scans-store";
+import { listRecentRepoNotifications } from "../src/lib/repo-scans-store";
 import { runSchedulerTick } from "../src/lib/scheduler";
 
 // Unknown session ids get a fresh user, so reuse the cookie the first response issues.
@@ -144,7 +144,7 @@ test("the scheduler rescans a stale uploaded source from its stored dependencies
     assert.equal(osvBodies.length, 1, "OSV is queried with the stored dependency list");
     const { userId } = getDb().prepare("SELECT user_id as userId FROM monitored_repos WHERE full_name = ?").get("appliance") as { userId: string };
     assert.deepEqual(
-      listUndigestedRepoNotifications(userId).map((item) => [item.repoFullName, item.findings]),
+      listRecentRepoNotifications(userId).map((item) => [item.repoFullName, item.findings]),
       [["appliance", ["GHSA-35jh-r3h4-6jhm (lodash)"]]]
     );
   });

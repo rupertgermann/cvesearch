@@ -9,9 +9,8 @@ import { VulnerabilityMatch } from "../src/lib/github-types";
 import { addMonitoredRepo } from "../src/lib/monitored-repos-store";
 import { scanRepoForUser } from "../src/lib/repo-scan";
 import { diffScanFindings } from "../src/lib/repo-scan-diff";
-import { listUndigestedRepoNotifications } from "../src/lib/repo-scans-store";
+import { listRecentRepoNotifications } from "../src/lib/repo-scans-store";
 import { readSchedulerConfig, runSchedulerTick } from "../src/lib/scheduler";
-import { buildDigestInputFromWorkspaceSnapshot, loadWorkspaceContextSnapshot } from "../src/lib/workspace-context";
 
 function match(vulnId: string, pkg: string): VulnerabilityMatch {
   return {
@@ -78,7 +77,7 @@ async function monitor(userId: string, fullName: string) {
   await addMonitoredRepo(userId, { githubId: 1, fullName, htmlUrl: `https://github.com/${fullName}`, isPrivate: false, defaultBranch: "main" });
 }
 
-test("a rescan with a new finding creates a notification that feeds the next digest", async () => {
+test("a rescan with a new finding creates a notification", async () => {
   await withScanEnv(async (osvVulns) => {
     const userId = newUser();
     await monitor(userId, "acme/api");
@@ -86,22 +85,19 @@ test("a rescan with a new finding creates a notification that feeds the next dig
     osvVulns.push("GHSA-a", "GHSA-b");
     const first = await scanRepoForUser(userId, "acme/api");
     assert.equal(first.diff, null, "the first scan is only a baseline");
-    assert.equal(listUndigestedRepoNotifications(userId).length, 0);
+    assert.equal(listRecentRepoNotifications(userId).length, 0);
 
     osvVulns.splice(0, osvVulns.length, "GHSA-b", "GHSA-c");
     const second = await scanRepoForUser(userId, "acme/api");
     assert.deepEqual(second.diff, { newFindings: ["GHSA-c (lodash)"], fixedFindings: ["GHSA-a (lodash)"], openFindings: ["GHSA-b (lodash)"] });
 
-    const notifications = listUndigestedRepoNotifications(userId);
+    const notifications = listRecentRepoNotifications(userId);
     assert.equal(notifications.length, 1);
     assert.equal(notifications[0]?.repoFullName, "acme/api");
     assert.deepEqual(notifications[0]?.findings, ["GHSA-c (lodash)"]);
 
-    const digestInput = buildDigestInputFromWorkspaceSnapshot(await loadWorkspaceContextSnapshot(userId));
-    assert.deepEqual(digestInput.repoFindings, [{ repo: "acme/api", findings: ["GHSA-c (lodash)"] }]);
-
     await scanRepoForUser(userId, "acme/api");
-    assert.equal(listUndigestedRepoNotifications(userId).length, 1, "an unchanged rescan adds no notification");
+    assert.equal(listRecentRepoNotifications(userId).length, 1, "an unchanged rescan adds no notification");
   });
 });
 
@@ -118,7 +114,7 @@ test("a rescan diffs against the previous scan of the same branch", async () => 
     osvVulns.splice(0, osvVulns.length, "GHSA-a");
     const main = await scanRepoForUser(userId, "acme/api", "main");
     assert.deepEqual(main.diff, { newFindings: [], fixedFindings: [], openFindings: ["GHSA-a (lodash)"] });
-    assert.equal(listUndigestedRepoNotifications(userId).length, 0);
+    assert.equal(listRecentRepoNotifications(userId).length, 0);
   });
 });
 

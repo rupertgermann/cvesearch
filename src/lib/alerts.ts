@@ -3,7 +3,7 @@ import { AlertRule } from "./workspace-types";
 import type { EvaluatedAlertRule } from "./workspace-context";
 
 export const ALERT_RULES_UPDATED_EVENT = "cvesearch:alert-rules-updated";
-// Separate from ALERT_RULES_UPDATED_EVENT: the alerts page re-evaluates on that one, so reusing it would loop.
+// Separate from ALERT_RULES_UPDATED_EVENT: the saved searches panel re-evaluates on that one, so reusing it would loop.
 export const ALERT_UNREAD_UPDATED_EVENT = "cvesearch:alert-unread-updated";
 
 let alertRulesCache: AlertRule[] = [];

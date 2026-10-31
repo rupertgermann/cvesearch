@@ -276,17 +276,6 @@ export interface AISearchInterpretation {
   clarificationQuestion: string;
 }
 
-export interface AIDigestSection {
-  title: string;
-  body: string;
-  items: string[];
-}
-
-export interface AIDigest {
-  headline: string;
-  sections: AIDigestSection[];
-}
-
 export type AIRunStatus = "success" | "fallback" | "error";
 
 export interface AIRunRecord {
