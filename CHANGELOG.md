@@ -47,7 +47,6 @@ The format is inspired by Keep a Changelog.
 
 ### Changed
 
-- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - AI settings moved from browser-local storage to server-side environment variables
 - Settings page now shows server-side AI configuration summary, per-feature cards, prompt versions, tool registry, inventory, workspace data management, and recent AI runs
 - All API routes now include rate limiting and request logging
@@ -78,7 +77,6 @@ The format is inspired by Keep a Changelog.
 
 ### Changed
 
-- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - README updated to reflect the AI feature set, settings workflow, and current UI
 - Header navigation updated with a dedicated settings route
 - Homepage and watchlist surfaces now include AI workflow entry points
@@ -103,5 +101,4 @@ The format is inspired by Keep a Changelog.
 
 ### Changed
 
-- **Dashboard holds saved searches and the watchlist** — saved views and alert rules are one concept now, the saved search, which tracks unread matches. `/api/saved-views` is gone; existing saved views move into saved searches when the database opens, and older exports with `savedViews` import as saved searches. `/alerts` and `/watchlist` became dashboard sections and redirect there; `/workspace` redirects to `/dashboard` ([ADR 0003](docs/adr/0003-dashboard-consolidation.md))
 - README and docs expanded to describe roadmap, findings, and execution backlog

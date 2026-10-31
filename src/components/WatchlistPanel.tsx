@@ -192,7 +192,7 @@ export default function WatchlistPanel() {
         <div className="glass mb-6 rounded-xl p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-white/40">Bulk Actions</h2>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-white/40">Bulk Actions</h3>
               <p className="mt-1 text-sm text-white/25">
                 {selectedIds.length > 0
                   ? `${selectedIds.length} selected across the current watchlist.`

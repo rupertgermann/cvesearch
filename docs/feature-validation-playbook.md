@@ -30,7 +30,7 @@ This document is the deep validation companion to `docs/test-user-journeys.md`. 
 
 ## Verification Summary
 
-- `npm test` passed: 65/65
+- `npm test` passed: 181/181
 - `npm run build` passed
 - `npm run lint` passed with one existing warning in `src/app/layout.tsx` (`@next/next/no-page-custom-font`)
 - Route reachability was smoke-tested for `/`, `/dashboard`, `/repos`, and `/settings`, plus the `/alerts`, `/watchlist`, and `/workspace` redirects

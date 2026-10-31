@@ -139,14 +139,19 @@ test("saved views from older databases and exports become saved searches (alert 
   try {
     const session = getOrCreateWorkspaceSession(new Request("https://example.test/api/watchlist"));
     getDb().exec("CREATE TABLE user_saved_views (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, search_json TEXT NOT NULL, created_at TEXT NOT NULL)");
-    getDb().prepare("INSERT INTO user_saved_views VALUES (?, ?, ?, ?, ?)").run("view-old", session.userId, "Old view", JSON.stringify(search), "2026-01-01T00:00:00.000Z");
+    const insertView = getDb().prepare("INSERT INTO user_saved_views VALUES (?, ?, ?, ?, ?)");
+    insertView.run("view-old", session.userId, "Old view", JSON.stringify(search), "2026-01-01T00:00:00.000Z");
+    // A view whose user is gone is dropped instead of failing the foreign key; a clashing id gets a fresh one.
+    insertView.run("view-orphan", "deleted-user", "Orphan view", JSON.stringify(search), "2026-01-01T00:00:00.000Z");
+    const existing = await createAlertRuleForUser(session.userId, "Existing rule", search);
+    insertView.run(existing.id, session.userId, "Clashing view", JSON.stringify(search), "2026-01-01T00:00:00.000Z");
 
     // Reopening the database runs the migration.
     process.env.DATABASE_FILE = path.join(tempDir, "other.db");
     getDb();
     process.env.DATABASE_FILE = dbFile;
 
-    assert.deepEqual((await listAlertRulesForUser(session.userId)).map((rule) => rule.name), ["Old view"]);
+    assert.deepEqual((await listAlertRulesForUser(session.userId)).map((rule) => rule.name).sort(), ["Clashing view", "Existing rule", "Old view"]);
     assert.equal(getDb().prepare("SELECT 1 FROM sqlite_master WHERE name = 'user_saved_views'").get(), undefined);
 
     const { POST } = await import("../src/app/api/workspace/import/route");
@@ -158,7 +163,7 @@ test("saved views from older databases and exports become saved searches (alert 
     }));
     assert.equal(response.status, 200);
     assert.equal((await response.json()).imported.alertRules, 1);
-    assert.deepEqual((await listAlertRulesForUser(session.userId)).map((rule) => rule.name).sort(), ["Exported view", "Old view"]);
+    assert.deepEqual((await listAlertRulesForUser(session.userId)).map((rule) => rule.name).sort(), ["Clashing view", "Existing rule", "Exported view", "Old view"]);
   } finally {
     if (previousDatabaseFile === undefined) {
       delete process.env.DATABASE_FILE;

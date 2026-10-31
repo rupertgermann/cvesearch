@@ -52,9 +52,9 @@ export default function Header() {
 
   function getBadge(href: string) {
     if (href !== "/dashboard") return null;
-    if (unreadAlertCount > 0) return { count: unreadAlertCount, label: "", color: "red" as const };
-    if (investigatingCount > 0) return { count: investigatingCount, label: "active", color: "amber" as const };
-    if (watchlistCount > 0) return { count: watchlistCount, label: "", color: "cyan" as const };
+    if (unreadAlertCount > 0) return { count: unreadAlertCount, label: "", description: "unread matches", color: "red" as const };
+    if (investigatingCount > 0) return { count: investigatingCount, label: "active", description: "investigating", color: "amber" as const };
+    if (watchlistCount > 0) return { count: watchlistCount, label: "", description: "watched", color: "cyan" as const };
     return null;
   }
 
@@ -87,7 +87,7 @@ export default function Header() {
                 key={item.href}
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
-                aria-label={item.label}
+                aria-label={badge ? `${item.label}, ${badge.count} ${badge.description}` : item.label}
                 className={`relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all duration-200 ${
                   isActive
                     ? "bg-[color:var(--color-nav-active-bg)] text-[color:var(--color-foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"

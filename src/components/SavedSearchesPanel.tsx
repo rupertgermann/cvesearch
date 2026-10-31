@@ -105,10 +105,9 @@ export default function SavedSearchesPanel({ search }: { search: SearchState }) 
             type="button"
             disabled={evaluations.length === 0}
             onClick={() => {
+              // The mutation fires ALERT_RULES_UPDATED_EVENT, which reloads the evaluations.
               void markAllAlertRulesChecked()
-                .then(async () => {
-                  const next = await loadAlertEvaluations();
-                  setSnapshot(next);
+                .then(() => {
                   setFeedback({ type: "success", message: "Marked all saved searches as checked." });
                 })
                 .catch((error: unknown) => {
@@ -146,7 +145,7 @@ export default function SavedSearchesPanel({ search }: { search: SearchState }) 
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-white">{rule.name}</h2>
+                    <h3 className="text-lg font-semibold text-white">{rule.name}</h3>
                     <span className="badge badge-xs border-amber-500/20 bg-amber-500/8 text-amber-300">
                       {matching.length} matches
                     </span>
@@ -175,9 +174,7 @@ export default function SavedSearchesPanel({ search }: { search: SearchState }) 
                     type="button"
                     onClick={() => {
                       void markAlertRuleChecked(rule.id)
-                        .then(async () => {
-                          const next = await loadAlertEvaluations();
-                          setSnapshot(next);
+                        .then(() => {
                           setFeedback({ type: "success", message: `Marked ${rule.name} as checked.` });
                         })
                         .catch((error: unknown) => {
@@ -215,9 +212,7 @@ export default function SavedSearchesPanel({ search }: { search: SearchState }) 
           }
 
           void deleteAlertRule(pendingDeleteRule.id)
-            .then(async () => {
-              const next = await loadAlertEvaluations();
-              setSnapshot(next);
+            .then(() => {
               setFeedback({ type: "success", message: `Deleted ${pendingDeleteRule.name}.` });
               setPendingDeleteRuleId(null);
             })

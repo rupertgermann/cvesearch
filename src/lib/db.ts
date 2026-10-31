@@ -356,8 +356,11 @@ function migrateSavedViewsToAlertRules(db: DatabaseSync): void {
   db.exec("BEGIN IMMEDIATE");
   try {
     db.exec(`
-      INSERT OR IGNORE INTO user_alert_rules (id, user_id, name, search_json, created_at, last_checked_at)
-        SELECT id, user_id, name, search_json, created_at, NULL FROM user_saved_views;
+      INSERT INTO user_alert_rules (id, user_id, name, search_json, created_at, last_checked_at)
+        SELECT CASE WHEN id IN (SELECT id FROM user_alert_rules) THEN lower(hex(randomblob(16))) ELSE id END,
+          user_id, name, search_json, created_at, NULL
+        FROM user_saved_views
+        WHERE user_id IN (SELECT id FROM users);
       DROP TABLE user_saved_views;
     `);
     db.exec("COMMIT");
