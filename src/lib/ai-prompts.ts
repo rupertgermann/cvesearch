@@ -28,18 +28,6 @@ export const AI_PROMPT_TEMPLATES = {
       `Request: ${request}`,
     ].join("\n"),
   } satisfies PromptTemplate<SearchPromptInput>,
-  cve_insight: {
-    feature: "cve_insight",
-    version: "2026-03-07.insight.v1",
-    description: "Generate a triage-oriented CVE insight payload with remediation and project context.",
-    build: (input: unknown) => [
-      "You are a security analyst assistant.",
-      "Return only valid JSON matching this TypeScript shape:",
-      '{"summary":"string","triage":{"priority":"critical|high|medium|low","status":"new|investigating|mitigated|accepted|closed","confidence":"high|medium|low","ownerRecommendation":"string","rationale":"string","nextSteps":["string"],"signals":[{"label":"string","value":"string","level":"high|medium|low","rationale":"string"}]},"remediation":["string"],"cluster":{"canonicalId":"string","sourceIds":["string"],"relatedIds":["string"],"summary":"string"},"projectContext":{"projectCount":0,"projectNames":["string"],"summary":"string"}}',
-      "Base your answer only on this triage input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
   remediation_agent: {
     feature: "remediation_agent",
     version: "2026-03-07.remediation.v1",
@@ -52,124 +40,12 @@ export const AI_PROMPT_TEMPLATES = {
       JSON.stringify(input),
     ].join("\n"),
   } satisfies PromptTemplate<unknown>,
-  watchlist_analyst: {
-    feature: "watchlist_analyst",
-    version: "2026-03-07.watchlist.v1",
-    description: "Review watchlist changes since the last analyst pass and cluster related issues.",
-    build: (input: unknown) => [
-      "You are a watchlist analyst assistant.",
-      "Return only valid JSON matching this shape:",
-      '{"headline":"string","summary":"string","newMatches":["string"],"changedSinceLastReview":["string"],"clusters":[{"label":"string","cveIds":["string"],"summary":"string"}],"recommendedActions":["string"],"previousReviewAt":"string|null","reviewedAt":"string"}',
-      "Base your answer only on this input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
-  project_summary: {
-    feature: "project_summary",
-    version: "2026-03-07.project-summary.v1",
-    description: "Turn project state into executive, analyst, and engineering summaries.",
-    build: (input: unknown) => [
-      "You are a project summary assistant for vulnerability response workflows.",
-      "Return only valid JSON matching this shape:",
-      '{"projectName":"string","overview":"string","executive":{"headline":"string","summary":"string","bullets":["string"]},"analyst":{"headline":"string","summary":"string","bullets":["string"]},"engineering":{"headline":"string","summary":"string","bullets":["string"]},"metrics":{"totalItems":0,"criticalCount":0,"highCount":0,"kevCount":0,"investigatingCount":0}}',
-      "Base your answer only on this input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
-  alert_investigation: {
-    feature: "alert_investigation",
-    version: "2026-03-07.alert-investigation.v1",
-    description: "Explain why an alert rule matched and propose the next analyst action.",
-    build: (input: unknown) => [
-      "You are an alert investigation assistant for vulnerability analysts.",
-      "Return only valid JSON matching this shape:",
-      '{"ruleName":"string","summary":"string","whyMatched":["string"],"topMatches":[{"id":"string","summary":"string","rationale":"string","unread":true}],"recommendedAction":"string","nextSteps":["string"]}',
-      "Base your answer only on this input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
-  exposure_agent: {
-    feature: "exposure_agent",
-    version: "2026-03-07.exposure.v1",
-    description: "Map a vulnerability against tracked inventory to estimate likely internal impact.",
-    build: (input: unknown) => [
-      "You are an exposure assessment assistant for vulnerability management.",
-      "Return only valid JSON matching this shape:",
-      '{"summary":"string","likelyImpact":"critical|high|medium|low","matchedAssets":[{"assetId":"string","assetName":"string","confidence":"high|medium|low","rationale":"string","matchingSignals":["string"]}],"rationale":["string"],"recommendedActions":["string"]}',
-      "Base your answer only on this input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
-  triage_agent: {
-    feature: "triage_agent",
-    version: "2026-03-07.triage.v1",
-    description: "Recommend triage priority, ownership, tags, and next actions for a single CVE.",
-    build: (input: unknown) => [
-      "You are a vulnerability triage assistant.",
-      "Return only valid JSON matching this shape:",
-      '{"summary":"string","recommendation":{"priority":"critical|high|medium|low","status":"new|investigating|mitigated|accepted|closed","confidence":"high|medium|low","ownerRecommendation":"string","rationale":"string","nextSteps":["string"],"signals":[{"label":"string","value":"string","level":"high|medium|low","rationale":"string"}]},"recommendedTags":["string"],"recommendedOwner":"string","ownershipRationale":"string","projectContext":{"projectCount":0,"projectNames":["string"],"summary":"string"},"requiresHumanApproval":true}',
-      "Base your answer only on this input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
-  daily_digest: {
-    feature: "daily_digest",
-    version: "2026-03-07.digest.v1",
-    description: "Summarize watchlist, alerts, and projects into a concise monitoring digest.",
-    build: (input: unknown) => [
-      "You are producing a concise vulnerability monitoring digest.",
-      "Return only valid JSON matching this shape:",
-      '{"headline":"string","sections":[{"title":"string","body":"string","items":["string"]}]}',
-      "Use this input JSON:",
-      JSON.stringify(input),
-    ].join("\n"),
-  } satisfies PromptTemplate<unknown>,
 } as const;
-
-export function getPromptTemplate(feature: AIFeature) {
-  return AI_PROMPT_TEMPLATES[feature];
-}
 
 export function getSearchAssistantPromptTemplate() {
   return AI_PROMPT_TEMPLATES.search_assistant;
 }
 
-export function getCveInsightPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.cve_insight;
-}
-
-export function getDailyDigestPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.daily_digest;
-}
-
 export function getRemediationAgentPromptTemplate() {
   return AI_PROMPT_TEMPLATES.remediation_agent;
-}
-
-export function getWatchlistAnalystPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.watchlist_analyst;
-}
-
-export function getProjectSummaryPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.project_summary;
-}
-
-export function getAlertInvestigationPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.alert_investigation;
-}
-
-export function getExposureAgentPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.exposure_agent;
-}
-
-export function getTriageAgentPromptTemplate() {
-  return AI_PROMPT_TEMPLATES.triage_agent;
-}
-
-export function listPromptTemplates() {
-  return Object.values(AI_PROMPT_TEMPLATES).map((template) => ({
-    feature: template.feature,
-    version: template.version,
-    description: template.description,
-  }));
 }

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildTriageApprovalCheckpoint } from "../src/lib/approval-checkpoints";
 import { createDefaultTriageRecord, getTriageStatusLabel, parseTags, summarizeTriageChanges } from "../src/lib/triage";
 
 test("parseTags normalizes comma-separated tag input", () => {
@@ -38,26 +37,4 @@ test("summarizeTriageChanges describes meaningful field updates", () => {
     "Notes updated",
     "Tags updated: internet-facing, patch-window",
   ]);
-});
-
-test("buildTriageApprovalCheckpoint captures proposed triage updates", () => {
-  const previous = createDefaultTriageRecord("CVE-2026-0001");
-  const next = {
-    ...previous,
-    status: "investigating" as const,
-    owner: "secops",
-    tags: ["internet-facing"],
-  };
-
-  const checkpoint = buildTriageApprovalCheckpoint(previous, next, "AI triage full recommendation");
-
-  assert.equal(checkpoint?.scope, "triage_state");
-  assert.match(checkpoint?.summary || "", /Status changed|Owner set|Tags updated/);
-  assert.equal(checkpoint?.changes.some((change) => change.field === "Status" && change.proposedValue === "investigating"), true);
-  assert.equal(checkpoint?.changes.some((change) => change.field === "Owner" && change.proposedValue === "secops"), true);
-});
-
-test("buildTriageApprovalCheckpoint returns null when nothing changes", () => {
-  const previous = createDefaultTriageRecord("CVE-2026-0001");
-  assert.equal(buildTriageApprovalCheckpoint(previous, previous), null);
 });

@@ -3,39 +3,17 @@ import { callAnthropicText } from "./anthropic-client";
 import { callOpenAIText } from "./openai-client";
 
 export {
-  buildHeuristicAlertInvestigation,
-  buildHeuristicCveInsight,
-  buildHeuristicDigest,
-  buildHeuristicExposureAssessment,
-  buildHeuristicProjectSummary,
   buildHeuristicRemediationPlan,
-  buildHeuristicTriageSuggestion,
-  buildHeuristicWatchlistReview,
-  generateAlertInvestigation,
-  generateCveInsight,
-  generateDigest,
-  generateExposureAssessment,
-  generateProjectSummary,
   generateRemediationPlan,
   generateSearchInterpretation,
-  generateTriageSuggestion,
-  generateWatchlistReview,
-  getRecentAIRuns,
   getServerAIConfigurationSummary,
   interpretSearchPromptHeuristically,
-  preparePromptInputForFeature,
+  prepareRemediationPromptInput,
 } from "./ai-service";
 
 export type {
-  AlertInvestigationInput,
-  CveInsightInput,
-  DigestInput,
-  ExposureAssessmentInput,
-  ProjectSummaryInput,
   RemediationPlanInput,
   ServerAIConfigurationSummary,
-  TriageSuggestionInput,
-  WatchlistReviewInput,
 } from "./ai-service";
 
 const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";

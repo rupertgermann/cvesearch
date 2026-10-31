@@ -73,7 +73,7 @@ export default function InventoryAssetsPanel({ initialAssets }: { initialAssets:
         <div>
           <Heading size="4" className="text-white">Inventory Mapping</Heading>
           <Text as="p" size="2" color="gray" className="mt-1 max-w-3xl">
-            Track internal systems, vendors, and products so exposure agents can estimate likely impact against your environment.
+            Track internal systems, vendors, and products so the exposure queue can match new CVEs against your environment.
           </Text>
         </div>
         <Flex gap="2" wrap="wrap">
@@ -152,7 +152,7 @@ export default function InventoryAssetsPanel({ initialAssets }: { initialAssets:
             </div>
           ) : (
             <Text as="p" size="2" color="gray" className="mt-4">
-              No assets tracked yet. Add vendor and product mappings here so exposure guidance can estimate internal impact.
+              No assets tracked yet. Add vendor and product mappings here so the exposure queue can match new CVEs against them.
             </Text>
           )}
         </Card>

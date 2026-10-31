@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { appendAIRun, clearAIRuns, deleteAIRun, listRecentAIRuns } from "../src/lib/ai-runs-store";
+import { appendAIRun, listRecentAIRuns } from "../src/lib/ai-runs-store";
 import { AIRunRecord } from "../src/lib/types";
 
 const USER_ID = "user-ai-runs";
@@ -68,7 +68,7 @@ test("listRecentAIRuns estimates tokens and provider cost for configured runs", 
 
   const run: AIRunRecord = {
     id: "run-openai",
-    feature: "cve_insight",
+    feature: "remediation_agent",
     provider: "openai",
     model: "gpt-4.1-mini",
     mode: "configured",
@@ -87,53 +87,6 @@ test("listRecentAIRuns estimates tokens and provider cost for configured runs", 
     assert.equal(stored.promptTokensEstimate, 100);
     assert.equal(stored.outputTokensEstimate, 50);
     assert.equal((stored.estimatedCostUsd ?? 0) > 0, true);
-  } finally {
-    if (previous === undefined) {
-      delete process.env.AI_RUNS_FILE;
-    } else {
-      process.env.AI_RUNS_FILE = previous;
-    }
-    await fs.rm(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("deleteAIRun removes a single run and clearAIRuns clears the remaining history", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cvesearch-ai-runs-delete-"));
-  const previous = process.env.AI_RUNS_FILE;
-  process.env.AI_RUNS_FILE = path.join(tempDir, "ai-runs.json");
-
-  const first: AIRunRecord = {
-    id: "run-delete-1",
-    feature: "search_assistant",
-    provider: "heuristic",
-    model: "",
-    mode: "heuristic",
-    status: "fallback",
-    prompt: "first prompt",
-    output: "first output",
-    toolCalls: [],
-    error: "",
-    durationMs: 10,
-    createdAt: "2026-03-06T11:00:00.000Z",
-  };
-
-  const second: AIRunRecord = {
-    ...first,
-    id: "run-delete-2",
-    prompt: "second prompt",
-    output: "second output",
-    createdAt: "2026-03-06T11:01:00.000Z",
-  };
-
-  try {
-    await appendAIRun(USER_ID, first);
-    await appendAIRun(USER_ID, second);
-
-    assert.equal(await deleteAIRun(USER_ID, first.id), true);
-    assert.deepEqual((await listRecentAIRuns(USER_ID, 10)).map((run) => run.id), ["run-delete-2"]);
-
-    assert.equal(await clearAIRuns(USER_ID), 1);
-    assert.equal((await listRecentAIRuns(USER_ID, 10)).length, 0);
   } finally {
     if (previous === undefined) {
       delete process.env.AI_RUNS_FILE;

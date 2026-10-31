@@ -9,14 +9,6 @@ export interface SavedView {
   createdAt: string;
 }
 
-export interface PromptTemplateRecord {
-  id: string;
-  name: string;
-  prompt: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface AlertRule {
   id: string;
   name: string;
@@ -59,22 +51,6 @@ export interface NotificationDeliveryRecord {
   deliveredAt: string | null;
 }
 
-export interface WorkspaceConversationMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: string;
-  references: string[];
-}
-
-export interface WorkspaceConversationRecord {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  messages: WorkspaceConversationMessage[];
-}
-
 export interface InventoryAssetRecord {
   id: string;
   name: string;
@@ -93,13 +69,11 @@ export interface WorkspaceExportSnapshot {
   exportedAt: string;
   watchlist: string[];
   savedViews: SavedView[];
-  promptTemplates: PromptTemplateRecord[];
   alertRules: AlertRule[];
   inventoryAssets: InventoryAssetRecord[];
   triageRecords: TriageRecord[];
   projects: ProjectRecord[];
   notificationPreferences?: NotificationPreferenceRecord[];
-  conversations?: WorkspaceConversationRecord[];
 }
 
 export type WorkspaceImportMode = "merge" | "replace";

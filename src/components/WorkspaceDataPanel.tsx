@@ -11,7 +11,6 @@ interface ImportResult {
   imported: {
     watchlist: number;
     savedViews: number;
-    promptTemplates: number;
     alertRules: number;
     inventoryAssets: number;
     triageRecords: number;
@@ -75,7 +74,7 @@ export default function WorkspaceDataPanel() {
       const result = data as ImportResult;
       setMessage({
         type: "success",
-        text: `Imported ${result.imported.watchlist} watchlist items, ${result.imported.savedViews} saved views, ${result.imported.promptTemplates} prompt templates, ${result.imported.alertRules} alert rules, ${result.imported.inventoryAssets} inventory assets, ${result.imported.triageRecords} triage records, and ${result.imported.projects} projects using ${result.mode} mode.`,
+        text: `Imported ${result.imported.watchlist} watchlist items, ${result.imported.savedViews} saved views, ${result.imported.alertRules} alert rules, ${result.imported.inventoryAssets} inventory assets, ${result.imported.triageRecords} triage records, and ${result.imported.projects} projects using ${result.mode} mode.`,
       });
       if (fileInputRef.current) {
         fileInputRef.current.value = "";

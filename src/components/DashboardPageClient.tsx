@@ -10,7 +10,6 @@ import {
 } from "@/lib/search";
 import { HomeDashboardData } from "@/lib/types";
 import AlertRulesPanel from "@/components/AlertRulesPanel";
-import AIDigestPanel from "@/components/AIDigestPanel";
 import DashboardPanel from "@/components/DashboardPanel";
 import SavedViewsPanel from "@/components/SavedViewsPanel";
 
@@ -67,10 +66,6 @@ export default function DashboardPageClient({
           Dashboard data is temporarily unavailable. Search, watchlist, and alert tools are still available below.
         </div>
       )}
-
-      <div className="mb-6">
-        <AIDigestPanel />
-      </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SavedViewsPanel search={search} />

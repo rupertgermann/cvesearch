@@ -2,16 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { getServerAIConfigurationSummary, interpretSearchPromptHeuristically } from "../src/lib/ai";
-
-test("AI configuration summary exposes prompt versions and tool registry", () => {
-  const summary = getServerAIConfigurationSummary();
-
-  assert.equal(summary.promptTemplates.length >= 3, true);
-  assert.equal(summary.promptTemplates.every((template) => template.version.includes("2026-03-07")), true);
-  assert.equal(summary.toolRegistry.some((tool) => tool.name === "search_cves"), true);
-  assert.equal(summary.toolRegistry.some((tool) => tool.name === "write_triage_state"), true);
-});
+import { interpretSearchPromptHeuristically } from "../src/lib/ai";
 
 test("search assistant evaluation fixtures remain stable", () => {
   const fixturePath = path.join(process.cwd(), "tests", "fixtures", "ai-search-evals.json");

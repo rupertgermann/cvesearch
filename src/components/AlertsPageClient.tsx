@@ -11,7 +11,6 @@ import {
   markAlertRuleChecked,
 } from "@/lib/alerts";
 import CVEList from "@/components/CVEList";
-import AIAlertInvestigationPanel from "@/components/AIAlertInvestigationPanel";
 import ConfirmationDialog from "@/components/ConfirmationDialog";
 
 export default function AlertsPageClient() {
@@ -166,8 +165,6 @@ export default function AlertsPageClient() {
                   </button>
                 </div>
               </div>
-
-              <AIAlertInvestigationPanel ruleId={rule.id} />
 
               <CVEList cves={matching.slice(0, 8)} loading={loading} />
             </section>

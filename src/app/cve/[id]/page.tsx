@@ -14,9 +14,6 @@ import BookmarkButton from "@/components/BookmarkButton";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import TriagePanel from "@/components/TriagePanel";
 import ProjectPickerButton from "@/components/ProjectPickerButton";
-import AICveInsightPanel from "@/components/AICveInsightPanel";
-import AIExposurePanel from "@/components/AIExposurePanel";
-import AIRemediationPlanPanel from "@/components/AIRemediationPlanPanel";
 import CachedDataNotice from "@/components/CachedDataNotice";
 
 export default async function CVEDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -148,13 +145,7 @@ export default async function CVEDetailPage({ params }: { params: Promise<{ id: 
           <p className="text-sm leading-relaxed text-white/60 whitespace-pre-wrap">{description}</p>
         </Section>
 
-        <AICveInsightPanel cveId={cveId} />
-
         <TriagePanel cveId={cveId} />
-
-        <AIRemediationPlanPanel cveId={cveId} />
-
-        <AIExposurePanel cveId={cveId} />
 
         {aliases.length > 0 && (
           <Section title="Aliases">
