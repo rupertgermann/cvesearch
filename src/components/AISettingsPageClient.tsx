@@ -53,7 +53,7 @@ export default function AISettingsPageClient({
         <Callout.Root color={summary.redactionEnabledForExternalModels ? "amber" : "green"} variant="soft">
           <Callout.Text>
             {summary.redactionEnabledForExternalModels
-              ? "Sensitive triage notes, owners, and project metadata are redacted before prompts are sent to third-party model providers. Set `AI_ALLOW_SENSITIVE_MODEL_DATA=true` only if you explicitly want to disable that safeguard."
+              ? "Sensitive triage notes and owners are redacted before prompts are sent to third-party model providers. Set `AI_ALLOW_SENSITIVE_MODEL_DATA=true` only if you explicitly want to disable that safeguard."
               : "Sensitive prompt redaction is disabled for external model calls because `AI_ALLOW_SENSITIVE_MODEL_DATA=true` is set."}
           </Callout.Text>
         </Callout.Root>

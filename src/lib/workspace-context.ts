@@ -1,7 +1,7 @@
 import { applySearchResultPreferences, matchesSearchState } from "./search";
 import { enrichCVEs, getLatestCVESummariesServer } from "./server-api";
 import { TriageRecord } from "./triage-shared";
-import { AIDigest, ProjectRecord, CVESummary } from "./types";
+import { AIDigest, CVESummary } from "./types";
 import { AlertRule, SavedView } from "./workspace-types";
 import {
   FeedBackfill,
@@ -14,13 +14,11 @@ import {
   recordAlertRuleMatches,
   writeFeedBackfill,
 } from "./workspace-store";
-import { listProjects } from "./projects-store";
 import { listUndigestedRepoNotifications, RepoFindingsNotification } from "./repo-scans-store";
 
 export interface DigestInput {
   watchlist: Array<{ id: string; summary?: string; severity?: string }>;
   alerts: Array<{ name: string; unread: number; topMatches: string[] }>;
-  projects: Pick<ProjectRecord, "name" | "items" | "updatedAt">[];
   // New findings from repo rescans since the last digest.
   repoFindings?: Array<{ repo: string; findings: string[] }>;
 }
@@ -45,7 +43,6 @@ export interface WorkspaceContextSnapshot {
   alertRules: AlertRule[];
   alertEvaluations: EvaluatedAlertRule[];
   triage: Record<string, TriageRecord>;
-  projects: ProjectRecord[];
   repoNotifications: RepoFindingsNotification[];
   latestSample: CVESummary[];
   // The page cap stopped before reaching every rule's cursor, so older new CVEs were not evaluated.
@@ -59,12 +56,11 @@ export interface AlertEvaluationsSnapshot {
 }
 
 export async function loadWorkspaceContextSnapshot(userId: string): Promise<WorkspaceContextSnapshot> {
-  const [watchlist, savedViews, alertRules, triage, projects] = await Promise.all([
+  const [watchlist, savedViews, alertRules, triage] = await Promise.all([
     listWatchlistEntriesForUser(userId),
     listSavedViewsForUser(userId),
     listAlertRulesForUser(userId),
     readTriageMapForUser(userId),
-    listProjects(userId),
   ]);
 
   const cursors = alertRules.map((rule) => rule.cursorPublishedAt);
@@ -97,7 +93,6 @@ export async function loadWorkspaceContextSnapshot(userId: string): Promise<Work
     alertRules,
     alertEvaluations,
     triage,
-    projects,
     repoNotifications: listUndigestedRepoNotifications(userId),
     latestSample,
     latestSampleTruncated,
@@ -120,11 +115,6 @@ export function buildDigestInputFromWorkspaceSnapshot(snapshot: WorkspaceContext
       name: item.rule.name,
       unread: item.unread,
       topMatches: item.matching.slice(0, 3).map((match) => match.id),
-    })),
-    projects: snapshot.projects.map((project) => ({
-      name: project.name,
-      items: project.items,
-      updatedAt: project.updatedAt,
     })),
     repoFindings: snapshot.repoNotifications.map((item) => ({ repo: item.repoFullName, findings: item.findings })),
   };
@@ -184,13 +174,12 @@ function isBeforeCursor(cve: CVESummary, cursor: string | null): boolean {
 // Rule-based on purpose: digests make no model call (docs/adr/0001-shrink-ai-features.md).
 export function buildDigest(input: DigestInput): AIDigest {
   const highestAlert = [...input.alerts].sort((a, b) => b.unread - a.unread)[0];
-  const activeProjects = input.projects.filter((project) => project.items.length > 0);
 
   return {
     headline:
       highestAlert && highestAlert.unread > 0
         ? `${highestAlert.unread} unread matches in ${highestAlert.name}`
-        : `Tracking ${input.watchlist.length} watchlist items across ${activeProjects.length} projects`,
+        : `Tracking ${input.watchlist.length} watchlist items`,
     sections: [
       {
         title: "Watchlist",
@@ -204,14 +193,6 @@ export function buildDigest(input: DigestInput): AIDigest {
             ? `${input.alerts.filter((item) => item.unread > 0).length} alert rules currently have unread matches.`
             : "No alert rules are configured yet.",
         items: input.alerts.slice(0, 5).map((item) => `${item.name}: ${item.unread} unread`),
-      },
-      {
-        title: "Projects",
-        body:
-          activeProjects.length > 0
-            ? `${activeProjects.length} projects currently contain tracked CVEs.`
-            : "No projects contain tracked CVEs yet.",
-        items: activeProjects.slice(0, 5).map((project) => `${project.name}: ${project.items.length} CVEs`),
       },
       ...(input.repoFindings?.length
         ? [{

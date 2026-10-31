@@ -104,18 +104,6 @@ export default function AIRemediationPlanPanel({ cveId }: { cveId: string }) {
           <PlanList title="Compensating Controls" items={plan.compensatingControls} />
           <PlanList title="Validation Steps" items={plan.validationSteps} />
           <PlanList title="Rollout Notes" items={plan.rolloutNotes} />
-
-          <section>
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Project Context</h3>
-            <p className="mt-2 text-sm text-white/50">{plan.projectContext.summary}</p>
-            {plan.projectContext.projectNames.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {plan.projectContext.projectNames.map((project) => (
-                  <Badge key={project} label={`Project: ${project}`} tone="gray" />
-                ))}
-              </div>
-            ) : null}
-          </section>
         </div>
       ) : null}
     </div>

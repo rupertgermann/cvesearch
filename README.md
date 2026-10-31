@@ -12,7 +12,7 @@ Fast, analyst-friendly CVE search, GitHub repository monitoring, and automated v
 
 CVE Search turns raw vulnerability data into a workflow-oriented web app for research, prioritization, and operational tracking.
 
-It combines URL-driven search, rich CVE detail pages, saved views, watchlists, alerts, triage state, project workflows, and team notifications in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
+It combines URL-driven search, rich CVE detail pages, saved views, watchlists, alerts, triage state, and team notifications in a single interface. The app is designed to feel closer to an analyst workstation than a simple API browser.
 
 It also includes a small, optional AI layer: natural-language search, remediation notes for findings in the exposure queue, and fix PR generation. Provider settings are managed server-side through environment variables. See `docs/adr/0001-shrink-ai-features.md` for why the AI surface is kept this small.
 
@@ -47,7 +47,6 @@ Server-side AI configuration dashboard showing active provider, per-feature over
 - Server-rendered homepage results
 - Rich CVE detail pages with EPSS, CWE, CAPEC, references, comments, and linked vulnerabilities when available
 - Saved views, watchlist, alerts, notifications, and triage workflow
-- Server-persisted projects workspace with owner, due date, labels, status, SLA, and exception tracking
 - AI-assisted search and remediation notes
 - GitHub repository monitoring with deep dependency scanning (npm, pnpm, Composer) across monorepo subdirectories
 - Persisted repository scan history for monitored repos
@@ -71,8 +70,7 @@ Server-side AI configuration dashboard showing active provider, per-feature over
 - Save reusable searches as server-persisted saved views
 - Bookmark CVEs and advisories in a server-persisted watchlist
 - Create alert rules, review matches in an alerts center, and schedule digest delivery for team destinations
-- Track triage status, owner, tags, and notes with approval checkpoints
-- Group CVEs into server-persisted projects with owners, due dates, labels, status, timeline events, per-item assignment, SLA tracking, remediation state, and exceptions
+- Track triage status, owner, tags, and notes
 
 ### AI
 
@@ -168,7 +166,7 @@ Open `http://localhost:3000`.
 |---|---|---|
 | `GITHUB_TOKEN` | For Repos feature | GitHub Personal Access Token. Classic PAT needs `repo` scope. Fine-grained PAT needs **Contents: Read and write** and **Pull requests: Read and write**. |
 | `DATABASE_FILE` | No | Custom path for the SQLite database file. Defaults to `data/app.db`. |
-| `AI_ALLOW_SENSITIVE_MODEL_DATA` | No | Set to `true` to disable redaction of sensitive triage notes, owners, and project metadata in prompts sent to third-party AI providers. Defaults to `false` (redaction enabled). |
+| `AI_ALLOW_SENSITIVE_MODEL_DATA` | No | Set to `true` to disable redaction of sensitive triage notes and owners in prompts sent to third-party AI providers. Defaults to `false` (redaction enabled). |
 
 ### AI Configuration
 
@@ -197,13 +195,12 @@ npm start
 
 ## Testing
 
-The project includes 74 TypeScript tests across 19 test files covering:
+The TypeScript test suite covers:
 
 - search-state parsing and URL generation
 - prioritization and local alert matching
 - triage helpers
 - upstream response validation
-- project workflow logic and store persistence
 - repository scan persistence
 - notification scheduling and digest delivery
 - workspace import/export
@@ -228,7 +225,6 @@ src/
 │   │   ├── github/          # GitHub integration (repos, scan, fix)
 │   │   ├── inventory/       # Asset inventory CRUD
 │   │   ├── notifications/   # Notification schedules and delivery
-│   │   ├── projects/        # Project and project-item CRUD
 │   │   ├── proxy/           # CIRCL vulnerability-lookup proxy
 │   │   ├── saved-views/     # Saved view CRUD
 │   │   ├── triage/          # Triage state CRUD
@@ -237,7 +233,6 @@ src/
 │   ├── alerts/              # Alerts route
 │   ├── cve/[id]/            # CVE detail route
 │   ├── dashboard/           # Analyst dashboard route
-│   ├── projects/            # Projects route
 │   ├── repos/               # GitHub repository monitoring route
 │   ├── settings/            # Server-side AI configuration, inventory, and workspace data
 │   ├── workspace/           # Notification schedules and digest history

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { getCVEById } from "@/lib/api";
 import { CVEDetail, CVESummary } from "@/lib/types";
 import { loadWatchlist, removeWatchlistItems, WATCHLIST_UPDATED_EVENT } from "@/lib/watchlist";
-import { addProjectItemAPI, createProjectAPI, listProjectsAPI } from "@/lib/projects-api";
 import {
   loadTriageMap,
   loadTriageRecord,
@@ -14,36 +13,25 @@ import {
   TriageStatus,
   writeTriageRecord,
 } from "@/lib/triage";
-import { ProjectRecord } from "@/lib/types";
 import CVEList from "@/components/CVEList";
 
 export default function WatchlistPageClient() {
   const [items, setItems] = useState<CVESummary[]>([]);
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"all" | TriageStatus>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState<TriageStatus>("investigating");
-  const [bulkProjectId, setBulkProjectId] = useState("");
-  const [newProjectName, setNewProjectName] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  const [actionBusy, setActionBusy] = useState<null | "remove" | "triage" | "project">(null);
+  const [actionBusy, setActionBusy] = useState<null | "remove" | "triage">(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [ids, _triageMap, nextProjects] = await Promise.all([
-        loadWatchlist(),
-        loadTriageMap(),
-        listProjectsAPI().catch(() => []),
-      ]);
-
-      void _triageMap;
+      const [ids] = await Promise.all([loadWatchlist(), loadTriageMap()]);
 
       if (ids.length === 0) {
         setItems([]);
-        setProjects(nextProjects);
         setLoading(false);
         return;
       }
@@ -59,7 +47,6 @@ export default function WatchlistPageClient() {
       );
 
       setItems(results.filter((item): item is CVEDetail => Boolean(item)));
-      setProjects(nextProjects);
       setLoading(false);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Failed to load watchlist workspace data");
@@ -160,42 +147,6 @@ export default function WatchlistPageClient() {
     }
   };
 
-  const handleBulkProjectAssignment = async () => {
-    if (selectedIds.length === 0) return;
-    if (!bulkProjectId) {
-      setFeedback("error", "Choose an existing project or create a new one first.");
-      return;
-    }
-
-    setActionBusy("project");
-
-    try {
-      let projectId = bulkProjectId;
-      let projectName = projects.find((project) => project.id === bulkProjectId)?.name || "project";
-
-      if (bulkProjectId === "__new__") {
-        if (!newProjectName.trim()) {
-          setFeedback("error", "Enter a new project name before assigning selected CVEs.");
-          setActionBusy(null);
-          return;
-        }
-
-        const project = await createProjectAPI({ name: newProjectName.trim() });
-        projectId = project.id;
-        projectName = project.name;
-        setNewProjectName("");
-      }
-
-      await Promise.all(selectedIds.map((cveId) => addProjectItemAPI(projectId, { cveId })));
-      setProjects(await listProjectsAPI());
-      setFeedback("success", `Added ${selectedIds.length} ${selectedIds.length === 1 ? "item" : "items"} to ${projectName}.`);
-    } catch (error) {
-      setFeedback("error", error instanceof Error ? error.message : "Failed to assign selected CVEs to a project");
-    } finally {
-      setActionBusy(null);
-    }
-  };
-
   return (
     <div className="app-shell px-4 py-8 sm:px-6">
       <div className="page-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -251,7 +202,7 @@ export default function WatchlistPageClient() {
               <p className="mt-1 text-sm text-white/25">
                 {selectedIds.length > 0
                   ? `${selectedIds.length} selected across the current watchlist.`
-                  : "Select CVEs to remove them from the watchlist, update triage, or assign them to a project."}
+                  : "Select CVEs to remove them from the watchlist or update their triage."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -273,7 +224,7 @@ export default function WatchlistPageClient() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-[1.2fr_1fr_1.4fr]">
+          <div className="mt-4 grid gap-3 xl:grid-cols-2">
             <div className="glass rounded-xl p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Watchlist</p>
               <p className="mt-2 text-sm text-white/35">Remove selected CVEs from the current workspace watchlist.</p>
@@ -311,41 +262,6 @@ export default function WatchlistPageClient() {
                   {actionBusy === "triage" ? "Applying..." : "Apply"}
                 </button>
               </div>
-            </div>
-
-            <div className="glass rounded-xl p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/30">Project Assignment</p>
-              <p className="mt-2 text-sm text-white/35">Add the selected CVEs to an existing project or create a new one inline.</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <select
-                  value={bulkProjectId}
-                  onChange={(event) => setBulkProjectId(event.target.value)}
-                  className="input-base px-3 py-2 text-sm"
-                >
-                  <option value="">Choose project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>{project.name}</option>
-                  ))}
-                  <option value="__new__">Create new project...</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void handleBulkProjectAssignment()}
-                  disabled={selectedIds.length === 0 || actionBusy !== null}
-                  className="rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-500 px-3 py-2 text-sm font-semibold text-black shadow-[0_2px_12px_-2px_rgba(52,211,153,0.3)] transition-all hover:shadow-[0_4px_20px_-2px_rgba(52,211,153,0.4)] disabled:opacity-50"
-                >
-                  {actionBusy === "project" ? "Adding..." : "Add to Project"}
-                </button>
-              </div>
-              {bulkProjectId === "__new__" && (
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={(event) => setNewProjectName(event.target.value)}
-                  placeholder="New project name"
-                  className="input-base mt-2 w-full px-3 py-2 text-sm"
-                />
-              )}
             </div>
           </div>
 

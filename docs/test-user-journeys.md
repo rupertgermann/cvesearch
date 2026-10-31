@@ -23,16 +23,15 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 2. Search and result actions
 3. Watchlist and triage
 4. Alerts
-5. Projects
-6. Workspace notifications
-7. Settings data workflows
-8. Repos and GitHub flows
+5. Workspace notifications
+6. Settings data workflows
+7. Repos and GitHub flows
 
 ## Core Journeys
 
 ### 1. Route Reachability
 
-- Open `/`, `/watchlist`, `/alerts`, `/projects`, `/repos`, `/settings`, and `/workspace`
+- Open `/`, `/watchlist`, `/alerts`, `/repos`, `/settings`, and `/workspace`
 - Expected result: each route returns `200` and renders its page shell
 - Verification: `Smoke-tested`
 
@@ -50,11 +49,10 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 ### 3. CVE Result Actions
 
 - From a CVE card, bookmark the CVE
-- Add the CVE to a project
 - Copy the deep link
 - Open the detail page
 - Expected result: result cards support direct workflow entry without leaving the list context
-- Verification: `Smoke-tested` for watchlist and project APIs; `Partial` for clipboard UX
+- Verification: `Smoke-tested` for the watchlist API; `Partial` for clipboard UX
 
 ### 4. CVE Detail Workflow
 
@@ -71,10 +69,8 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Select visible items and clear selection
 - Bulk remove selected items
 - Bulk update triage status
-- Bulk assign items to an existing project
-- Create a new project inline during assignment
 - Expected result: watchlist supports individual and bulk vulnerability operations
-- Verification: `Smoke-tested` for CRUD and project assignment; `Automated` for AI helpers; `Partial` for all selection states
+- Verification: `Smoke-tested` for CRUD; `Automated` for AI helpers; `Partial` for all selection states
 
 ### 6. Alerts
 
@@ -86,18 +82,7 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Expected result: alert rules are reviewable, mutable, and AI-explainable
 - Verification: `Smoke-tested` for rule mutations; `Automated` for alert logic and AI helpers; `Partial` for full UI inspection
 
-### 7. Projects
-
-- Create a project
-- Update project metadata: owner, due date, labels, status, description
-- Add a CVE to the project from another surface
-- Update project-item owner, remediation state, SLA due date, notes, and exception fields
-- Remove a project item
-- Delete a project
-- Expected result: projects support end-to-end remediation tracking and exception handling
-- Verification: `Smoke-tested` for project and item CRUD; `Automated` for store logic and AI helpers
-
-### 8. Workspace
+### 7. Workspace
 
 - Create a notification schedule
 - Run all due digests
@@ -107,7 +92,7 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Expected result: the workspace page manages digest schedules and delivery history
 - Verification: `Smoke-tested` for notification CRUD/run flows; `Automated` for notification stores; `Partial` for all UI states
 
-### 9. Settings
+### 8. Settings
 
 - Review AI provider summary, redaction posture, and per-feature configuration
 - Add and delete an inventory asset
@@ -117,7 +102,7 @@ This is the concise QA checklist for routine validation runs. For the exhaustive
 - Expected result: the settings page exposes AI operations visibility and workspace data management
 - Verification: `Smoke-tested` for inventory CRUD and export; `Automated` for workspace import/export and AI run persistence; `Partial` for read-only operational panels
 
-### 10. Repos
+### 9. Repos
 
 - Open `/repos`
 - Load monitored repositories

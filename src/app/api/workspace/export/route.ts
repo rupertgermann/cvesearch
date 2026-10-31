@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { API_RATE_LIMITS, withRouteProtection } from "@/lib/api-route-guard";
 import { applyWorkspaceSession, getOrCreateWorkspaceSession } from "@/lib/auth-session";
-import { listProjects } from "@/lib/projects-store";
 import {
   listAlertRulesForUser,
   listInventoryAssetsForUser,
@@ -13,13 +12,12 @@ import { WorkspaceExportSnapshot } from "@/lib/workspace-types";
 
 export const GET = withRouteProtection(async function GET(request: NextRequest) {
   const session = getOrCreateWorkspaceSession(request);
-  const [watchlist, savedViews, alertRules, inventoryAssets, triageMap, projects] = await Promise.all([
+  const [watchlist, savedViews, alertRules, inventoryAssets, triageMap] = await Promise.all([
     listWatchlist(session.userId),
     listSavedViewsForUser(session.userId),
     listAlertRulesForUser(session.userId),
     listInventoryAssetsForUser(session.userId),
     readTriageMapForUser(session.userId),
-    listProjects(session.userId),
   ]);
 
   const snapshot: WorkspaceExportSnapshot = {
@@ -30,7 +28,6 @@ export const GET = withRouteProtection(async function GET(request: NextRequest) 
     alertRules,
     inventoryAssets,
     triageRecords: Object.values(triageMap),
-    projects,
   };
 
   const response = NextResponse.json(snapshot);

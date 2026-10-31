@@ -6,6 +6,10 @@ The format is inspired by Keep a Changelog.
 
 ## [Unreleased]
 
+### Removed
+
+- **Projects** — the `/projects` page, `/api/projects`, the project picker, watchlist bulk assignment, the digest "Projects" section and project context in remediation notes ([ADR 0002](docs/adr/0002-remove-projects.md)). Existing project tables stay in the database untouched. `PROJECTS_FILE` no longer selects the database location: if you set only `PROJECTS_FILE`, set `DATABASE_FILE=<directory of PROJECTS_FILE>/state.db` to keep your data
+
 ### Changed
 
 - **Session cookie `Secure` flag** — now set when the request is HTTPS (`https` URL or `X-Forwarded-Proto: https`) or when `SESSION_COOKIE_SECURE=true`, instead of following `NODE_ENV=production`. Deployments behind a TLS-terminating proxy that does not send `X-Forwarded-Proto` must set `SESSION_COOKIE_SECURE=true`

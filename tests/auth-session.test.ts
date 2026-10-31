@@ -67,7 +67,7 @@ test("session cookie over plain local http is HttpOnly and SameSite=Lax but not 
   const previousNodeEnv = env.NODE_ENV;
   env.NODE_ENV = "production";
   delete process.env.SESSION_COOKIE_SECURE;
-  const cookie = await issuedCookie("http://localhost:3000/api/projects").finally(() => {
+  const cookie = await issuedCookie("http://localhost:3000/api/watchlist").finally(() => {
     env.NODE_ENV = previousNodeEnv;
   });
   assert.match(cookie, /; HttpOnly/);
@@ -77,9 +77,9 @@ test("session cookie over plain local http is HttpOnly and SameSite=Lax but not 
 
 test("session cookie is Secure for https requests, including behind a TLS-terminating proxy", async () => {
   delete process.env.SESSION_COOKIE_SECURE;
-  assert.match(await issuedCookie("https://cves.example.test/api/projects"), /; HttpOnly; SameSite=Lax;.*; Secure/);
+  assert.match(await issuedCookie("https://cves.example.test/api/watchlist"), /; HttpOnly; SameSite=Lax;.*; Secure/);
   assert.match(
-    await issuedCookie("http://localhost:3000/api/projects", { headers: { "x-forwarded-proto": "https" } }),
+    await issuedCookie("http://localhost:3000/api/watchlist", { headers: { "x-forwarded-proto": "https" } }),
     /; Secure/,
   );
 });
@@ -87,7 +87,7 @@ test("session cookie is Secure for https requests, including behind a TLS-termin
 test("SESSION_COOKIE_SECURE=true forces the Secure flag on plain http", async () => {
   process.env.SESSION_COOKIE_SECURE = "true";
   try {
-    assert.match(await issuedCookie("http://localhost:3000/api/projects"), /; HttpOnly; SameSite=Lax;.*; Secure/);
+    assert.match(await issuedCookie("http://localhost:3000/api/watchlist"), /; HttpOnly; SameSite=Lax;.*; Secure/);
   } finally {
     delete process.env.SESSION_COOKIE_SECURE;
   }
